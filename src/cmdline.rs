@@ -1,0 +1,136 @@
+use anyhow::{anyhow, Result};
+use clam_sigutil::signature::SigType;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
+use std::str;
+use std::time::{Duration, Instant};
+use structopt::StructOpt;
+
+#[derive(StructOpt)]
+struct Opt {
+    /// Files or directory containing files to process
+    #[structopt(name = "FILE_OR_DIR")]
+    paths: Vec<PathBuf>,
+}
+
+pub fn main() -> Result<()> {
+    let opt = Opt::from_args();
+
+    let mut err_count = 0;
+    for path in opt.paths {
+        match std::fs::metadata(&path) {
+            Ok(md) => {
+                if md.is_dir() {
+                    if let Err(e) = process_dir(&path) {
+                        eprintln!("Error processing directory {:?}: {}", &path, e);
+                        err_count += 1;
+                    }
+                } else if let Err(e) = process_file(&path) {
+                    eprintln!("Error processing {:?}: {}", path, e);
+                    err_count += 1;
+                }
+            }
+            Err(e) => {
+                eprintln!("Unable to get metadata for {:?}: {}", path, e);
+                err_count += 1;
+            }
+        }
+    }
+
+    if err_count > 0 {
+        Err(anyhow!("{} errors encountered", err_count))
+    } else {
+        Ok(())
+    }
+}
+
+fn process_dir(path: &Path) -> Result<()> {
+    let dh = std::fs::read_dir(path)
+        .map_err(|e| anyhow!("Unable to open directory {:?}: {}", path, e))?;
+
+    let mut err_count = 0;
+    for rd_result in dh {
+        match rd_result {
+            Err(e) => return Err(anyhow!("Failed reading directory {:?}: {}", path, e)),
+            Ok(dirent) => {
+                let path = dirent.path();
+                if let Err(e) = process_file(&path) {
+                    eprintln!("error processing {:?}: {}", &path, e);
+                    err_count += 1;
+                }
+            }
+        }
+    }
+
+    if err_count > 0 {
+        Err(anyhow!("{} errors encountered", err_count))
+    } else {
+        Ok(())
+    }
+}
+
+fn process_file(path: &Path) -> Result<()> {
+    eprint!("{:?}:", path);
+
+    let extension = path
+        .extension()
+        .ok_or(anyhow!("missing file extension"))?
+        .to_str()
+        .unwrap();
+    if let Some(sig_type) = SigType::from_file_extension(extension) {
+        let start = Instant::now();
+        let mut n_records = 0;
+        let mut line_no = 0;
+        let mut sigbuf = vec![];
+        let mut fh = BufReader::new(File::open(path)?);
+        let mut err_count = 0;
+
+        eprintln!();
+        loop {
+            sigbuf.clear();
+            if fh.read_until(b'\n', &mut sigbuf)? == 0 {
+                break;
+            };
+            line_no += 1;
+            if sigbuf.starts_with(b"#") {
+                // comment
+                continue;
+            }
+            let sigbuf = sigbuf.strip_suffix(b"\n").unwrap();
+            n_records += 1;
+            #[allow(unused_variables)]
+            match clam_sigutil::signature::parse(sig_type, sigbuf) {
+                Ok(sig) => (), // println!(" * {:?} f_level{:?}", sig, sig.feature_levels()),
+                Err(e) => {
+                    eprintln!(
+                        "Unable to process line {}: {}",
+                        line_no,
+                        str::from_utf8(sigbuf)?
+                    );
+                    eprintln!("  Error: {}", e);
+                    err_count += 1;
+                }
+            }
+        }
+
+        let elapsed = start.elapsed();
+        if n_records > 0 {
+            eprintln!(
+                " - {} records in {:?} ({:?}/record)",
+                n_records,
+                elapsed,
+                Duration::from_nanos((elapsed.as_nanos() / n_records).try_into()?)
+            );
+        } else {
+            eprintln!(" - no records");
+        }
+        if err_count > 0 {
+            return Err(anyhow!("{} errors encountered", err_count));
+        }
+    } else {
+        eprintln!(" file extension doesn't map to known signature type");
+    }
+
+    Ok(())
+}
