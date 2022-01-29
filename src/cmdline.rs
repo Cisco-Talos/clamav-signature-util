@@ -12,27 +12,67 @@ struct Opt {
     /// Files or directory containing files to process
     #[structopt(name = "FILE_OR_DIR")]
     paths: Vec<PathBuf>,
+
+    /// Report on each file read
+    #[structopt(long, short)]
+    verbose: bool,
+
+    /// Dump signatures in debug format
+    #[structopt(long)]
+    dump_debug: bool,
 }
 
 pub fn main() -> Result<()> {
     let opt = Opt::from_args();
 
+    let err_count = opt
+        .paths
+        .iter()
+        .map(PathBuf::as_path)
+        .map(|path| process_path(path, &opt))
+        .filter(Result::is_err)
+        .count();
+
+    if err_count > 0 {
+        Err(anyhow!("{} errors encountered", err_count))
+    } else {
+        Ok(())
+    }
+}
+
+fn process_path(path: &Path, opt: &Opt) -> Result<()> {
+    if std::fs::metadata(&path)?.is_dir() {
+        process_dir(path, opt)
+    } else {
+        process_file(path, opt)
+    }
+}
+
+fn process_dir(path: &Path, opt: &Opt) -> Result<()> {
+    let dh = std::fs::read_dir(path)
+        .map_err(|e| anyhow!("Unable to open directory {:?}: {}", path, e))?;
+
     let mut err_count = 0;
-    for path in opt.paths {
-        match std::fs::metadata(&path) {
-            Ok(md) => {
-                if md.is_dir() {
-                    if let Err(e) = process_dir(&path) {
-                        eprintln!("Error processing directory {:?}: {}", &path, e);
-                        err_count += 1;
-                    }
-                } else if let Err(e) = process_file(&path) {
-                    eprintln!("Error processing {:?}: {}", path, e);
+    for rd_result in dh {
+        match rd_result {
+            Ok(dirent) => {
+                if dirent
+                    .path()
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .starts_with('.')
+                {
+                    continue;
+                }
+                if let Err(e) = process_path(&dirent.path(), opt) {
+                    println!("Error processing path {:?}: {}", dirent.path(), e);
                     err_count += 1;
                 }
             }
             Err(e) => {
-                eprintln!("Unable to get metadata for {:?}: {}", path, e);
+                eprintln!("Error reading directory {:?}: {}", path, e);
                 err_count += 1;
             }
         }
@@ -45,33 +85,10 @@ pub fn main() -> Result<()> {
     }
 }
 
-fn process_dir(path: &Path) -> Result<()> {
-    let dh = std::fs::read_dir(path)
-        .map_err(|e| anyhow!("Unable to open directory {:?}: {}", path, e))?;
-
-    let mut err_count = 0;
-    for rd_result in dh {
-        match rd_result {
-            Err(e) => return Err(anyhow!("Failed reading directory {:?}: {}", path, e)),
-            Ok(dirent) => {
-                let path = dirent.path();
-                if let Err(e) = process_file(&path) {
-                    eprintln!("error processing {:?}: {}", &path, e);
-                    err_count += 1;
-                }
-            }
-        }
+fn process_file(path: &Path, opt: &Opt) -> Result<()> {
+    if opt.verbose {
+        eprint!("{:?}:", path);
     }
-
-    if err_count > 0 {
-        Err(anyhow!("{} errors encountered", err_count))
-    } else {
-        Ok(())
-    }
-}
-
-fn process_file(path: &Path) -> Result<()> {
-    eprint!("{:?}:", path);
 
     let extension = path
         .extension()
@@ -86,7 +103,9 @@ fn process_file(path: &Path) -> Result<()> {
         let mut fh = BufReader::new(File::open(path)?);
         let mut err_count = 0;
 
-        eprintln!();
+        if opt.verbose {
+            println!();
+        }
         loop {
             sigbuf.clear();
             if fh.read_until(b'\n', &mut sigbuf)? == 0 {
@@ -97,11 +116,17 @@ fn process_file(path: &Path) -> Result<()> {
                 // comment
                 continue;
             }
-            let sigbuf = sigbuf.strip_suffix(b"\n").unwrap();
+            let sigbuf = sigbuf
+                .strip_suffix(b"\r\n")
+                .unwrap_or_else(|| sigbuf.strip_suffix(b"\n").unwrap());
             n_records += 1;
             #[allow(unused_variables)]
             match clam_sigutil::signature::parse(sig_type, sigbuf) {
-                Ok(sig) => (), // println!(" * {:?} f_level{:?}", sig, sig.feature_levels()),
+                Ok(sig) => {
+                    if opt.dump_debug {
+                        println!(" * {:?} f_level{:?}", sig, sig.feature_levels());
+                    }
+                }
                 Err(e) => {
                     eprintln!(
                         "Unable to process line {}: {}",
@@ -116,12 +141,14 @@ fn process_file(path: &Path) -> Result<()> {
 
         let elapsed = start.elapsed();
         if n_records > 0 {
-            eprintln!(
-                " - {} records in {:?} ({:?}/record)",
-                n_records,
-                elapsed,
-                Duration::from_nanos((elapsed.as_nanos() / n_records).try_into()?)
-            );
+            if opt.verbose {
+                println!(
+                    " - {} records in {:?} ({:?}/record)",
+                    n_records,
+                    elapsed,
+                    Duration::from_nanos((elapsed.as_nanos() / n_records).try_into()?)
+                );
+            }
         } else {
             eprintln!(" - no records");
         }
