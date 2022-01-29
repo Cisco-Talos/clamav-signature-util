@@ -1,3 +1,5 @@
+#![deny(clippy::mod_module_files)]
+
 pub mod filetype;
 pub mod signature;
 pub(crate) mod util;
