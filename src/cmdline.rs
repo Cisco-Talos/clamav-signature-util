@@ -17,9 +17,17 @@ struct Opt {
     #[structopt(long, short)]
     verbose: bool,
 
+    /// Print original signatures as they're read
+    #[structopt(long)]
+    print_orig: bool,
+
     /// Dump signatures in debug format
     #[structopt(long)]
     dump_debug: bool,
+
+    /// Dump signatures in long debug format
+    #[structopt(long)]
+    dump_debug_long: bool,
 }
 
 pub fn main() -> Result<()> {
@@ -120,10 +128,23 @@ fn process_file(path: &Path, opt: &Opt) -> Result<()> {
                 .strip_suffix(b"\r\n")
                 .unwrap_or_else(|| sigbuf.strip_suffix(b"\n").unwrap());
             n_records += 1;
-            #[allow(unused_variables)]
+
+            if opt.print_orig {
+                println!(
+                    " < {}",
+                    if let Ok(s) = str::from_utf8(sigbuf) {
+                        s
+                    } else {
+                        "!!! Not Unicode !!!"
+                    }
+                );
+            }
+
             match clam_sigutil::signature::parse(sig_type, sigbuf) {
                 Ok(sig) => {
-                    if opt.dump_debug {
+                    if opt.dump_debug_long {
+                        println!(" * {:#?} f_level{:?}", sig, sig.feature_levels());
+                    } else if opt.dump_debug {
                         println!(" * {:?} f_level{:?}", sig, sig.feature_levels());
                     }
                 }
