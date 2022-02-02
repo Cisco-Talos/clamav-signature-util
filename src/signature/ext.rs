@@ -1,22 +1,25 @@
+use crate::util::{parse_number_dec, ParseNumberError};
+
 use super::{
     super::signature::{
-        logical::targetdesc::TargetDescParseError, targettype::TargetType, ParseError,
+        logical::targetdesc::TargetDescParseError, targettype::TargetType, ParseError, Signature,
     },
     bodysig::{BodySig, BodySigParseError},
+    logical::subsig::SubSig,
+    targettype::TargetTypeParseError,
 };
-use num_traits::FromPrimitive;
 use std::convert::TryFrom;
 use std::str;
 use thiserror::Error;
 
 #[derive(Debug)]
 pub struct ExtendedSig {
-    name: String,
+    pub(crate) name: Option<String>,
     #[allow(dead_code)]
-    target_type: TargetType,
+    pub(crate) target_type: TargetType,
     #[allow(dead_code)]
-    offset: Offset,
-    body_sig: Option<BodySig>,
+    pub(crate) offset: Offset,
+    pub(crate) body_sig: Option<BodySig>,
 }
 
 #[derive(Debug, Error)]
@@ -36,12 +39,42 @@ pub enum ExtendedSigParseError {
     #[error("missing HexSignature field")]
     MissingHexSignature,
 
-    #[error(transparent)]
+    #[error("invalid body signature: {0}")]
     BodySig(#[from] BodySigParseError),
+
+    #[error("parsing MaxShift: {0}")]
+    ParseMaxShift(ParseNumberError<usize>),
+
+    #[error("parsing EntireSection offset: {0}")]
+    ParseEntireSectionOffset(ParseNumberError<usize>),
+
+    #[error("parsing StartOfLastSection offset: {0}")]
+    ParseStartOfLastSectionOffset(ParseNumberError<usize>),
+
+    #[error("parsing SectionNo: {0}")]
+    ParseSectionNo(ParseNumberError<usize>),
+
+    #[error("parsing SectionOffset: {0}")]
+    ParseSectionOffset(ParseNumberError<usize>),
+
+    #[error("parsing AbsoluteOffset: {0}")]
+    ParseAbsoluteOffset(ParseNumberError<usize>),
+
+    #[error("Parsing EOF offset: {0}")]
+    ParseEOFOffset(ParseNumberError<usize>),
+
+    #[error("Parsing EP offset: {0}")]
+    ParseEPOffset(ParseNumberError<isize>),
+
+    #[error("parsing TargetDesc: {0}")]
+    TargetDescParse(#[from] TargetDescParseError),
+
+    #[error("parsing TargetType: {0}")]
+    TargetTypeParse(#[from] TargetTypeParseError),
 }
 
 #[derive(Debug)]
-enum Offset {
+pub enum Offset {
     Normal(OffsetPos),
     Floating(OffsetPos, usize),
 }
@@ -63,16 +96,14 @@ impl TryFrom<&[u8]> for ExtendedSig {
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut fields = data.split(|b| *b == b':');
 
-        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)?.to_owned();
-        let target_type = FromPrimitive::from_usize(
-            str::from_utf8(
-                fields
-                    .next()
-                    .ok_or(ExtendedSigParseError::MissingTargetType)?,
-            )?
-            .parse()?,
-        )
-        .ok_or(TargetDescParseError::UnknownTargetType)?;
+        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)
+            .map_err(ParseError::NameNotUnicode)?
+            .to_owned();
+        let target_type = fields
+            .next()
+            .ok_or(ExtendedSigParseError::MissingTargetType)?
+            .try_into()
+            .map_err(ExtendedSigParseError::TargetTypeParse)?;
 
         let offset = fields
             .next()
@@ -87,7 +118,7 @@ impl TryFrom<&[u8]> for ExtendedSig {
         };
 
         Ok(Self {
-            name,
+            name: Some(name),
             target_type,
             offset,
             body_sig,
@@ -108,7 +139,7 @@ impl TryFrom<&[u8]> for Offset {
         if let Some(maxshift_s) = offset_tokens.next() {
             Ok(Offset::Floating(
                 offset_base,
-                str::from_utf8(maxshift_s)?.parse()?,
+                parse_number_dec(maxshift_s).map_err(ExtendedSigParseError::ParseMaxShift)?,
             ))
         } else {
             Ok(Offset::Normal(offset_base))
@@ -123,39 +154,55 @@ impl TryFrom<&[u8]> for OffsetPos {
         if value == b"*" {
             Ok(OffsetPos::Any)
         } else if let Some(s) = value.strip_prefix(b"EOF-") {
-            Ok(OffsetPos::FromEOF(str::from_utf8(s)?.parse()?))
+            Ok(OffsetPos::FromEOF(
+                parse_number_dec(s).map_err(ExtendedSigParseError::ParseEOFOffset)?,
+            ))
         } else if let Some(s) = value.strip_prefix(b"EP+") {
-            Ok(OffsetPos::EP(str::from_utf8(s)?.parse()?))
+            Ok(OffsetPos::EP(
+                parse_number_dec(s).map_err(ExtendedSigParseError::ParseEPOffset)?,
+            ))
         } else if let Some(s) = value.strip_prefix(b"EP-") {
-            Ok(OffsetPos::EP(0 - str::from_utf8(s)?.parse::<isize>()?))
+            Ok(OffsetPos::EP(
+                0 - parse_number_dec(s).map_err(ExtendedSigParseError::ParseEPOffset)?,
+            ))
         } else if let Some(s) = value.strip_prefix(b"SE") {
-            Ok(OffsetPos::EntireSection(str::from_utf8(s)?.parse()?))
+            Ok(OffsetPos::EntireSection(parse_number_dec(s).map_err(
+                ExtendedSigParseError::ParseEntireSectionOffset,
+            )?))
         } else if let Some(s) = value.strip_prefix(b"SL+") {
-            Ok(OffsetPos::StartOfLastSection(str::from_utf8(s)?.parse()?))
+            Ok(OffsetPos::StartOfLastSection(parse_number_dec(s).map_err(
+                ExtendedSigParseError::ParseStartOfLastSectionOffset,
+            )?))
         } else if let Some(s) = value.strip_prefix(b"S") {
             let mut parts = s.splitn(2, |b| *b == b'+');
-            let section_no: usize = str::from_utf8(
+            let section_no: usize = parse_number_dec(
                 parts
                     .next()
                     .ok_or(ExtendedSigParseError::MissingOffsetSectionNo)?,
-            )?
-            .parse()?;
-            let offset: usize = str::from_utf8(
+            )
+            .map_err(ExtendedSigParseError::ParseSectionNo)?;
+            let offset: usize = parse_number_dec(
                 parts
                     .next()
                     .ok_or(ExtendedSigParseError::MissingOffsetSectionOffset)?,
-            )?
-            .parse()?;
+            )
+            .map_err(ExtendedSigParseError::ParseSectionOffset)?;
             Ok(OffsetPos::StartOfSection { section_no, offset })
         } else {
-            Ok(OffsetPos::Absolute(str::from_utf8(value)?.parse()?))
+            Ok(OffsetPos::Absolute(
+                parse_number_dec(value).map_err(ExtendedSigParseError::ParseAbsoluteOffset)?,
+            ))
         }
     }
 }
 
-impl super::Signature for ExtendedSig {
+impl Signature for ExtendedSig {
     fn name(&self) -> &str {
-        &self.name
+        if let Some(name) = &self.name {
+            name
+        } else {
+            "anonymous"
+        }
     }
 
     fn feature_levels(&self) -> (usize, Option<usize>) {
@@ -164,5 +211,11 @@ impl super::Signature for ExtendedSig {
         } else {
             (1, None)
         }
+    }
+}
+
+impl SubSig for ExtendedSig {
+    fn subsig_type(&self) -> super::logical::subsig::SubSigType {
+        super::logical::subsig::SubSigType::Extended
     }
 }

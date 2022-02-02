@@ -1,7 +1,7 @@
 use std::fmt::{self, Write};
 
 pub mod error;
-pub use error::LogExprError;
+pub use error::LogExprParseError;
 
 /// Size of modifier match requirement and unique match requirement
 type ModifierValue = usize;
@@ -235,7 +235,7 @@ impl Element for SigIndex {
  *********************************************************************/
 
 impl TryFrom<&[u8]> for Box<dyn Element> {
-    type Error = LogExprError;
+    type Error = LogExprParseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut bytes = value.iter().copied().enumerate();
@@ -243,7 +243,7 @@ impl TryFrom<&[u8]> for Box<dyn Element> {
     }
 }
 
-fn parse_element<B>(byte_stream: &mut B, depth: u8) -> Result<Box<dyn Element>, LogExprError>
+fn parse_element<B>(byte_stream: &mut B, depth: u8) -> Result<Box<dyn Element>, LogExprParseError>
 where
     B: Iterator<Item = (usize, u8)> + Clone,
 {
@@ -310,7 +310,7 @@ where
                         if let Ok(this_op) = Operation::try_from(op) {
                             // No double-character operators are supported
                             if operation.is_some() {
-                                return Err(LogExprError::UnexpectedOperator(pos.into()));
+                                return Err(LogExprParseError::UnexpectedOperator(pos.into()));
                             }
                             operation = Some(this_op);
                         } else if let Ok(this_modop) = ModOp::try_from(op) {
@@ -318,7 +318,7 @@ where
                             state = State::ModReq;
                             modval_pos = None;
                         } else {
-                            return Err(LogExprError::InvalidCharacter(pos.into()));
+                            return Err(LogExprParseError::InvalidCharacter(pos.into()));
                         }
                     }
                     None => break 'handle_stream,
@@ -338,14 +338,14 @@ where
                                 .checked_add(
                                     match_req.unwrap_or_default().checked_mul(10).ok_or_else(
                                         || {
-                                            LogExprError::ModifierMatchValueOverflow(
+                                            LogExprParseError::ModifierMatchValueOverflow(
                                                 (start_pos..=pos).into(),
                                             )
                                         },
                                     )?,
                                 )
                                 .ok_or_else(|| {
-                                    LogExprError::ModifierMatchValueOverflow(
+                                    LogExprParseError::ModifierMatchValueOverflow(
                                         (start_pos..=pos).into(),
                                     )
                                 })?,
@@ -371,14 +371,14 @@ where
                                 .checked_add(
                                     match_uniq.unwrap_or_default().checked_mul(10).ok_or_else(
                                         || {
-                                            LogExprError::ModifierMatchValueOverflow(
+                                            LogExprParseError::ModifierMatchValueOverflow(
                                                 (start_pos..=pos).into(),
                                             )
                                         },
                                     )?,
                                 )
                                 .ok_or_else(|| {
-                                    LogExprError::ModifierMatchValueOverflow(
+                                    LogExprParseError::ModifierMatchValueOverflow(
                                         (start_pos..=pos).into(),
                                     )
                                 })?,
@@ -386,7 +386,7 @@ where
                     }
                     pos_and_byte => {
                         if match_uniq.is_none() {
-                            return Err(LogExprError::ModifierMatchUniqMissing(
+                            return Err(LogExprParseError::ModifierMatchUniqMissing(
                                 pos_and_byte.into(),
                             ));
                         }
@@ -399,7 +399,7 @@ where
                         panic!("Already had a modifier!");
                     }
                     if match_req.is_none() {
-                        return Err(LogExprError::ModifierMatchReqMissing(b.into()));
+                        return Err(LogExprParseError::ModifierMatchReqMissing(b.into()));
                     }
                     let this_modifier = Some(Modifier {
                         mod_op: mod_op.take().unwrap(),

@@ -140,7 +140,7 @@ fn process_file(path: &Path, opt: &Opt) -> Result<()> {
                 );
             }
 
-            match clam_sigutil::signature::parse(sig_type, sigbuf) {
+            match clam_sigutil::signature::parse_from_cvd(sig_type, sigbuf) {
                 Ok(sig) => {
                     if opt.dump_debug_long {
                         println!(" * {:#?} f_level{:?}", sig, sig.feature_levels());

@@ -1,9 +1,8 @@
 use crate::{
-    signature::{hash::HashSigError, ParseError},
-    util::{self, Hash},
+    signature::{hash::HashSigParseError, ParseError},
+    util::{self, parse_number_dec, Hash},
 };
-use std::convert::TryFrom;
-use std::str;
+use std::{convert::TryFrom, str};
 
 /// A signature based on file hash
 #[derive(Debug)]
@@ -35,12 +34,14 @@ impl TryFrom<&[u8]> for FileHashSig {
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut fields = data.split(|b| *b == b':');
 
-        let hash = util::parse_hash(fields.next().ok_or(HashSigError::MissingHashString)?)?;
-        let file_size = match fields.next().ok_or(HashSigError::MissingFileSize)? {
+        let hash = util::parse_hash(fields.next().ok_or(HashSigParseError::MissingHashString)?)?;
+        let file_size = match fields.next().ok_or(HashSigParseError::MissingFileSize)? {
             b"*" => None,
-            s => Some(str::from_utf8(s)?.parse()?),
+            s => Some(parse_number_dec(s).map_err(HashSigParseError::ParseSize)?),
         };
-        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)?.to_owned();
+        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)
+            .map_err(ParseError::NameNotUnicode)?
+            .to_owned();
 
         Ok(Self {
             name,

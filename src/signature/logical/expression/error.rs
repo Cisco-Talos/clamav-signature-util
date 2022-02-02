@@ -11,7 +11,7 @@ pub enum Position {
 }
 
 #[derive(Debug, Error)]
-pub enum LogExprError {
+pub enum LogExprParseError {
     #[error("invalid character at {0}")]
     InvalidCharacter(Position),
 

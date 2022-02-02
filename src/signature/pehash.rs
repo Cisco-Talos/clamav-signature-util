@@ -1,5 +1,5 @@
-use crate::signature::{hash::HashSigError, ParseError};
-use crate::util::{self, Hash};
+use super::{hash::HashSigParseError, ParseError, Signature};
+use crate::util::{self, parse_number_dec, Hash};
 use std::convert::TryFrom;
 use std::str;
 
@@ -11,7 +11,7 @@ pub struct PESectionHashSig {
     hash: Hash,
 }
 
-impl super::Signature for PESectionHashSig {
+impl Signature for PESectionHashSig {
     fn name(&self) -> &str {
         &self.name
     }
@@ -31,12 +31,14 @@ impl TryFrom<&[u8]> for PESectionHashSig {
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut fields = data.split(|b| *b == b':');
-        let size = match fields.next().ok_or(HashSigError::MissingFileSize)? {
+        let size = match fields.next().ok_or(HashSigParseError::MissingFileSize)? {
             b"*" => None,
-            s => Some(str::from_utf8(s)?.parse()?),
+            s => Some(parse_number_dec(s).map_err(HashSigParseError::ParseSize)?),
         };
-        let hash = util::parse_hash(fields.next().ok_or(HashSigError::MissingHashString)?)?;
-        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)?.to_owned();
+        let hash = util::parse_hash(fields.next().ok_or(HashSigParseError::MissingHashString)?)?;
+        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)
+            .map_err(ParseError::NameNotUnicode)?
+            .to_owned();
 
         Ok(Self { name, hash, size })
     }

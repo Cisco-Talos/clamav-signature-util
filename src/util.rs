@@ -53,7 +53,7 @@ where
     #[error("not parseable: {0:?}")]
     Unparseable(<T as std::str::FromStr>::Err),
 
-    #[error(transparent)]
+    #[error("not valid unicode: {0}")]
     Utf8Error(#[from] std::str::Utf8Error),
 }
 
@@ -64,15 +64,18 @@ where
     T: std::str::FromStr,
     <T as std::str::FromStr>::Err: std::fmt::Debug,
 {
-    #[error("range missing {0} bound")]
-    MissingBound(&'static str),
+    #[error("range missing upper bound")]
+    MissingUpperBound,
+
+    #[error("range missing lower bound")]
+    MissingLowerBound,
 
     #[error("unable to parse bound: {0}")]
     BoundParse(#[from] ParseNumberError<T>),
 }
 
 /// Parse a decimal number from &[u8]
-pub fn parse_number<T>(s: &[u8]) -> Result<T, ParseNumberError<T>>
+pub fn parse_number_dec<T>(s: &[u8]) -> Result<T, ParseNumberError<T>>
 where
     T: std::str::FromStr,
     <T as std::str::FromStr>::Err: std::fmt::Debug,
@@ -80,6 +83,13 @@ where
     str::from_utf8(s)?
         .parse()
         .map_err(|e| ParseNumberError::Unparseable(e))
+}
+
+/// Parse a hexadecimal number from &[u8]
+pub fn parse_number_hex(s: &[u8]) -> Result<u64, ParseNumberError<u64>>
+where {
+    u64::from_str_radix(str::from_utf8(s)?.trim_start_matches("0x"), 16)
+        .map_err(ParseNumberError::Unparseable)
 }
 
 /// Parse an inclusive range from `&[u8]` representing "lower-upper"
@@ -92,15 +102,42 @@ where
 {
     let mut values = s.splitn(2, |&b| b == b'-');
 
-    let lower = parse_number(
+    let lower = parse_number_dec(
         values
             .next()
-            .ok_or(RangeInclusiveParseError::MissingBound("lower"))?,
+            .ok_or(RangeInclusiveParseError::MissingLowerBound)?,
     )?;
-    let upper = parse_number(
+    let upper = parse_number_dec(
         values
             .next()
-            .ok_or(RangeInclusiveParseError::MissingBound("upper"))?,
+            .ok_or(RangeInclusiveParseError::MissingUpperBound)?,
     )?;
     Ok(lower..=upper)
+}
+
+/// A type wrapper around a single byte found in a signature. Allows implementing
+/// `Display` to work around potential unicode problems
+#[derive(Debug)]
+pub struct SigChar(pub u8);
+
+/// Convert a byte to its character representation, or a symbol indicating
+/// invalid unicode
+impl std::fmt::Display for SigChar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match str::from_utf8(&[self.0]) {
+            Ok(s) => write!(f, "'{}'", s),
+            Err(_) => write!(f, "{{0x{:x}}}", self.0),
+        }
+    }
+}
+
+impl From<u8> for SigChar {
+    fn from(c: u8) -> Self {
+        Self(c)
+    }
+}
+
+#[test]
+fn test_sichar_display() {
+    assert_eq!(format!("{}", SigChar(b'x')), "x");
 }

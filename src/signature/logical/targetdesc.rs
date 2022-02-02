@@ -1,5 +1,8 @@
 use super::super::targettype::TargetType;
-use crate::{filetype::FileType, util};
+use crate::{
+    filetype::FileType,
+    util::{self, parse_number_dec, ParseNumberError},
+};
 use num_traits::FromPrimitive;
 use std::{ops::RangeInclusive, str, str::FromStr};
 use thiserror::Error;
@@ -38,23 +41,20 @@ pub enum TargetDescParseError {
     #[error("TargetDescription {0} attribute missing value")]
     TargetDescAttrMissingValue(&'static str),
 
-    #[error("TargetDescription Engine missing {0} bound")]
-    TargetDescEngineMissingValue(&'static str),
-
     #[error("unknown target type value")]
     UnknownTargetType,
 
     #[error("unknown FileType")]
     UnknownFileType,
 
-    #[error(transparent)]
-    RangeInclusiveParse(#[from] util::RangeInclusiveParseError<usize>),
+    #[error("parsing engine range")]
+    EngineRange(#[from] util::RangeInclusiveParseError<usize>),
 
-    #[error(transparent)]
-    Utf8(#[from] std::str::Utf8Error),
+    #[error("parsing container value: {0}")]
+    Container(#[from] std::str::Utf8Error),
 
-    #[error(transparent)]
-    ParseInt(#[from] std::num::ParseIntError),
+    #[error("parsing target_type: {0}")]
+    TargetType(#[from] ParseNumberError<usize>),
 }
 
 impl TryFrom<&[u8]> for TargetDesc {
@@ -73,18 +73,22 @@ impl TryFrom<&[u8]> for TargetDesc {
                 b"Target" => {
                     tdesc.target_type = Some(
                         FromPrimitive::from_usize(
-                            str::from_utf8(value.ok_or(
+                            parse_number_dec(value.ok_or(
                                 TargetDescParseError::TargetDescAttrMissingValue("Target"),
-                            )?)?
-                            .parse()?,
+                            )?)
+                            .map_err(TargetDescParseError::TargetType)?,
                         )
                         .ok_or(TargetDescParseError::UnknownTargetType)?,
                     )
                 }
                 b"Engine" => {
-                    tdesc.f_level = Some(util::parse_usize_range_inclusive(
-                        value.ok_or(TargetDescParseError::TargetDescAttrMissingValue("Engine"))?,
-                    )?);
+                    tdesc.f_level =
+                        Some(
+                            util::parse_usize_range_inclusive(value.ok_or(
+                                TargetDescParseError::TargetDescAttrMissingValue("Engine"),
+                            )?)
+                            .map_err(TargetDescParseError::EngineRange)?,
+                        );
                 }
                 b"FileSize" => {
                     tdesc.file_size = Some(util::parse_usize_range_inclusive(
@@ -107,9 +111,12 @@ impl TryFrom<&[u8]> for TargetDesc {
 
                 b"Container" => {
                     tdesc.container = Some(
-                        FileType::from_str(str::from_utf8(value.ok_or(
-                            TargetDescParseError::TargetDescAttrMissingValue("Container"),
-                        )?)?)
+                        FileType::from_str(
+                            str::from_utf8(value.ok_or(
+                                TargetDescParseError::TargetDescAttrMissingValue("Container"),
+                            )?)
+                            .map_err(TargetDescParseError::Container)?,
+                        )
                         .map_err(|_| TargetDescParseError::UnknownFileType)?,
                     )
                 }
