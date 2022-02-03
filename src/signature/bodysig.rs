@@ -51,7 +51,7 @@ pub enum BodySigParseError {
     #[error("nothing following opening parenthesis to specify character class")]
     MissingCharacterClass,
 
-    #[error("Invalid character at pos {0}: {1}")]
+    #[error("invalid character at pos {0}: {1}")]
     InvalidCharacter(usize, SigChar),
 
     #[error("decoding hex-encoded value: {0}")]
