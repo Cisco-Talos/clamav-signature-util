@@ -4,6 +4,7 @@ use thiserror::Error;
 
 use super::{SubSig, SubSigType};
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct PCRESubSig {
     trigger_expr: Box<dyn expression::Element>,

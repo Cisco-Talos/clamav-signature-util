@@ -13,6 +13,7 @@ pub mod offset;
 pub use offset::{Offset, OffsetModifier, OffsetParseError};
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ByteCmpSubSig {
     subsigid_trigger: u8,
     offset: Offset,

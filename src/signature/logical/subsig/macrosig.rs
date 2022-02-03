@@ -5,6 +5,7 @@ use crate::{
 };
 use thiserror::Error;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct MacroSubSig {
     min: usize,

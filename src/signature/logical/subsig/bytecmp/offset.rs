@@ -3,6 +3,7 @@ use crate::util::{parse_number_dec, ParseNumberError};
 use thiserror::Error;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Offset {
     modifier: OffsetModifier,
     offset: isize,

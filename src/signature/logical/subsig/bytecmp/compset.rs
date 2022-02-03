@@ -2,6 +2,7 @@ use super::Encoding;
 use crate::util::{parse_number_dec, parse_number_hex, ParseNumberError};
 use thiserror::Error;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct ComparisonSet {
     // this is more of an operator, but the docs call it a symbol

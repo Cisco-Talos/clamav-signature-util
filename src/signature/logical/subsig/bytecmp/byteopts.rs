@@ -1,6 +1,7 @@
 use super::{Encoding, Endianness};
 use thiserror::Error;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct ByteOptions {
     // The original implementation allows this to be unspecified (!)
