@@ -26,6 +26,7 @@ pub struct LogicalSig {
     target_desc: TargetDesc,
     #[allow(dead_code)]
     expression: Box<dyn expression::Element>,
+    #[allow(dead_code)]
     sub_sigs: Vec<Box<dyn SubSig>>,
 }
 
@@ -69,9 +70,9 @@ impl Signature for LogicalSig {
 }
 
 /// Search from the end of a subsignature to find a modifier of the form "::xxx".
-/// 
+///
 /// If found, returns the modifier and a subslice (without the modifier).
-/// 
+///
 /// If any unknown modifiers are found or the delimiter is missing, returns None
 /// and the original slice.
 fn find_modifier(haystack: &[u8]) -> (Option<SubSigModifier>, &[u8]) {
@@ -128,6 +129,7 @@ impl TryFrom<&[u8]> for LogicalSig {
         for (subsig_no, subsig_bytes) in fields.enumerate() {
             let (modifier, subsig_bytes) = find_modifier(subsig_bytes);
             sub_sigs.push(
+                // TODO: If none of these matches, save the errors to produce a better error message
                 if let Ok(sig) = MacroSubSig::from_bytes(subsig_bytes, modifier) {
                     Box::new(sig) as Box<dyn SubSig>
                 } else if let Ok(sig) = ByteCmpSubSig::from_bytes(subsig_bytes, modifier) {

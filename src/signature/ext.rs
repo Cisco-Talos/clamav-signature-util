@@ -88,6 +88,7 @@ pub enum OffsetPos {
     StartOfSection { section_no: usize, offset: usize },
     EntireSection(usize),
     StartOfLastSection(usize),
+    PEVersionInfo,
 }
 
 impl TryFrom<&[u8]> for ExtendedSig {
@@ -188,6 +189,8 @@ impl TryFrom<&[u8]> for OffsetPos {
             )
             .map_err(ExtendedSigParseError::ParseSectionOffset)?;
             Ok(OffsetPos::StartOfSection { section_no, offset })
+        } else if value == b"VI" {
+            Ok(OffsetPos::PEVersionInfo)
         } else {
             Ok(OffsetPos::Absolute(
                 parse_number_dec(value).map_err(ExtendedSigParseError::ParseAbsoluteOffset)?,
