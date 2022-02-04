@@ -7,7 +7,8 @@ pub fn main() {
     #[allow(unused_variables)]
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
 
-    #[cfg(test)]
+    // This is only required for tests, but cargo doesn't provide a means to
+    // re-run the build script depending on whether cfg(test) is enabled.
     {
         use std::fs::File;
         use std::io::{BufRead, BufReader, BufWriter, Write};
