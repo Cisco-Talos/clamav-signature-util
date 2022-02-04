@@ -4,16 +4,10 @@ pub mod targetdesc;
 
 use self::{
     expression::LogExprParseError,
-    subsig::{ByteCmpSubSig, MacroSubSig, PCRESubSig},
+    subsig::{SubSigModifier, SubSigParseError},
     targetdesc::TargetDescParseError,
 };
-use super::{
-    bodysig::BodySigParseError,
-    ext::{ExtendedSig, Offset, OffsetPos},
-    targettype::TargetType,
-    ParseError, Signature,
-};
-use crate::signature::bodysig::BodySig;
+use super::{bodysig::BodySigParseError, ParseError, Signature};
 use std::str;
 use subsig::SubSig;
 use targetdesc::TargetDesc;
@@ -49,14 +43,9 @@ pub enum LogicalSigParseError {
 
     #[error("parsing TargetDesc: {0}")]
     TargetDesc(#[from] TargetDescParseError),
-}
 
-#[derive(Debug, Default, PartialEq, Clone, Copy)]
-pub struct SubSigModifier {
-    case_insensitive: bool,
-    widechar: bool,
-    match_fullword: bool,
-    ascii: bool,
+    #[error("parsing subsig {0}: {1}")]
+    SubSigParse(usize, SubSigParseError),
 }
 
 impl Signature for LogicalSig {
@@ -129,33 +118,9 @@ impl TryFrom<&[u8]> for LogicalSig {
         for (subsig_no, subsig_bytes) in fields.enumerate() {
             let (modifier, subsig_bytes) = find_modifier(subsig_bytes);
             sub_sigs.push(
-                // TODO: If none of these matches, save the errors to produce a better error message
-                if let Ok(sig) = MacroSubSig::from_bytes(subsig_bytes, modifier) {
-                    Box::new(sig) as Box<dyn SubSig>
-                } else if let Ok(sig) = ByteCmpSubSig::from_bytes(subsig_bytes, modifier) {
-                    Box::new(sig) as Box<dyn SubSig>
-                } else if let Ok(sig) = PCRESubSig::from_bytes(subsig_bytes, modifier) {
-                    Box::new(sig) as Box<dyn SubSig>
-                } else {
-                    // Figure out if this seems to have an offset. If so, parse it, and slice down into the remaining bodysig
-                    let (offset, bodysig_bytes) =
-                        if let Some(pos) = subsig_bytes.iter().position(|&b| b == b':') {
-                            let parts = subsig_bytes.split_at(pos);
-                            (Offset::try_from(parts.0)?, &parts.1[1..])
-                        } else {
-                            (Offset::Normal(OffsetPos::Any), subsig_bytes)
-                        };
-                    let body_sig = BodySig::try_from(bodysig_bytes)
-                        .map_err(|e| LogicalSigParseError::BodySigParse(subsig_no, e))?;
-                    let sig = ExtendedSig {
-                        name: None,
-                        target_type: TargetType::Any,
-                        offset,
-                        body_sig: Some(body_sig),
-                    };
-                    Box::new(sig) as Box<dyn SubSig>
-                },
-            )
+                subsig::parse_bytes(subsig_bytes, modifier)
+                    .map_err(|e| LogicalSigParseError::SubSigParse(subsig_no, e))?,
+            );
         }
 
         Ok(Self {
@@ -166,7 +131,6 @@ impl TryFrom<&[u8]> for LogicalSig {
         })
     }
 }
-
 #[test]
 fn test_find_modifier() {
     assert_eq!(

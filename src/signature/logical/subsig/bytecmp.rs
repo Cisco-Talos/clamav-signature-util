@@ -48,6 +48,9 @@ pub enum ByteCmpSubSigParseError {
     #[error("missing byte_options field")]
     MissingByteOptions,
 
+    #[error("too many #-delimited fields")]
+    TooManyFields,
+
     #[error("parsing byte options: {0}")]
     ByteOptionsParse(#[from] ByteOptionsParseError),
 
@@ -62,6 +65,20 @@ pub enum ByteCmpSubSigParseError {
 
     #[error("parsing offset: {0}")]
     OffsetParse(#[from] OffsetParseError),
+}
+
+impl super::SubSigError for ByteCmpSubSigParseError {
+    fn identified(&self) -> bool {
+        !matches!(
+            self,
+            ByteCmpSubSigParseError::MissingClosingParen
+                | ByteCmpSubSigParseError::MissingSubSigIdTrigger
+                | ByteCmpSubSigParseError::MissingParameters
+                | ByteCmpSubSigParseError::MissingOffset
+                | ByteCmpSubSigParseError::MissingByteOptions
+                | ByteCmpSubSigParseError::MissingComparison
+        )
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -92,13 +109,7 @@ impl ByteCmpSubSig {
         let bytes = bytes
             .strip_suffix(b")")
             .ok_or(ByteCmpSubSigParseError::MissingClosingParen)?;
-        let mut parts = bytes.splitn(2, |&b| b == b'(');
-        let subsigid_trigger = parse_number_dec(
-            parts
-                .next()
-                .ok_or(ByteCmpSubSigParseError::MissingSubSigIdTrigger)?,
-        )
-        .map_err(ByteCmpSubSigParseError::InvalidTrigger)?;
+        let mut parts = bytes.rsplitn(2, |&b| b == b'(');
 
         // Now parse the three fields within
         let mut params = parts
@@ -106,25 +117,36 @@ impl ByteCmpSubSig {
             .ok_or(ByteCmpSubSigParseError::MissingParameters)?
             .splitn(3, |&b| b == b'#');
 
-        let offset = Offset::from_bytes(
-            params
-                .next()
-                .ok_or(ByteCmpSubSigParseError::MissingOffset)?,
-        )?;
+        // Make sure all three exist before bothering to parse them.  Otherwise, this probably
+        // isn't a bytecmp subsig.
+        let maybe_offset = params
+            .next()
+            .ok_or(ByteCmpSubSigParseError::MissingOffset)?;
+        let maybe_byte_options = params
+            .next()
+            .ok_or(ByteCmpSubSigParseError::MissingByteOptions)?;
+        let maybe_comparisons = params
+            .next()
+            .ok_or(ByteCmpSubSigParseError::MissingComparison)?;
 
-        let byte_options = ByteOptions::from_bytes(
-            params
+        // Don't look at this until it looks pretty much like a bytecmp sig
+        let subsigid_trigger = parse_number_dec(
+            parts
                 .next()
-                .ok_or(ByteCmpSubSigParseError::MissingByteOptions)?,
-        )?;
+                .ok_or(ByteCmpSubSigParseError::MissingSubSigIdTrigger)?,
+        )
+        .map_err(ByteCmpSubSigParseError::InvalidTrigger)?;
+
+        // Only three fields should be present
+        if params.next().is_some() {
+            return Err(ByteCmpSubSigParseError::TooManyFields);
+        }
+
+        let offset = Offset::from_bytes(maybe_offset)?;
+        let byte_options = ByteOptions::from_bytes(maybe_byte_options)?;
 
         let mut comparisons = [None, None];
-        for (idx, bytes) in params
-            .next()
-            .ok_or(ByteCmpSubSigParseError::MissingComparison)?
-            .split(|&b| b == b',')
-            .enumerate()
-        {
+        for (idx, bytes) in maybe_comparisons.split(|&b| b == b',').enumerate() {
             match idx {
                 0 | 1 => comparisons[idx] = Some(bytes.try_into()?),
                 _ => return Err(ByteCmpSubSigParseError::TooManyComparisons),

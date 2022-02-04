@@ -30,56 +30,41 @@ pub enum ExtendedSigParseError {
     #[error("missing Offset field")]
     MissingOffset,
 
-    #[error("missing section number in offset(SE#+n) format")]
-    MissingOffsetSectionNo,
-
-    #[error("missing offset from section in offset(SE#+n) format")]
-    MissingOffsetSectionOffset,
-
     #[error("missing HexSignature field")]
     MissingHexSignature,
 
     #[error("invalid body signature: {0}")]
     BodySig(#[from] BodySigParseError),
 
-    #[error("parsing MaxShift: {0}")]
-    ParseMaxShift(ParseNumberError<usize>),
-
-    #[error("parsing EntireSection offset: {0}")]
-    ParseEntireSectionOffset(ParseNumberError<usize>),
-
-    #[error("parsing StartOfLastSection offset: {0}")]
-    ParseStartOfLastSectionOffset(ParseNumberError<usize>),
-
-    #[error("parsing SectionNo: {0}")]
-    ParseSectionNo(ParseNumberError<usize>),
-
-    #[error("parsing SectionOffset: {0}")]
-    ParseSectionOffset(ParseNumberError<usize>),
-
-    #[error("parsing AbsoluteOffset: {0}")]
-    ParseAbsoluteOffset(ParseNumberError<usize>),
-
-    #[error("Parsing EOF offset: {0}")]
-    ParseEOFOffset(ParseNumberError<usize>),
-
-    #[error("Parsing EP offset: {0}")]
-    ParseEPOffset(ParseNumberError<isize>),
-
     #[error("parsing TargetDesc: {0}")]
     TargetDescParse(#[from] TargetDescParseError),
 
     #[error("parsing TargetType: {0}")]
     TargetTypeParse(#[from] TargetTypeParseError),
+
+    #[error("Parsing offset: {0}")]
+    ParseOffset(#[from] OffsetParseError),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Offset {
     Normal(OffsetPos),
     Floating(OffsetPos, usize),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
+pub enum OffsetParseError {
+    #[error("offset missing")]
+    Missing,
+
+    #[error("parsing offset pos: {0}")]
+    OffsetPosParse(#[from] OffsetPosParseError),
+
+    #[error("parsing MaxShift: {0}")]
+    ParseMaxShift(ParseNumberError<usize>),
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum OffsetPos {
     Any,
     Absolute(usize),
@@ -89,6 +74,36 @@ pub enum OffsetPos {
     EntireSection(usize),
     StartOfLastSection(usize),
     PEVersionInfo,
+}
+
+#[derive(Debug, Error)]
+pub enum OffsetPosParseError {
+    #[error("Parsing EOF offset: {0}")]
+    ParseEOFOffset(ParseNumberError<usize>),
+
+    #[error("Parsing EP offset: {0}")]
+    ParseEPOffset(ParseNumberError<isize>),
+
+    #[error("parsing EntireSection offset: {0}")]
+    ParseEntireSectionOffset(ParseNumberError<usize>),
+
+    #[error("parsing StartOfLastSection offset: {0}")]
+    ParseStartOfLastSectionOffset(ParseNumberError<usize>),
+
+    #[error("missing section number in offset(SE#+n) format")]
+    MissingOffsetSectionNo,
+
+    #[error("parsing SectionNo: {0}")]
+    ParseSectionNo(ParseNumberError<usize>),
+
+    #[error("missing offset from section in offset(SE#+n) format")]
+    MissingOffsetSectionOffset,
+
+    #[error("parsing SectionOffset: {0}")]
+    ParseSectionOffset(ParseNumberError<usize>),
+
+    #[error("parsing AbsoluteOffset: {0}")]
+    ParseAbsoluteOffset(ParseNumberError<usize>),
 }
 
 impl TryFrom<&[u8]> for ExtendedSig {
@@ -109,7 +124,8 @@ impl TryFrom<&[u8]> for ExtendedSig {
         let offset = fields
             .next()
             .ok_or(ExtendedSigParseError::MissingOffset)?
-            .try_into()?;
+            .try_into()
+            .map_err(ExtendedSigParseError::ParseOffset)?;
         let body_sig = match fields
             .next()
             .ok_or(ExtendedSigParseError::MissingHexSignature)?
@@ -128,19 +144,20 @@ impl TryFrom<&[u8]> for ExtendedSig {
 }
 
 impl TryFrom<&[u8]> for Offset {
-    type Error = ParseError;
+    type Error = OffsetParseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut offset_tokens = value.splitn(2, |b| *b == b',');
 
         let offset_base = offset_tokens
             .next()
-            .ok_or(ExtendedSigParseError::MissingOffset)?
-            .try_into()?;
+            .ok_or(OffsetParseError::Missing)?
+            .try_into()
+            .map_err(OffsetParseError::OffsetPosParse)?;
         if let Some(maxshift_s) = offset_tokens.next() {
             Ok(Offset::Floating(
                 offset_base,
-                parse_number_dec(maxshift_s).map_err(ExtendedSigParseError::ParseMaxShift)?,
+                parse_number_dec(maxshift_s).map_err(OffsetParseError::ParseMaxShift)?,
             ))
         } else {
             Ok(Offset::Normal(offset_base))
@@ -149,51 +166,51 @@ impl TryFrom<&[u8]> for Offset {
 }
 
 impl TryFrom<&[u8]> for OffsetPos {
-    type Error = ParseError;
+    type Error = OffsetPosParseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         if value == b"*" {
             Ok(OffsetPos::Any)
         } else if let Some(s) = value.strip_prefix(b"EOF-") {
             Ok(OffsetPos::FromEOF(
-                parse_number_dec(s).map_err(ExtendedSigParseError::ParseEOFOffset)?,
+                parse_number_dec(s).map_err(OffsetPosParseError::ParseEOFOffset)?,
             ))
         } else if let Some(s) = value.strip_prefix(b"EP+") {
             Ok(OffsetPos::EP(
-                parse_number_dec(s).map_err(ExtendedSigParseError::ParseEPOffset)?,
+                parse_number_dec(s).map_err(OffsetPosParseError::ParseEPOffset)?,
             ))
         } else if let Some(s) = value.strip_prefix(b"EP-") {
             Ok(OffsetPos::EP(
-                0 - parse_number_dec(s).map_err(ExtendedSigParseError::ParseEPOffset)?,
+                0 - parse_number_dec(s).map_err(OffsetPosParseError::ParseEPOffset)?,
             ))
         } else if let Some(s) = value.strip_prefix(b"SE") {
-            Ok(OffsetPos::EntireSection(parse_number_dec(s).map_err(
-                ExtendedSigParseError::ParseEntireSectionOffset,
-            )?))
+            Ok(OffsetPos::EntireSection(
+                parse_number_dec(s).map_err(OffsetPosParseError::ParseEntireSectionOffset)?,
+            ))
         } else if let Some(s) = value.strip_prefix(b"SL+") {
             Ok(OffsetPos::StartOfLastSection(parse_number_dec(s).map_err(
-                ExtendedSigParseError::ParseStartOfLastSectionOffset,
+                OffsetPosParseError::ParseStartOfLastSectionOffset,
             )?))
         } else if let Some(s) = value.strip_prefix(b"S") {
             let mut parts = s.splitn(2, |b| *b == b'+');
             let section_no: usize = parse_number_dec(
                 parts
                     .next()
-                    .ok_or(ExtendedSigParseError::MissingOffsetSectionNo)?,
+                    .ok_or(OffsetPosParseError::MissingOffsetSectionNo)?,
             )
-            .map_err(ExtendedSigParseError::ParseSectionNo)?;
+            .map_err(OffsetPosParseError::ParseSectionNo)?;
             let offset: usize = parse_number_dec(
                 parts
                     .next()
-                    .ok_or(ExtendedSigParseError::MissingOffsetSectionOffset)?,
+                    .ok_or(OffsetPosParseError::MissingOffsetSectionOffset)?,
             )
-            .map_err(ExtendedSigParseError::ParseSectionOffset)?;
+            .map_err(OffsetPosParseError::ParseSectionOffset)?;
             Ok(OffsetPos::StartOfSection { section_no, offset })
         } else if value == b"VI" {
             Ok(OffsetPos::PEVersionInfo)
         } else {
             Ok(OffsetPos::Absolute(
-                parse_number_dec(value).map_err(ExtendedSigParseError::ParseAbsoluteOffset)?,
+                parse_number_dec(value).map_err(OffsetPosParseError::ParseAbsoluteOffset)?,
             ))
         }
     }

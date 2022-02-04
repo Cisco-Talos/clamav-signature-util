@@ -44,6 +44,15 @@ pub enum MacroSubSigParseError {
     ParseRangeMax(ParseNumberError<usize>),
 }
 
+impl super::SubSigError for MacroSubSigParseError {
+    fn identified(&self) -> bool {
+        !matches!(
+            self,
+            MacroSubSigParseError::MissingPrefix | MacroSubSigParseError::MissingSuffix
+        )
+    }
+}
+
 impl SubSig for MacroSubSig {
     fn subsig_type(&self) -> SubSigType {
         SubSigType::Macro

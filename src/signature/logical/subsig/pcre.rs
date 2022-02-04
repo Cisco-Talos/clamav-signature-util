@@ -11,6 +11,7 @@ pub struct PCRESubSig {
     pattern: String,
     // TODO: find a more-compact representation
     flags: Vec<Flag>,
+    offset: crate::signature::ext::Offset,
     modifier: Option<SubSigModifier>,
 }
 
@@ -56,10 +57,22 @@ pub enum PCRESubSigParseError {
     CompileRegex(#[from] regex::Error),
 }
 
+impl super::SubSigError for PCRESubSigParseError {
+    fn identified(&self) -> bool {
+        matches!(
+            self,
+            PCRESubSigParseError::ParseLogExpr(..)
+                | PCRESubSigParseError::NotUnicode(..)
+                | PCRESubSigParseError::UnknownFlag
+        )
+    }
+}
+
 impl PCRESubSig {
     pub fn from_bytes(
         bytes: &[u8],
         modifier: Option<SubSigModifier>,
+        offset: crate::signature::ext::Offset,
     ) -> Result<PCRESubSig, PCRESubSigParseError> {
         // Due to escaping of slashes, we can't simply split on them
         let mut parts = bytes.splitn(2, |&b| b == b'/');
@@ -122,6 +135,7 @@ impl PCRESubSig {
             pattern,
             flags,
             modifier,
+            offset,
         })
     }
 }
@@ -143,5 +157,19 @@ impl TryFrom<u8> for Flag {
             b'U' => Flag::PcreUngreedy,
             _ => return Err(PCRESubSigParseError::UnknownFlag),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PCRESubSig;
+    use crate::signature::ext::{Offset, OffsetPos};
+
+    #[test]
+    fn logical_expr() {
+        let subsig_bytes = b"0&1&2/function\\s[a-z0-9]+\x28\x29\\s\x7B\\svar\\s[a-z0-9]+=(\"[0-9a-z]{300,400}\"\x2B\\s){10}/";
+        let sig =
+            PCRESubSig::from_bytes(subsig_bytes, None, Offset::Normal(OffsetPos::Any)).unwrap();
+        dbg!(sig);
     }
 }
