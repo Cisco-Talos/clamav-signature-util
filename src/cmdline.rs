@@ -149,13 +149,15 @@ fn process_file(path: &Path, opt: &Opt) -> Result<()> {
                     }
                 }
                 Err(e) => {
-                    eprintln!(
-                        "Unable to process line {}: {}",
-                        line_no,
-                        str::from_utf8(sigbuf)?
-                    );
-                    eprintln!("  Error: {}", e);
-                    err_count += 1;
+                    if !matches!(e, clam_sigutil::signature::ParseError::UnsupportedSigType) {
+                        eprintln!(
+                            "Unable to process line {}:\n  {}\n  Error: {}\n",
+                            line_no,
+                            str::from_utf8(sigbuf)?,
+                            e
+                        );
+                        err_count += 1;
+                    }
                 }
             }
         }
