@@ -63,6 +63,9 @@ pub enum BodySigParseError {
     #[error("parsing AnyBytes end: {0}")]
     AnyBytesEnd(ParseNumberError<usize>),
 
+    #[error("AnyBytes range start > end ({0}-{1})")]
+    AnyBytesRangeOrder(usize, usize),
+
     #[error("parsing ByteRange start: {0}")]
     ByteRangeStart(ParseNumberError<usize>),
 

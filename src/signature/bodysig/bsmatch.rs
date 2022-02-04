@@ -29,6 +29,9 @@ impl TryFrom<&[u8]> for AnyBytes {
             .map_err(BodySigParseError::AnyBytesStart)?;
         let end = parse_number_dec(parts.next().ok_or(BodySigParseError::InvalidAnyByteRange)?)
             .map_err(BodySigParseError::AnyBytesEnd)?;
+        if start > end {
+            return Err(BodySigParseError::AnyBytesRangeOrder(start, end));
+        }
         Ok(AnyBytes::Range(start..=end))
     }
 }
