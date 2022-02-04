@@ -7,7 +7,7 @@ use thiserror::Error;
 pub struct ComparisonSet {
     // this is more of an operator, but the docs call it a symbol
     symbol: ComparisonOp,
-    value: usize,
+    value: isize,
     /// The original encoding of this number in the signature
     encoding: Encoding,
 }
@@ -24,7 +24,10 @@ pub enum ComparisonSetParseError {
     UnknownOperator,
 
     #[error("parsing value: {0}")]
-    ParseValue(ParseNumberError<u64>),
+    ParseValue(ParseNumberError<i64>),
+
+    #[error("parsing value: {0}")]
+    ParseHexValue(ParseNumberError<u64>),
 }
 
 impl TryFrom<&[u8]> for ComparisonSet {
@@ -45,14 +48,14 @@ impl TryFrom<&[u8]> for ComparisonSet {
         let (encoding, value) = if let Some(hex_value_bytes) = remainder.strip_prefix(b"0x") {
             (
                 Encoding::Hex,
-                parse_number_hex(hex_value_bytes).map_err(ComparisonSetParseError::ParseValue)?
-                    as usize,
+                parse_number_hex(hex_value_bytes).map_err(ComparisonSetParseError::ParseHexValue)?
+                    as isize,
             )
         } else {
             (
                 Encoding::Decimal,
-                parse_number_dec::<u64>(remainder).map_err(ComparisonSetParseError::ParseValue)?
-                    as usize,
+                parse_number_dec::<i64>(remainder).map_err(ComparisonSetParseError::ParseValue)?
+                    as isize,
             )
         };
 
