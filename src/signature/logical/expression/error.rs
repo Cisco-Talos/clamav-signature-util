@@ -1,6 +1,8 @@
 use std::{fmt, ops::RangeInclusive};
 use thiserror::Error;
 
+use crate::util::SigChar;
+
 /// A position within the expression to report the error, either relative to the
 /// start of the expression or at the end (after all characters have been processed)
 #[derive(Debug)]
@@ -12,8 +14,8 @@ pub enum Position {
 
 #[derive(Debug, Error)]
 pub enum LogExprParseError {
-    #[error("invalid character at {0}")]
-    InvalidCharacter(Position),
+    #[error("invalid character at {0}: {1}")]
+    InvalidCharacter(Position, SigChar),
 
     #[error("unexpected operator at {0}")]
     UnexpectedOperator(Position),

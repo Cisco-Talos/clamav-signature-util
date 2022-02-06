@@ -318,7 +318,7 @@ where
                             state = State::ModReq;
                             modval_pos = None;
                         } else {
-                            return Err(LogExprParseError::InvalidCharacter(pos.into()));
+                            return Err(LogExprParseError::InvalidCharacter(pos.into(), op.into()));
                         }
                     }
                     None => break 'handle_stream,
