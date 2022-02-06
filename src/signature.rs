@@ -1,4 +1,5 @@
 pub mod bodysig;
+pub mod container_metadata;
 pub mod ext;
 pub mod filehash;
 pub mod hash;
@@ -28,6 +29,9 @@ pub fn parse_from_cvd(sig_type: SigType, data: &[u8]) -> Result<Box<dyn Signatur
         SigType::Logical => Ok(Box::new(logical::LogicalSig::try_from(data)?)),
         SigType::FileHash => Ok(Box::new(filehash::FileHashSig::try_from(data)?)),
         SigType::PESectionHash => Ok(Box::new(pehash::PESectionHashSig::try_from(data)?)),
+        SigType::ContainerMetadata => Ok(Box::new(
+            container_metadata::ContainerMetadataSig::try_from(data)?,
+        )),
         _ => Err(ParseError::UnsupportedSigType),
     }
 }
@@ -55,4 +59,7 @@ pub enum ParseError {
 
     #[error("invalid logical signature: {0}")]
     LogicalSigParse(#[from] logical::LogicalSigParseError),
+
+    #[error("invalid container metadata signature: {0}")]
+    ContainerMetaParse(#[from] container_metadata::ContainerMetadataSigParseError),
 }

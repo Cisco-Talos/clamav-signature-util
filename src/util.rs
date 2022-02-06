@@ -115,6 +115,18 @@ where
     Ok(lower..=upper)
 }
 
+#[derive(Debug, Error)]
+#[error("invalid boolean value (must be 0 or 1)")]
+pub struct ParseBoolFromIntError;
+
+pub fn parse_bool_from_int(bytes: &[u8]) -> Result<bool, ParseBoolFromIntError> {
+    match bytes {
+        b"0" => Ok(false),
+        b"1" => Ok(true),
+        _ => Err(ParseBoolFromIntError),
+    }
+}
+
 /// A type wrapper around a single byte found in a signature. Allows implementing
 /// `Display` to work around potential unicode problems
 #[derive(Debug)]
@@ -140,4 +152,68 @@ impl From<u8> for SigChar {
 #[test]
 fn test_sichar_display() {
     assert_eq!(format!("{}", SigChar(b'x')), "x");
+}
+
+/// Return a predicate usable for splitting a byte slice on the specified
+/// character, but not if it is preceded with an escape character.  The escape
+/// character may escape any other character (including itself).
+pub fn unescaped_element<T: PartialEq + Copy>(
+    escape_element: T,
+    needle: T,
+) -> impl FnMut(&T) -> bool {
+    let mut escaped = false;
+
+    move |&b| {
+        if escaped {
+            escaped = false;
+            false
+        } else if b == escape_element {
+            escaped = true;
+            false
+        } else if !escaped && b == needle {
+            true
+        } else {
+            escaped = false;
+            false
+        }
+    }
+}
+
+/// Detect whether the a field has a wildcard (`*`) value, returning None if it
+/// does, or Some(orig_field_value) if it doesn't.
+pub fn opt_field_value(bytes: &[u8]) -> Option<&[u8]> {
+    if bytes == b"*" {
+        None
+    } else {
+        Some(bytes)
+    }
+}
+
+/// Pull the next value from an iterator.  If no values remain, throw $missing_err.
+/// Otherwise, check to see if it's the wildcard value (`*`) and return None.
+/// If the value isn't the wildcard, give it to $parser, and map any error it
+/// returns to $invalid_err.
+macro_rules! parse_wildcard_field {
+    ( $field_iter:expr, $parser:expr, $missing_err:expr, $parse_err:expr) => {
+        opt_field_value($field_iter.next().ok_or($missing_err)?)
+            .map($parser)
+            .transpose()
+            .map_err($parse_err)
+    };
+}
+pub(crate) use parse_wildcard_field;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_on_escaped_delimiter() {
+        let bytes = r#"abc:def\:ghi:hij\:\::klm"#.as_bytes();
+        let mut fields = bytes.split(unescaped_element(b'\\', b':'));
+        assert_eq!(fields.next(), Some(r#"abc"#.as_bytes()));
+        assert_eq!(fields.next(), Some(r#"def\:ghi"#.as_bytes()));
+        assert_eq!(fields.next(), Some(r#"hij\:\:"#.as_bytes()));
+        assert_eq!(fields.next(), Some(r#"klm"#.as_bytes()));
+    }
 }

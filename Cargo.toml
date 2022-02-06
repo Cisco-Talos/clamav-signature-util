@@ -20,6 +20,7 @@ thiserror = "1"
 
 # Optional crates
 regex = {version = "1.5.4", optional = true}
+enum-variants-strings = "0.1.0"
 
 [[bin]]
 name = "clam_sigutil"
