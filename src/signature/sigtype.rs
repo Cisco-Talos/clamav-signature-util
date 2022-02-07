@@ -1,4 +1,5 @@
-use std::{ffi::OsStr, path::Path};
+use std::{ffi::OsStr, path::Path, str::FromStr};
+use thiserror::Error;
 
 /// Signature types
 #[derive(Debug, Clone, Copy)]
@@ -11,6 +12,12 @@ pub enum SigType {
     FileHash,
     PESectionHash,
     Yara,
+}
+
+#[derive(Debug, Error)]
+pub enum SigTypeParseError {
+    #[error("unknown signature type")]
+    Unknown,
 }
 
 impl SigType {
@@ -56,5 +63,13 @@ impl SigType {
 
             _ => return None,
         })
+    }
+}
+
+impl FromStr for SigType {
+    type Err = SigTypeParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        SigType::from_file_extension(s).ok_or(SigTypeParseError::Unknown)
     }
 }
