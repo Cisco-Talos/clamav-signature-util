@@ -49,6 +49,7 @@ impl TryFrom<&[u8]> for PESectionHashSig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hex_literal::hex;
 
     #[test]
     fn eicar() {
@@ -58,12 +59,9 @@ mod tests {
         assert_eq!(sig.size, Some(45056));
         assert_eq!(
             sig.hash,
-            crate::util::Hash::Sha2_256(
-                hex::decode("f9b304ced34fcce3ab75c6dc58ad59e4d62177ffed35494f79f09bc4e8986c16")
-                    .unwrap()
-                    .try_into()
-                    .unwrap()
-            )
+            crate::util::Hash::Sha2_256(hex!(
+                "f9b304ced34fcce3ab75c6dc58ad59e4d62177ffed35494f79f09bc4e8986c16"
+            ))
         );
     }
 }

@@ -56,6 +56,7 @@ impl TryFrom<&[u8]> for FileHashSig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hex_literal::hex;
 
     #[test]
     fn eicar() {
@@ -65,12 +66,7 @@ mod tests {
         assert_eq!(sig.file_size, Some(68));
         assert_eq!(
             sig.hash,
-            util::Hash::Md5(
-                hex::decode("44d88612fea8a8f36de82e1278abb02f")
-                    .unwrap()
-                    .try_into()
-                    .unwrap()
-            )
+            util::Hash::Md5(hex!("44d88612fea8a8f36de82e1278abb02f"))
         );
     }
 }
