@@ -1,6 +1,6 @@
 use crate::{
     signature::{hash::HashSigParseError, ParseError},
-    util::{self, parse_number_dec, Hash},
+    util::{self, parse_number_dec, parse_wildcard_field, Hash},
 };
 use std::{convert::TryFrom, str};
 
@@ -35,10 +35,12 @@ impl TryFrom<&[u8]> for FileHashSig {
         let mut fields = data.split(|b| *b == b':');
 
         let hash = util::parse_hash(fields.next().ok_or(HashSigParseError::MissingHashString)?)?;
-        let file_size = match fields.next().ok_or(HashSigParseError::MissingFileSize)? {
-            b"*" => None,
-            s => Some(parse_number_dec(s).map_err(HashSigParseError::ParseSize)?),
-        };
+        let file_size = parse_wildcard_field!(
+            fields,
+            parse_number_dec,
+            HashSigParseError::MissingFileSize,
+            HashSigParseError::ParseSize
+        )?;
         let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)
             .map_err(ParseError::NameNotUnicode)?
             .to_owned();
@@ -48,5 +50,27 @@ impl TryFrom<&[u8]> for FileHashSig {
             hash,
             file_size,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn eicar() {
+        let bytes = "44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature".as_bytes();
+        let sig: FileHashSig = bytes.try_into().unwrap();
+        assert_eq!(sig.name, "Eicar-Test-Signature");
+        assert_eq!(sig.file_size, Some(68));
+        assert_eq!(
+            sig.hash,
+            util::Hash::Md5(
+                hex::decode("44d88612fea8a8f36de82e1278abb02f")
+                    .unwrap()
+                    .try_into()
+                    .unwrap()
+            )
+        );
     }
 }

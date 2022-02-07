@@ -1,17 +1,14 @@
 mod container_size;
 mod container_type;
 
-use container_size::parse_container_size;
-    use container_type::{ContainerType, ContainerTypeParseError};
-
 use super::{ParseError, Signature};
-use crate::{
-    util::{
-        opt_field_value, parse_bool_from_int, parse_number_dec, parse_wildcard_field,
-        unescaped_element, ParseBoolFromIntError, ParseNumberError,
-    },
+use crate::util::{
+    parse_bool_from_int, parse_number_dec, parse_wildcard_field, unescaped_element,
+    ParseBoolFromIntError, ParseNumberError,
 };
+use container_size::parse_container_size;
 use container_size::{ContainerSize, ContainerSizeParseError};
+use container_type::{ContainerType, ContainerTypeParseError};
 use std::str;
 use thiserror::Error;
 

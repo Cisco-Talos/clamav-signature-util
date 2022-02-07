@@ -1,7 +1,7 @@
 use crate::util::{
     parse_number_dec, parse_usize_range_inclusive, ParseNumberError, RangeInclusiveParseError,
 };
-use std::{ops::RangeInclusive, };
+use std::ops::RangeInclusive;
 use thiserror::Error;
 
 #[derive(Debug)]

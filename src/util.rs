@@ -7,7 +7,7 @@ pub const SHA1_LEN: usize = 20;
 pub const SHA2_256_LEN: usize = 32;
 
 /// Generic hash digest container
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Hash {
     Md5([u8; MD5_LEN]),
     Sha1([u8; SHA1_LEN]),
@@ -195,7 +195,7 @@ pub fn opt_field_value(bytes: &[u8]) -> Option<&[u8]> {
 /// returns to $invalid_err.
 macro_rules! parse_wildcard_field {
     ( $field_iter:expr, $parser:expr, $missing_err:expr, $parse_err:expr) => {
-        opt_field_value($field_iter.next().ok_or($missing_err)?)
+        crate::util::opt_field_value($field_iter.next().ok_or($missing_err)?)
             .map($parser)
             .transpose()
             .map_err($parse_err)
