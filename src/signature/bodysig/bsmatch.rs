@@ -3,7 +3,6 @@ use crate::util::parse_number_dec;
 use itertools::Itertools;
 use std::ops::{RangeInclusive, RangeToInclusive};
 
-#[derive(Debug)]
 pub enum Match {
     Literal(Vec<u8>),
     AnyBytes(AnyBytes),
@@ -12,6 +11,24 @@ pub enum Match {
     ByteRange(ByteRange),
     CharacterClass(CharacterClass),
     AlternateStrings(AlternateStrings),
+}
+
+impl std::fmt::Debug for Match {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Literal(arg0) => write!(f, r#"Literal(hex!("{}"))"#, hex::encode(arg0)),
+            Self::AnyBytes(arg0) => f.debug_tuple("AnyBytes").field(arg0).finish(),
+            Self::Mask { mask, value } => f
+                .debug_struct("Mask")
+                .field("mask", mask)
+                .field("value", value)
+                .finish(),
+            Self::AnyByte => write!(f, "AnyByte"),
+            Self::ByteRange(arg0) => f.debug_tuple("ByteRange").field(arg0).finish(),
+            Self::CharacterClass(arg0) => f.debug_tuple("CharacterClass").field(arg0).finish(),
+            Self::AlternateStrings(arg0) => f.debug_tuple("AlternateStrings").field(arg0).finish(),
+        }
+    }
 }
 
 #[derive(Debug)]
