@@ -218,6 +218,9 @@ impl TryFrom<&[u8]> for BodySig {
                 }
             }
         }
+        if !hex_bytes.is_empty() {
+            matches.push(Match::Literal(hex_bytes))
+        }
         // Body-based signatures are hex-encoded
         Ok(BodySig {
             matches,
