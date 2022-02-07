@@ -131,51 +131,71 @@ impl TryFrom<&[u8]> for LogicalSig {
         })
     }
 }
-#[test]
-fn test_find_modifier() {
-    assert_eq!(
-        find_modifier(b"abc"),
-        (None::<SubSigModifier>, b"abc".as_ref())
-    );
-    assert_eq!(
-        find_modifier(b"abc:d"),
-        (None::<SubSigModifier>, b"abc:d".as_ref())
-    );
-    assert_eq!(
-        find_modifier(b"abc::d"),
-        (None::<SubSigModifier>, b"abc::d".as_ref())
-    );
-    assert_eq!(
-        find_modifier(b"abc::a"),
-        (
-            Some(SubSigModifier {
-                ascii: true,
-                ..Default::default()
-            }),
-            b"abc".as_ref()
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn full_sig() {
+        let bytes = concat!(
+            "PUA.Email.Phishing.FedEx-1;Engine:51-255,Target:4;(0&1)&(2|3);",
+            "697320656e636c6f73656420746f20746865206c6574746572;",
+            "636f6d70656e736174696f6e2066726f6d20796f7520666f722069742773206b656570696e67;",
+            "6f637465742d73747265616d3b6e616d653d2246656445785f4c6162656c5f49445f4f72646572;",
+            "6f637465742d73747265616d3b6e616d653d224c6162656c5f50617263656c5f46656445785f"
         )
-    );
-    assert_eq!(
-        find_modifier(b"abc::ai"),
-        (
-            Some(SubSigModifier {
-                ascii: true,
-                case_insensitive: true,
-                ..Default::default()
-            }),
-            b"abc".as_ref()
-        )
-    );
-    assert_eq!(
-        find_modifier(b"blahblahblah::waif"),
-        (
-            Some(SubSigModifier {
-                ascii: true,
-                case_insensitive: true,
-                widechar: true,
-                match_fullword: true
-            }),
-            b"blahblahblah".as_ref()
-        )
-    );
+        .as_bytes();
+        let sig = LogicalSig::try_from(bytes).unwrap();
+        dbg!(sig);
+    }
+
+    #[test]
+    fn test_find_modifier() {
+        assert_eq!(
+            find_modifier(b"abc"),
+            (None::<SubSigModifier>, b"abc".as_ref())
+        );
+        assert_eq!(
+            find_modifier(b"abc:d"),
+            (None::<SubSigModifier>, b"abc:d".as_ref())
+        );
+        assert_eq!(
+            find_modifier(b"abc::d"),
+            (None::<SubSigModifier>, b"abc::d".as_ref())
+        );
+        assert_eq!(
+            find_modifier(b"abc::a"),
+            (
+                Some(SubSigModifier {
+                    ascii: true,
+                    ..Default::default()
+                }),
+                b"abc".as_ref()
+            )
+        );
+        assert_eq!(
+            find_modifier(b"abc::ai"),
+            (
+                Some(SubSigModifier {
+                    ascii: true,
+                    case_insensitive: true,
+                    ..Default::default()
+                }),
+                b"abc".as_ref()
+            )
+        );
+        assert_eq!(
+            find_modifier(b"blahblahblah::waif"),
+            (
+                Some(SubSigModifier {
+                    ascii: true,
+                    case_insensitive: true,
+                    widechar: true,
+                    match_fullword: true
+                }),
+                b"blahblahblah".as_ref()
+            )
+        );
+    }
 }
