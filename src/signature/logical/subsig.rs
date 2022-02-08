@@ -147,9 +147,17 @@ mod tests {
     }
 
     #[test]
-    fn test_bytecmp() {
+    fn test_bytecmp_ok() {
+        let subsig_bytes = b"0(<<6#hb2#=0)";
+        match parse_bytes(subsig_bytes, None) {
+            Ok(sig) => eprintln!("sig = {:#?}", sig),
+            Err(e) => eprintln!("error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_bytecmp_invalid_num_bytes() {
         let subsig_bytes = b"0(<<6#hb3#=0)";
-        super::bytecmp::ByteCmpSubSig::from_bytes(subsig_bytes, None).unwrap();
         match parse_bytes(subsig_bytes, None) {
             Ok(sig) => eprintln!("sig = {:?}", sig),
             Err(e) => eprintln!("error: {}", e),

@@ -1,4 +1,5 @@
-use std::ops::RangeInclusive;
+use itertools::Itertools;
+use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 use std::str;
 use thiserror::Error;
 
@@ -203,6 +204,63 @@ macro_rules! parse_wildcard_field {
 }
 pub(crate) use parse_wildcard_field;
 
+/// Generic container for any range of usize
+#[derive(Debug)]
+pub enum Range<T: std::str::FromStr> {
+    // {n}
+    Exact(T),
+    // {-n}
+    ToInclusive(RangeToInclusive<T>),
+    // {n-}
+    From(RangeFrom<T>),
+    // {n-m}
+    Inclusive(RangeInclusive<T>),
+}
+
+#[derive(Debug, Error)]
+pub enum RangeParseError<T>
+where
+    T: std::str::FromStr,
+    <T as std::str::FromStr>::Err: std::fmt::Debug,
+{
+    #[error("parsing size range start: {0}")]
+    Start(ParseNumberError<T>),
+
+    #[error("parsing size range end: {0}")]
+    End(ParseNumberError<T>),
+
+    #[error("parsing exact size: {0}")]
+    Exact(ParseNumberError<T>),
+}
+
+impl<T> TryFrom<&[u8]> for Range<T>
+where
+    T: std::str::FromStr,
+    <T as std::str::FromStr>::Err: std::fmt::Debug,
+{
+    type Error = RangeParseError<T>;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if let Some(s) = value.strip_prefix(&[b'-']) {
+            Ok(Self::ToInclusive(
+                ..=parse_number_dec(s).map_err(RangeParseError::End)?,
+            ))
+        } else if let Some(s) = value.strip_suffix(&[b'-']) {
+            Ok(Self::From(
+                parse_number_dec(s).map_err(RangeParseError::Start)?..,
+            ))
+        } else if let Some((sn, sm)) = value.splitn(2, |b| *b == b'-').tuples().next() {
+            Ok(Self::Inclusive(
+                parse_number_dec(sn).map_err(RangeParseError::Start)?
+                    ..=parse_number_dec(sm).map_err(RangeParseError::End)?,
+            ))
+        } else {
+            Ok(Self::Exact(
+                parse_number_dec(value).map_err(RangeParseError::Exact)?,
+            ))
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
