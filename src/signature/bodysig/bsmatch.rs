@@ -1,14 +1,13 @@
 use super::BodySigParseError;
-use crate::util::parse_number_dec;
-use itertools::Itertools;
-use std::ops::{RangeInclusive, RangeToInclusive};
+use crate::util::{parse_number_dec, Range};
+use std::ops::RangeInclusive;
 
 pub enum Match {
     Literal(Vec<u8>),
     AnyBytes(AnyBytes),
     Mask { mask: u8, value: u8 },
     AnyByte,
-    ByteRange(ByteRange),
+    ByteRange(Range<usize>),
     CharacterClass(CharacterClass),
     AlternateStrings(AlternateStrings),
 }
@@ -24,7 +23,7 @@ impl std::fmt::Debug for Match {
                 .field("value", value)
                 .finish(),
             Self::AnyByte => write!(f, "AnyByte"),
-            Self::ByteRange(arg0) => f.debug_tuple("ByteRange").field(arg0).finish(),
+            Self::ByteRange(arg0) => f.debug_tuple("Range").field(arg0).finish(),
             Self::CharacterClass(arg0) => f.debug_tuple("CharacterClass").field(arg0).finish(),
             Self::AlternateStrings(arg0) => f.debug_tuple("AlternateStrings").field(arg0).finish(),
         }
@@ -108,19 +107,6 @@ impl TryFrom<(bool, &[u8])> for AlternateStrings {
 }
 
 #[derive(Debug)]
-pub enum ByteRange {
-    // {n}
-    Exact(usize),
-    // {-n}
-    ToInclusive(RangeToInclusive<usize>),
-    // {n-}
-    From(std::ops::RangeFrom<usize>),
-    // {n-m}
-    Inclusive(RangeInclusive<usize>),
-    HexSig,
-}
-
-#[derive(Debug)]
 pub enum CharacterClass {
     // B
     WordBoundary,
@@ -128,31 +114,6 @@ pub enum CharacterClass {
     LineOrFileBoundary,
     // W
     NonAlphaChar,
-}
-
-impl TryFrom<&[u8]> for ByteRange {
-    type Error = BodySigParseError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if let Some(s) = value.strip_prefix(&[b'-']) {
-            Ok(Self::ToInclusive(
-                ..=parse_number_dec(s).map_err(BodySigParseError::ByteRangeEnd)?,
-            ))
-        } else if let Some(s) = value.strip_suffix(&[b'-']) {
-            Ok(Self::From(
-                parse_number_dec(s).map_err(BodySigParseError::ByteRangeStart)?..,
-            ))
-        } else if let Some((sn, sm)) = value.splitn(2, |b| *b == b'-').tuples().next() {
-            Ok(Self::Inclusive(
-                parse_number_dec(sn).map_err(BodySigParseError::ByteRangeStart)?
-                    ..=parse_number_dec(sm).map_err(BodySigParseError::ByteRangeEnd)?,
-            ))
-        } else {
-            Ok(Self::Exact(
-                parse_number_dec(value).map_err(BodySigParseError::ByteRangeExact)?,
-            ))
-        }
-    }
 }
 
 impl TryFrom<u8> for CharacterClass {

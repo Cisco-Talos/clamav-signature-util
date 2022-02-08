@@ -1,7 +1,7 @@
 pub mod bsmatch;
 
-use crate::util::{ParseNumberError, SigChar};
-use bsmatch::{AlternateStrings, AnyBytes, ByteRange, CharacterClass, Match};
+use crate::util::{ParseNumberError, Range, RangeParseError, SigChar};
+use bsmatch::{AlternateStrings, AnyBytes, CharacterClass, Match};
 use std::convert::TryFrom;
 use thiserror::Error;
 
@@ -66,14 +66,8 @@ pub enum BodySigParseError {
     #[error("AnyBytes range start > end ({0}-{1})")]
     AnyBytesRangeOrder(usize, usize),
 
-    #[error("parsing ByteRange start: {0}")]
-    ByteRangeStart(ParseNumberError<usize>),
-
-    #[error("parsing ByteRange end: {0}")]
-    ByteRangeEnd(ParseNumberError<usize>),
-
-    #[error("parsing ByteRange exact: {0}")]
-    ByteRangeExact(ParseNumberError<usize>),
+    #[error("parsing ByteRange: {0}")]
+    ByteRange(RangeParseError<usize>),
 }
 
 impl TryFrom<&[u8]> for BodySig {
@@ -143,9 +137,10 @@ impl TryFrom<&[u8]> for BodySig {
                                         return Err(BodySigParseError::MissingClosingBrace(pos))
                                     }
                                     Some((_, b'}')) => {
-                                        matches.push(Match::ByteRange(ByteRange::try_from(
-                                            &genbuf[..],
-                                        )?));
+                                        matches.push(Match::ByteRange(
+                                            Range::try_from(&genbuf[..])
+                                                .map_err(BodySigParseError::ByteRange)?,
+                                        ));
                                         break;
                                     }
                                     Some((_, &byte)) => genbuf.push(byte),
