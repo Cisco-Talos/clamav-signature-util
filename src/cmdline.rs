@@ -155,22 +155,21 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
             // comment
             continue;
         }
-        let sigbuf = sigbuf
-            .strip_suffix(b"\r\n")
-            .unwrap_or_else(|| sigbuf.strip_suffix(b"\n").unwrap());
+        let sigbuf = if let Some(sigbuf) = sigbuf.strip_suffix(b"\r\n") {
+            sigbuf
+        } else if let Some(sigbuf) = sigbuf.strip_suffix(b"\n") {
+            sigbuf
+        } else {
+            return Err(anyhow!("missing final newline or CRLF"));
+        };
         n_records += 1;
 
         if opt.print_orig {
             println!(
                 " < {}",
-                if let Ok(s) = str::from_utf8(sigbuf) {
-                    s
-                } else {
-                    "!!! Not Unicode !!!"
-                }
+                str::from_utf8(sigbuf).unwrap_or("!!! Not Unicode !!!")
             );
         }
-
         match clam_sigutil::signature::parse_from_cvd(sig_type, sigbuf) {
             Ok(sig) => {
                 if opt.dump_debug_long {
@@ -184,7 +183,7 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
                     eprintln!(
                         "Unable to process line {}:\n  {}\n  Error: {}\n",
                         line_no,
-                        str::from_utf8(sigbuf)?,
+                        str::from_utf8(sigbuf).unwrap_or("Not Unicode"),
                         e
                     );
                     err_count += 1;
