@@ -142,7 +142,7 @@ impl ByteCmpSubSig {
             return Err(ByteCmpSubSigParseError::TooManyFields);
         }
 
-        let offset = Offset::from_bytes(maybe_offset)?;
+        let offset = maybe_offset.try_into()?;
         let byte_options = ByteOptions::from_bytes(maybe_byte_options)?;
 
         let mut comparisons = [None, None];

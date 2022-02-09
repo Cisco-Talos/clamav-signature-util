@@ -27,8 +27,10 @@ pub enum OffsetModifier {
     Negative,
 }
 
-impl Offset {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Offset, OffsetParseError> {
+impl TryFrom<&[u8]> for Offset {
+    type Error = OffsetParseError;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let modifier;
         let bytes = if let Some(bytes) = bytes.strip_prefix(b">>") {
             modifier = OffsetModifier::Positive;
