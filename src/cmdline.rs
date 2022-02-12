@@ -1,10 +1,12 @@
 use anyhow::{anyhow, Result};
-use clam_sigutil::signature::SigType;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
-use std::path::{Path, PathBuf};
-use std::str;
-use std::time::{Duration, Instant};
+use clam_sigutil::SigType;
+use std::{
+    fs::File,
+    io::{BufRead, BufReader, Read},
+    path::{Path, PathBuf},
+    str,
+    time::{Duration, Instant},
+};
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
