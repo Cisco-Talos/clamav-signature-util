@@ -9,6 +9,7 @@ FROM rust:1-slim-buster AS build
     COPY test-data test-data
     RUN cargo update
     RUN cargo build --release
+    RUN strip target/release/clam-sigutil
 
 FROM debian:buster-slim
 
