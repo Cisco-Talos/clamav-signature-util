@@ -1,5 +1,8 @@
 use super::{hash::HashSigParseError, ParseError, Signature};
-use crate::util::{self, parse_number_dec, parse_wildcard_field, Hash};
+use crate::{
+    feature::{Feature, FeatureSet},
+    util::{self, parse_number_dec, parse_wildcard_field, Hash},
+};
 use std::convert::TryFrom;
 use std::str;
 
@@ -16,13 +19,14 @@ impl Signature for PESectionHashSig {
         &self.name
     }
 
-    fn feature_levels(&self) -> (usize, Option<usize>) {
-        let min = if self.size.is_none() || matches!(self.hash, Hash::Sha1(_) | Hash::Sha2_256(_)) {
-            73
-        } else {
-            1
-        };
-        (min, None)
+    fn features(&self) -> FeatureSet {
+        FeatureSet::from_static(match (self.size, &self.hash) {
+            (None, Hash::Sha1(_)) => &[Feature::HashSizeUnknown, Feature::HashSha1],
+            (None, Hash::Sha2_256(_)) => &[Feature::HashSizeUnknown, Feature::HashSha256],
+            (Some(_), Hash::Sha1(_)) => &[Feature::HashSha1],
+            (Some(_), Hash::Sha2_256(_)) => &[Feature::HashSha256],
+            _ => return FeatureSet::None,
+        })
     }
 }
 

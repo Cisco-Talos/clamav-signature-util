@@ -1,6 +1,9 @@
 pub mod bsmatch;
 
-use crate::util::{ParseNumberError, Range, RangeParseError, SigChar};
+use crate::{
+    feature::FeatureSet,
+    util::{ParseNumberError, Range, RangeParseError, SigChar},
+};
 use bsmatch::{AlternateStrings, AnyBytes, CharacterClass, Match};
 use std::convert::TryFrom;
 use thiserror::Error;
@@ -221,5 +224,18 @@ impl TryFrom<&[u8]> for BodySig {
             matches,
             min_f_level,
         })
+    }
+}
+
+impl BodySig {
+    pub fn features(&self) -> FeatureSet {
+        let x = self
+            .matches
+            .iter()
+            .map(Match::features)
+            .map(FeatureSet::into_iter)
+            .flatten()
+            .into();
+        x
     }
 }

@@ -1,5 +1,3 @@
-use crate::util::{parse_number_dec, ParseNumberError};
-
 use super::{
     super::signature::{
         logical::targetdesc::TargetDescParseError, targettype::TargetType, ParseError, Signature,
@@ -8,8 +6,11 @@ use super::{
     logical::subsig::SubSig,
     targettype::TargetTypeParseError,
 };
-use std::convert::TryFrom;
-use std::str;
+use crate::{
+    feature::FeatureSet,
+    util::{parse_number_dec, ParseNumberError},
+};
+use std::{convert::TryFrom, str};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -225,12 +226,11 @@ impl Signature for ExtendedSig {
         }
     }
 
-    fn feature_levels(&self) -> (usize, Option<usize>) {
-        if let Some(body_sig) = &self.body_sig {
-            (body_sig.min_f_level, None)
-        } else {
-            (1, None)
-        }
+    fn features(&self) -> FeatureSet {
+        self.body_sig
+            .as_ref()
+            .map(BodySig::features)
+            .unwrap_or(FeatureSet::None)
     }
 }
 

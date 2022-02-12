@@ -1,14 +1,19 @@
-mod macrosig;
-pub use macrosig::{MacroSubSig, MacroSubSigParseError};
 mod bytecmp;
-pub use bytecmp::{ByteCmpSubSig, ByteCmpSubSigParseError};
+mod macrosig;
 mod pcre;
-pub use crate::signature::{
-    bodysig::{BodySig, BodySigParseError},
-    ext::{ExtendedSig, ExtendedSigParseError, Offset, OffsetParseError, OffsetPos},
-    targettype::TargetType,
-};
+
+pub use bytecmp::{ByteCmpSubSig, ByteCmpSubSigParseError};
+pub use macrosig::{MacroSubSig, MacroSubSigParseError};
 pub use pcre::{PCRESubSig, PCRESubSigParseError};
+
+use crate::{
+    feature::FeatureSet,
+    signature::{
+        bodysig::{BodySig, BodySigParseError},
+        ext::{ExtendedSig, ExtendedSigParseError, Offset, OffsetParseError, OffsetPos},
+        targettype::TargetType,
+    },
+};
 
 use thiserror::Error;
 
@@ -31,6 +36,11 @@ pub struct SubSigModifier {
 
 pub trait SubSig: std::fmt::Debug {
     fn subsig_type(&self) -> SubSigType;
+
+    /// Return the engine features required to match this sub-signature
+    fn features(&self) -> FeatureSet {
+        FeatureSet::None
+    }
 }
 
 pub trait SubSigError: std::error::Error {

@@ -1,5 +1,6 @@
 use super::{SubSig, SubSigType};
 use crate::{
+    feature::{Feature, FeatureSet},
     signature::logical::SubSigModifier,
     util::{parse_number_dec, ParseNumberError},
 };
@@ -98,6 +99,10 @@ pub enum Endianness {
 impl SubSig for ByteCmpSubSig {
     fn subsig_type(&self) -> SubSigType {
         SubSigType::ByteCmp
+    }
+
+    fn features(&self) -> FeatureSet {
+        FeatureSet::from_static(&[Feature::ByteCompareMin])
     }
 }
 

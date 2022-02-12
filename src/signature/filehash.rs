@@ -1,4 +1,5 @@
 use crate::{
+    feature::{Feature, FeatureSet},
     signature::{hash::HashSigParseError, ParseError},
     util::{self, parse_number_dec, parse_wildcard_field, Hash},
 };
@@ -17,14 +18,14 @@ impl super::Signature for FileHashSig {
         &self.name
     }
 
-    fn feature_levels(&self) -> (usize, Option<usize>) {
-        let min =
-            if self.file_size.is_none() || matches!(self.hash, Hash::Sha1(_) | Hash::Sha2_256(_)) {
-                73
-            } else {
-                1
-            };
-        (min, None)
+    fn features(&self) -> FeatureSet {
+        FeatureSet::from_static(match (self.file_size, &self.hash) {
+            (None, Hash::Sha1(_)) => &[Feature::HashSizeUnknown, Feature::HashSha1],
+            (None, Hash::Sha2_256(_)) => &[Feature::HashSizeUnknown, Feature::HashSha256],
+            (Some(_), Hash::Sha1(_)) => &[Feature::HashSha1][..],
+            (Some(_), Hash::Sha2_256(_)) => &[Feature::HashSha256][..],
+            _ => return FeatureSet::None,
+        })
     }
 }
 

@@ -2,12 +2,15 @@ mod container_size;
 mod container_type;
 
 use super::{ParseError, Signature};
-use crate::util::{
-    parse_bool_from_int, parse_number_dec, parse_wildcard_field, unescaped_element,
-    ParseBoolFromIntError, ParseNumberError, Range, RangeParseError,
+use crate::{
+    feature::FeatureSet,
+    util::{
+        parse_bool_from_int, parse_number_dec, parse_wildcard_field, unescaped_element,
+        ParseBoolFromIntError, ParseNumberError, Range, RangeParseError,
+    },
+    Feature,
 };
-use container_size::parse_container_size;
-use container_size::{ContainerSize, ContainerSizeParseError};
+use container_size::{parse_container_size, ContainerSize, ContainerSizeParseError};
 use container_type::{ContainerType, ContainerTypeParseError};
 use std::str;
 use thiserror::Error;
@@ -198,8 +201,8 @@ impl Signature for ContainerMetadataSig {
         todo!()
     }
 
-    fn feature_levels(&self) -> (usize, Option<usize>) {
-        todo!()
+    fn features(&self) -> crate::feature::FeatureSet {
+        FeatureSet::from_static(&[Feature::ContentMetadataSig])
     }
 }
 

@@ -1,5 +1,8 @@
 use super::BodySigParseError;
-use crate::util::{parse_number_dec, Range};
+use crate::{
+    feature::FeatureSet,
+    util::{parse_number_dec, Range},
+};
 use std::ops::RangeInclusive;
 
 pub enum Match {
@@ -126,5 +129,11 @@ impl TryFrom<u8> for CharacterClass {
             b'W' => CharacterClass::NonAlphaChar,
             _ => return Err(BodySigParseError::UnknownCharacterClass),
         })
+    }
+}
+
+impl Match {
+    pub fn features(&self) -> FeatureSet {
+        FeatureSet::None
     }
 }

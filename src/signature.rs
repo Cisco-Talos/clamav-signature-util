@@ -8,7 +8,7 @@ pub mod pehash;
 pub mod sigtype;
 pub mod targettype;
 
-pub use sigtype::SigType;
+use crate::{feature::FeatureSet, SigType};
 use thiserror::Error;
 
 /// Required functionality for a Signature.
@@ -16,9 +16,19 @@ pub trait Signature: std::fmt::Debug {
     /// Signature name
     fn name(&self) -> &str;
 
+    /// Return the engine features required to match this signature
+    fn features(&self) -> FeatureSet {
+        FeatureSet::None
+    }
+
     /// Return the minimum and optional maximum feature levels for which this
-    /// signature is supported
-    fn feature_levels(&self) -> (usize, Option<usize>);
+    /// signature is supported (as computed by the required features)
+    fn feature_levels(&self) -> (Option<usize>, Option<usize>) {
+        (
+            self.features().into_iter().map(|f| f.min_flevel()).max(),
+            None,
+        )
+    }
 }
 
 /// Parse a CVD-style (single-line) signature from a CVD database. Since each

@@ -53,8 +53,13 @@ impl Signature for LogicalSig {
         &self.name
     }
 
-    fn feature_levels(&self) -> (usize, Option<usize>) {
-        (51, None)
+    fn features(&self) -> crate::feature::FeatureSet {
+        // Collect all the features required by the various subsigs
+        self.sub_sigs
+            .iter()
+            .map(|ss| ss.features())
+            .flatten()
+            .into()
     }
 }
 
