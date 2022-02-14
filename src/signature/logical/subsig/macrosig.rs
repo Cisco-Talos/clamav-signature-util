@@ -1,5 +1,6 @@
 use super::{SubSig, SubSigType};
 use crate::{
+    feature::EngineReq,
     signature::logical::SubSigModifier,
     util::{parse_number_dec, ParseNumberError},
 };
@@ -58,6 +59,8 @@ impl SubSig for MacroSubSig {
         SubSigType::Macro
     }
 }
+
+impl EngineReq for MacroSubSig {}
 
 impl MacroSubSig {
     pub fn from_bytes(

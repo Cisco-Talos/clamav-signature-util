@@ -85,6 +85,7 @@ pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), 
     }
 
     let mut ofh = BufWriter::new(File::create(output_dir.join("features.rs"))?);
+    writeln!(ofh, "/// An identifier of an engine feature required for parsing and/or matching a particular signature or signature element.")?;
     writeln!(ofh, "#[derive(Debug, Clone, Copy)]")?;
     writeln!(
         ofh,

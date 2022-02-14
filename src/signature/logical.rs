@@ -2,6 +2,8 @@ pub mod expression;
 pub mod subsig;
 pub mod targetdesc;
 
+use crate::feature::EngineReq;
+
 use self::{
     expression::LogExprParseError,
     subsig::{SubSigModifier, SubSigParseError},
@@ -52,13 +54,16 @@ impl Signature for LogicalSig {
     fn name(&self) -> &str {
         &self.name
     }
+}
 
+impl EngineReq for LogicalSig {
     fn features(&self) -> crate::feature::FeatureSet {
         // Collect all the features required by the various subsigs
         self.sub_sigs
             .iter()
             .map(|ss| ss.features())
             .flatten()
+            .chain(self.target_desc.features())
             .into()
     }
 }

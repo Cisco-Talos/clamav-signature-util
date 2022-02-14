@@ -3,7 +3,7 @@ mod container_type;
 
 use super::{ParseError, Signature};
 use crate::{
-    feature::FeatureSet,
+    feature::{EngineReq, FeatureSet},
     util::{
         parse_bool_from_int, parse_number_dec, parse_wildcard_field, unescaped_element,
         ParseBoolFromIntError, ParseNumberError, Range, RangeParseError,
@@ -200,7 +200,9 @@ impl Signature for ContainerMetadataSig {
     fn name(&self) -> &str {
         todo!()
     }
+}
 
+impl EngineReq for ContainerMetadataSig {
     fn features(&self) -> crate::feature::FeatureSet {
         FeatureSet::from_static(&[Feature::ContentMetadataSig])
     }

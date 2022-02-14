@@ -1,6 +1,6 @@
 use super::{hash::HashSigParseError, ParseError, Signature};
 use crate::{
-    feature::{Feature, FeatureSet},
+    feature::{EngineReq, Feature, FeatureSet},
     util::{self, parse_number_dec, parse_wildcard_field, Hash},
 };
 use std::convert::TryFrom;
@@ -18,7 +18,9 @@ impl Signature for PESectionHashSig {
     fn name(&self) -> &str {
         &self.name
     }
+}
 
+impl EngineReq for PESectionHashSig {
     fn features(&self) -> FeatureSet {
         FeatureSet::from_static(match (self.size, &self.hash) {
             (None, Hash::Sha1(_)) => &[Feature::HashSizeUnknown, Feature::HashSha1],

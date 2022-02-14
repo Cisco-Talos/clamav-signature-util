@@ -31,6 +31,10 @@ struct Opt {
     #[structopt(long)]
     dump_debug_long: bool,
 
+    /// Report required features
+    #[structopt(long)]
+    print_features: bool,
+
     /// Signature type for stdin, specified as file extension
     #[structopt(alias = "sigtype", long, parse(try_from_str))]
     sig_type: Option<SigType>,
@@ -178,6 +182,9 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
                     println!(" * {:#?} f_level{:?}", sig, sig.feature_levels());
                 } else if opt.dump_debug {
                     println!(" * {:?} f_level{:?}", sig, sig.feature_levels());
+                }
+                if opt.print_features {
+                    println!(" > {:?}", sig.features());
                 }
             }
             Err(e) => {

@@ -7,7 +7,7 @@ use super::{
     targettype::TargetTypeParseError,
 };
 use crate::{
-    feature::FeatureSet,
+    feature::{EngineReq, FeatureSet},
     util::{parse_number_dec, ParseNumberError},
 };
 use std::{convert::TryFrom, str};
@@ -225,7 +225,9 @@ impl Signature for ExtendedSig {
             "anonymous"
         }
     }
+}
 
+impl EngineReq for ExtendedSig {
     fn features(&self) -> FeatureSet {
         self.body_sig
             .as_ref()

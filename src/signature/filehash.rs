@@ -1,5 +1,5 @@
 use crate::{
-    feature::{Feature, FeatureSet},
+    feature::{EngineReq, Feature, FeatureSet},
     signature::{hash::HashSigParseError, ParseError},
     util::{self, parse_number_dec, parse_wildcard_field, Hash},
 };
@@ -17,7 +17,9 @@ impl super::Signature for FileHashSig {
     fn name(&self) -> &str {
         &self.name
     }
+}
 
+impl EngineReq for FileHashSig {
     fn features(&self) -> FeatureSet {
         FeatureSet::from_static(match (self.file_size, &self.hash) {
             (None, Hash::Sha1(_)) => &[Feature::HashSizeUnknown, Feature::HashSha1],

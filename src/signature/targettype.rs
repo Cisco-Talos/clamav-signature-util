@@ -1,4 +1,8 @@
-use crate::util::{parse_number_dec, ParseNumberError};
+use crate::{
+    feature::{EngineReq, FeatureSet},
+    util::{parse_number_dec, ParseNumberError},
+    Feature,
+};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::FromPrimitive;
 use thiserror::Error;
@@ -47,5 +51,16 @@ impl TryFrom<&[u8]> for TargetType {
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         FromPrimitive::from_usize(parse_number_dec(value)?).ok_or(TargetTypeParseError::Unknown)
+    }
+}
+
+impl EngineReq for TargetType {
+    fn features(&self) -> FeatureSet {
+        FeatureSet::from_static(match self {
+            TargetType::PDF => &[Feature::TargetTypePdf],
+            TargetType::Flash => &[Feature::TargetTypeFlash],
+            TargetType::Java => &[Feature::TargetTypeJava],
+            _ => return FeatureSet::None,
+        })
     }
 }

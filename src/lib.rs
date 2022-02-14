@@ -1,7 +1,14 @@
+//! # ClamAV Signature Utilities
+//!
+//! An API for ingesting and validating ClamAV signatures
+
 #![deny(clippy::mod_module_files)]
 
+/// Functionality associated with engine features
 pub mod feature;
+/// File type classification
 pub mod filetype;
+/// Engine signature parsing and examination
 pub mod signature;
 pub(crate) mod util;
 

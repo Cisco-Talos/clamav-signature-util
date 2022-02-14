@@ -247,14 +247,15 @@ fn parse_element<B>(byte_stream: &mut B, depth: u8) -> Result<Box<dyn Element>, 
 where
     B: Iterator<Item = (usize, u8)> + Clone,
 {
-    // dbg!(depth);
     #[derive(Debug)]
     enum State {
         // Next item should be a signature index or an expression
         Initial,
         // Found modifier operator, reading required matches
         ModReq,
+        // Found the comma in the modifier
         ModUniq,
+        // Found something that indicated the end of a modifier
         ApplyModifier,
     }
 
@@ -271,13 +272,6 @@ where
     'handle_stream: loop {
         let b = byte_stream.next();
         'handle_byte: loop {
-            /*
-            eprintln!(
-                "byte={:?} depth={} state={:?}",
-                b.map(|b| std::char::from_u32(b as u32).unwrap()),
-                depth,
-                state
-            ); */
             match state {
                 State::Initial => match b {
                     Some((_, b'(')) => {
@@ -290,6 +284,7 @@ where
                         if depth > 0 {
                             break 'handle_stream;
                         } else {
+                            // FIXME: panic?
                             panic!("unmatched closing paren found");
                         }
                     }

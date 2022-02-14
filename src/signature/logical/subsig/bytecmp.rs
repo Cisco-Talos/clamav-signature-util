@@ -1,6 +1,6 @@
 use super::{SubSig, SubSigType};
 use crate::{
-    feature::{Feature, FeatureSet},
+    feature::{EngineReq, Feature, FeatureSet},
     signature::logical::SubSigModifier,
     util::{parse_number_dec, ParseNumberError},
 };
@@ -100,7 +100,9 @@ impl SubSig for ByteCmpSubSig {
     fn subsig_type(&self) -> SubSigType {
         SubSigType::ByteCmp
     }
+}
 
+impl EngineReq for ByteCmpSubSig {
     fn features(&self) -> FeatureSet {
         FeatureSet::from_static(&[Feature::ByteCompareMin])
     }

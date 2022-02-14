@@ -1,34 +1,29 @@
+/// Body signatures, typically found in extended signatures
 pub mod bodysig;
+/// Container Metadata signature support
 pub mod container_metadata;
+/// Extended signature support
 pub mod ext;
+/// File hash signature support
 pub mod filehash;
+/// Common functionality for hash-based signatures
 pub mod hash;
+/// Logical signature support
 pub mod logical;
+/// Hash-based signature support for Portable Executable files
 pub mod pehash;
+/// Enumeration of signature types
 pub mod sigtype;
+/// Enumeration of target types (typically found in logical and extended signatures)
 pub mod targettype;
 
-use crate::{feature::FeatureSet, SigType};
+use crate::{feature::EngineReq, SigType};
 use thiserror::Error;
 
 /// Required functionality for a Signature.
-pub trait Signature: std::fmt::Debug {
+pub trait Signature: std::fmt::Debug + EngineReq {
     /// Signature name
     fn name(&self) -> &str;
-
-    /// Return the engine features required to match this signature
-    fn features(&self) -> FeatureSet {
-        FeatureSet::None
-    }
-
-    /// Return the minimum and optional maximum feature levels for which this
-    /// signature is supported (as computed by the required features)
-    fn feature_levels(&self) -> (Option<usize>, Option<usize>) {
-        (
-            self.features().into_iter().map(|f| f.min_flevel()).max(),
-            None,
-        )
-    }
 }
 
 /// Parse a CVD-style (single-line) signature from a CVD database. Since each

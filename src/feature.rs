@@ -5,6 +5,25 @@ mod features {
 
 pub use features::Feature;
 
+/// A trait that allows definition of a set of engine features (and an associated
+/// minimum feature level) necessary to utilize a particular signature or
+/// signature element.
+pub trait EngineReq {
+    /// Engine features required to utilize a particular element
+    fn features(&self) -> FeatureSet {
+        FeatureSet::None
+    }
+
+    /// The minimum and optional maximum feature levels for which this
+    /// signature is supported (as derived from the required features)
+    fn feature_levels(&self) -> (Option<usize>, Option<usize>) {
+        (
+            self.features().into_iter().map(|f| f.min_flevel()).max(),
+            None,
+        )
+    }
+}
+
 /// A wrapper around a set of features identifiers, which may be known at compile
 /// time or computed after examining signature content.
 pub enum FeatureSet {
@@ -40,5 +59,15 @@ impl FeatureSet {
     /// Obtain a FeatureSet from a static slice
     pub fn from_static(features: &'static [Feature]) -> Self {
         Self::Static(features)
+    }
+}
+
+impl std::fmt::Debug for FeatureSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::None => write!(f, "None"),
+            Self::Static(arg0) => write!(f, "{:?}", arg0),
+            Self::Built(arg0) => write!(f, "{:?}", arg0),
+        }
     }
 }

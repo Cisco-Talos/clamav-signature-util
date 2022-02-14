@@ -1,7 +1,7 @@
 pub mod bsmatch;
 
 use crate::{
-    feature::FeatureSet,
+    feature::{EngineReq, FeatureSet},
     util::{ParseNumberError, Range, RangeParseError, SigChar},
 };
 use bsmatch::{AlternateStrings, AnyBytes, CharacterClass, Match};
@@ -14,7 +14,8 @@ use thiserror::Error;
 pub struct BodySig {
     // Just encode the raw data for now
     #[allow(dead_code)]
-    matches: Vec<Match>,
+    /// Different elements that must be matched for the signature itself to match
+    pub matches: Vec<Match>,
     pub min_f_level: usize,
 }
 
@@ -227,8 +228,8 @@ impl TryFrom<&[u8]> for BodySig {
     }
 }
 
-impl BodySig {
-    pub fn features(&self) -> FeatureSet {
+impl EngineReq for BodySig {
+    fn features(&self) -> FeatureSet {
         let x = self
             .matches
             .iter()

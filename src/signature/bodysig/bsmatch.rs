@@ -1,18 +1,41 @@
 use super::BodySigParseError;
 use crate::{
-    feature::FeatureSet,
+    feature::EngineReq,
     util::{parse_number_dec, Range},
 };
 use std::ops::RangeInclusive;
 
 pub enum Match {
+    /// A series of bytes that must match exactly
     Literal(Vec<u8>),
-    AnyBytes(AnyBytes),
-    Mask { mask: u8, value: u8 },
-    AnyByte,
-    ByteRange(Range<usize>),
-    CharacterClass(CharacterClass),
+
+    /// Alternate string.  Matches on any of two or more strings.
     AlternateStrings(AlternateStrings),
+
+    // Many any single byte, represented as `??` in signatures
+    AnyByte,
+
+    /// A range of bytes that are ignored, but anchored to a neighboring match.
+    /// This is represented in signatures as `[n-m]`
+    AnyBytes(AnyBytes),
+
+    /// A range of bytes that are ignored, but anchored to neighboring matches
+    /// This is represented in signatures as `*` (for any size); or as `{-n}`,
+    /// `{n-}` or `{n-m}` to match inclusive or open-ended ranges.
+    ByteRange(Range<usize>),
+
+    /// Other outlying match types (e.g., boundaries, ASCII characgter class,
+    /// etc.)
+    CharacterClass(CharacterClass),
+
+    /// A match on a portion of a byte.  These are specified in signatures as
+    /// `x?` or `?x`, wildcarding either the high or low nyble of the byte. As
+    /// such, the computed mask will be either `0xf0` or `0x0f` depending on the
+    /// position of the `?`.
+    Mask {
+        mask: u8,
+        value: u8,
+    },
 }
 
 impl std::fmt::Debug for Match {
@@ -132,8 +155,4 @@ impl TryFrom<u8> for CharacterClass {
     }
 }
 
-impl Match {
-    pub fn features(&self) -> FeatureSet {
-        FeatureSet::None
-    }
-}
+impl EngineReq for Match {}

@@ -1,5 +1,6 @@
 use super::super::targettype::TargetType;
 use crate::{
+    feature::{EngineReq, FeatureSet},
     filetype::FileType,
     util::{self, parse_number_dec, ParseNumberError},
 };
@@ -154,5 +155,14 @@ impl TryFrom<&[u8]> for TargetDesc {
         }
 
         Ok(tdesc)
+    }
+}
+
+impl EngineReq for TargetDesc {
+    fn features(&self) -> FeatureSet {
+        self.target_type
+            .as_ref()
+            .map(TargetType::features)
+            .unwrap_or(FeatureSet::None)
     }
 }

@@ -1,4 +1,8 @@
-use crate::signature::logical::{expression, SubSigModifier};
+use crate::{
+    feature::{EngineReq, FeatureSet},
+    signature::logical::{expression, SubSigModifier},
+    Feature,
+};
 use std::str;
 use thiserror::Error;
 
@@ -18,6 +22,12 @@ pub struct PCRESubSig {
 impl SubSig for PCRESubSig {
     fn subsig_type(&self) -> SubSigType {
         SubSigType::Pcre
+    }
+}
+
+impl EngineReq for PCRESubSig {
+    fn features(&self) -> crate::feature::FeatureSet {
+        FeatureSet::from_static(&[Feature::SubSigPcre])
     }
 }
 

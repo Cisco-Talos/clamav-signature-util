@@ -7,7 +7,7 @@ pub use macrosig::{MacroSubSig, MacroSubSigParseError};
 pub use pcre::{PCRESubSig, PCRESubSigParseError};
 
 use crate::{
-    feature::FeatureSet,
+    feature::EngineReq,
     signature::{
         bodysig::{BodySig, BodySigParseError},
         ext::{ExtendedSig, ExtendedSigParseError, Offset, OffsetParseError, OffsetPos},
@@ -34,13 +34,8 @@ pub struct SubSigModifier {
     pub ascii: bool,
 }
 
-pub trait SubSig: std::fmt::Debug {
+pub trait SubSig: std::fmt::Debug + EngineReq {
     fn subsig_type(&self) -> SubSigType;
-
-    /// Return the engine features required to match this sub-signature
-    fn features(&self) -> FeatureSet {
-        FeatureSet::None
-    }
 }
 
 pub trait SubSigError: std::error::Error {
