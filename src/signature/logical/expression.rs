@@ -445,7 +445,9 @@ where
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_thing() {
+    fn large_set() {
+        // This test mainly confirms that expressions don't crash, and outputs
+        // the expressions for human inspection.
         let mut errs = vec![];
         for (i, &expr_bytes) in crate::test_data::TEST_LOGICAL_EXPRS
             .iter()
