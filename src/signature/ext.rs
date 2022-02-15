@@ -232,7 +232,7 @@ impl EngineReq for ExtendedSig {
         self.body_sig
             .as_ref()
             .map(BodySig::features)
-            .unwrap_or(FeatureSet::None)
+            .unwrap_or_default()
     }
 }
 

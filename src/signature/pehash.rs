@@ -27,7 +27,7 @@ impl EngineReq for PESectionHashSig {
             (None, Hash::Sha2_256(_)) => &[Feature::HashSizeUnknown, Feature::HashSha256],
             (Some(_), Hash::Sha1(_)) => &[Feature::HashSha1],
             (Some(_), Hash::Sha2_256(_)) => &[Feature::HashSha256],
-            _ => return FeatureSet::None,
+            _ => return FeatureSet::default(),
         })
     }
 }

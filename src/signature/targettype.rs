@@ -60,7 +60,7 @@ impl EngineReq for TargetType {
             TargetType::PDF => &[Feature::TargetTypePdf],
             TargetType::Flash => &[Feature::TargetTypeFlash],
             TargetType::Java => &[Feature::TargetTypeJava],
-            _ => return FeatureSet::None,
+            _ => return FeatureSet::default(),
         })
     }
 }

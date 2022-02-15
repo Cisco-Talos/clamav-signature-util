@@ -11,7 +11,7 @@ pub use features::Feature;
 pub trait EngineReq {
     /// Engine features required to utilize a particular element
     fn features(&self) -> FeatureSet {
-        FeatureSet::None
+        FeatureSet::default()
     }
 
     /// The minimum and optional maximum feature levels for which this
@@ -27,9 +27,15 @@ pub trait EngineReq {
 /// A wrapper around a set of features identifiers, which may be known at compile
 /// time or computed after examining signature content.
 pub enum FeatureSet {
-    None,
+    Empty,
     Static(&'static [Feature]),
     Built(Vec<Feature>),
+}
+
+impl Default for FeatureSet {
+    fn default() -> Self {
+        Self::Empty
+    }
 }
 
 impl IntoIterator for FeatureSet {
@@ -39,7 +45,7 @@ impl IntoIterator for FeatureSet {
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
-            FeatureSet::None => Box::new(std::iter::empty()),
+            FeatureSet::Empty => Box::new(std::iter::empty()),
             FeatureSet::Static(features) => Box::new(features.iter().copied()),
             FeatureSet::Built(features) => Box::new(features.into_iter()),
         }
@@ -56,6 +62,11 @@ where
 }
 
 impl FeatureSet {
+    /// Create an empty FeatureSet
+    pub fn empty() -> Self {
+        Self::Empty
+    }
+
     /// Obtain a FeatureSet from a static slice
     pub fn from_static(features: &'static [Feature]) -> Self {
         Self::Static(features)
@@ -65,7 +76,7 @@ impl FeatureSet {
 impl std::fmt::Debug for FeatureSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::None => write!(f, "None"),
+            Self::Empty => write!(f, "None"),
             Self::Static(arg0) => write!(f, "{:?}", arg0),
             Self::Built(arg0) => write!(f, "{:?}", arg0),
         }

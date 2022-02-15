@@ -163,6 +163,6 @@ impl EngineReq for TargetDesc {
         self.target_type
             .as_ref()
             .map(TargetType::features)
-            .unwrap_or(FeatureSet::None)
+            .unwrap_or_default()
     }
 }
