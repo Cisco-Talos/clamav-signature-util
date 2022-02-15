@@ -152,7 +152,7 @@ impl From<u8> for SigChar {
 
 #[test]
 fn test_sichar_display() {
-    assert_eq!(format!("{}", SigChar(b'x')), "x");
+    assert_eq!(format!("{}", SigChar(b'x')), "'x'");
 }
 
 /// Return a predicate usable for splitting a byte slice on the specified
