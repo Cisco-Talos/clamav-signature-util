@@ -1,0 +1,64 @@
+# F-Level  Version(s)                   Features
+# -------  ----------                   --------
+51         v0.96.0                      ByteCode ContentMetadataSig
+52         v0.96.0dev                   ?
+53         v0.96.1                      LogicalSigVI LogicalSigMacro
+54         v0.96.1dev                   ?
+54         v0.96.2                      PdfHooks
+55         v0.96.2dev                   ByteCodeBcPeAll ?
+56         v0.96.4
+58         v0.96.5                      ?
+
+60         v0.97.0
+61         v0.97.1
+62         v0.97.2
+63         v0.97.3
+64         v0.97.4
+65         v0.97.5                      ?
+67         v0.97.6
+68         v0.97.7
+69         v0.97.8
+
+70                                      ?
+71                                      ?
+73                                      HashSizeUnknown
+
+74         v0.98.0                      HashSha1 HashSha256 TargetTypePdf TargetTypeFlash TargetTypeJava TargetTypeInternal
+76         v0.98.1
+77         v0.98.2 v0.98.3 v0.98.4      ?
+79         v0.98.5 v0.98.6              JsonReadApi
+80         v0.98.7                      ByteCodeBcPreclass
+
+81         v0.99.0                      SubSigPcre
+82         v0.99.1 v0.99.2              ?
+83                                      ?
+84         v0.99.3                      ?
+85         v0.99.4                      ?
+86                                      ?
+
+90         v0.100.0-BETA                ?
+91         v0.100.0                     ?
+92         v0.100.1
+93         v0.100.2
+94         v0.100.3
+96                                      ?
+
+100        v0.101.0-BETA
+101        v0.101.0
+102        v0.101.1 v0.101.2 v0.101.3         
+105        v0.101.4
+106        v0.101.5                     ?
+
+110        v0.102.0-BETA
+111        v0.102.0
+112        v0.102.1
+
+120        v0.103.0-BETA
+121        v0.103.0                     ?
+122        v0.103.1
+123        v0.103.2
+124        v0.103.2
+
+140        v0.104.0
+
+150        v0.105.0                     ByteCompareMin
