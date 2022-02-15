@@ -4,13 +4,21 @@ use thiserror::Error;
 /// Signature types
 #[derive(Debug, Clone, Copy)]
 pub enum SigType {
+    /// [Extended signature](crate::signature::ext::ExtendedSig)
     Extended,
+    /// [Logical signature](crate::signature::logical::LogicalSig)
     Logical,
+    /// [Container Metadata signature](crate::signature::container_metadata::ContainerMetadataSig)
     ContainerMetadata,
+    /// Bytecode signature
     Bytecode,
+    /// Phishing URL
     PhishingURL,
+    /// [File Hash signature](crate::signature::filehash::FileHashSig)
     FileHash,
+    /// [Portable Executable Section Hash signature](crate::signature::pehash::PESectionHashSig)
     PESectionHash,
+    /// Yara signature
     Yara,
 }
 
