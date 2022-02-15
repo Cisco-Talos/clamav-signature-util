@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn not_unicode() {
         assert!(matches!(
-            ContainerType::try_from(&[127u8][..]),
+            ContainerType::try_from(&[0x80u8][..]),
             Err(ContainerTypeParseError::NotUnicode(_))
         ));
     }
