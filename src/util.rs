@@ -6,6 +6,8 @@ use thiserror::Error;
 pub const MD5_LEN: usize = 16;
 pub const SHA1_LEN: usize = 20;
 pub const SHA2_256_LEN: usize = 32;
+pub const BYTE_DISP_PREFIX: &str = "<|";
+pub const BYTE_DISP_SUFFIX: &str = "|>";
 
 /// Generic hash digest container
 #[derive(Debug, PartialEq)]
@@ -139,7 +141,7 @@ impl std::fmt::Display for SigChar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match str::from_utf8(&[self.0]) {
             Ok(s) => write!(f, "'{}'", s),
-            Err(_) => write!(f, "{{0x{:x}}}", self.0),
+            Err(_) => write!(f, "{}{:x}{}", BYTE_DISP_PREFIX, self.0, BYTE_DISP_SUFFIX),
         }
     }
 }
@@ -172,11 +174,11 @@ impl std::fmt::Display for SigBytes {
                     }?;
                     match e.error_len() {
                         Some(len) => {
-                            write!(f, "<|")?;
+                            f.write_str(BYTE_DISP_PREFIX)?;
                             after_valid[0..len]
                                 .iter()
                                 .try_for_each(|&b| write!(f, "{:02x}", b))?;
-                            write!(f, "|>")?;
+                            f.write_str(BYTE_DISP_SUFFIX)?;
                             bytes = &after_valid[len..];
                         }
                         None => break Ok(()),
@@ -327,14 +329,15 @@ mod tests {
     }
 
     #[test]
-    fn test_sichar_display() {
+    fn sigchar_display() {
         assert_eq!(format!("{}", SigChar(b'x')), "'x'");
+        assert_eq!(format!("{}", SigChar(b'\x80')), "<|80|>");
     }
 
     #[test]
     fn sigbytes_valid() {
         const INPUT: &[u8] = b"how now brown cow";
-        let bytes = SigBytes(INPUT.to_owned());
+        let bytes: SigBytes = INPUT.into();
         assert_eq!(
             format!("{}", bytes),
             String::from_utf8(INPUT.to_owned()).unwrap()
