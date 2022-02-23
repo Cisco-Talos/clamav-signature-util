@@ -6,6 +6,8 @@ use thiserror::Error;
 pub const MD5_LEN: usize = 16;
 pub const SHA1_LEN: usize = 20;
 pub const SHA2_256_LEN: usize = 32;
+pub const BYTE_DISP_PREFIX: &str = "<|";
+pub const BYTE_DISP_SUFFIX: &str = "|>";
 
 /// Generic hash digest container
 #[derive(Debug, PartialEq)]
@@ -139,7 +141,7 @@ impl std::fmt::Display for SigChar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match str::from_utf8(&[self.0]) {
             Ok(s) => write!(f, "'{}'", s),
-            Err(_) => write!(f, "{{0x{:x}}}", self.0),
+            Err(_) => write!(f, "{}{:x}{}", BYTE_DISP_PREFIX, self.0, BYTE_DISP_SUFFIX),
         }
     }
 }
@@ -150,9 +152,60 @@ impl From<u8> for SigChar {
     }
 }
 
-#[test]
-fn test_sichar_display() {
-    assert_eq!(format!("{}", SigChar(b'x')), "'x'");
+/// A type wrapper around a series of bytes found in a signature.  Allows
+/// implementing `Display` to work around potential unicode problems.
+#[derive(Debug)]
+pub struct SigBytes(Vec<u8>);
+
+impl std::fmt::Display for SigBytes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut bytes = self.0.as_slice();
+        loop {
+            match str::from_utf8(bytes) {
+                Ok(s) => {
+                    f.write_str(s)?;
+                    break Ok(());
+                }
+                Err(e) => {
+                    let (valid, after_valid) = bytes.split_at(e.valid_up_to());
+                    unsafe {
+                        // This portion is known to be valid
+                        f.write_str(str::from_utf8_unchecked(valid))
+                    }?;
+                    match e.error_len() {
+                        Some(len) => {
+                            f.write_str(BYTE_DISP_PREFIX)?;
+                            after_valid[0..len]
+                                .iter()
+                                .try_for_each(|&b| write!(f, "{:02x}", b))?;
+                            f.write_str(BYTE_DISP_SUFFIX)?;
+                            bytes = &after_valid[len..];
+                        }
+                        None => break Ok(()),
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl From<Vec<u8>> for SigBytes {
+    fn from(bytes: Vec<u8>) -> Self {
+        SigBytes(bytes)
+    }
+}
+
+impl From<&[u8]> for SigBytes {
+    fn from(bytes: &[u8]) -> Self {
+        SigBytes(bytes.to_owned())
+    }
+}
+
+// This allows easy transforms from constants like `b"abc"` without slicing
+impl<const N: usize> From<&[u8; N]> for SigBytes {
+    fn from(bytes: &[u8; N]) -> Self {
+        SigBytes(bytes.to_vec())
+    }
 }
 
 /// Return a predicate usable for splitting a byte slice on the specified
@@ -273,5 +326,39 @@ mod tests {
         assert_eq!(fields.next(), Some(r#"def\:ghi"#.as_bytes()));
         assert_eq!(fields.next(), Some(r#"hij\:\:"#.as_bytes()));
         assert_eq!(fields.next(), Some(r#"klm"#.as_bytes()));
+    }
+
+    #[test]
+    fn sigchar_display() {
+        assert_eq!(format!("{}", SigChar(b'x')), "'x'");
+        assert_eq!(format!("{}", SigChar(b'\x80')), "<|80|>");
+    }
+
+    #[test]
+    fn sigbytes_valid() {
+        const INPUT: &[u8] = b"how now brown cow";
+        let bytes: SigBytes = INPUT.into();
+        assert_eq!(
+            format!("{}", bytes),
+            String::from_utf8(INPUT.to_owned()).unwrap()
+        );
+    }
+
+    #[test]
+    fn sigbytes_invalid_short_end() {
+        let bytes: SigBytes = b"how now brown cow\x80".into();
+        assert_eq!(format!("{}", bytes), "how now brown cow<|80|>");
+    }
+
+    #[test]
+    fn sigbytes_invalid_long_end() {
+        let bytes: SigBytes = b"how now brown cow\xa0\xa1".into();
+        assert_eq!(format!("{}", bytes), "how now brown cow<|a0|><|a1|>");
+    }
+
+    #[test]
+    fn sigbytes_invalid_long_intermediate() {
+        let bytes: SigBytes = b"how now\xa0\xa1brown cow".into();
+        assert_eq!(format!("{}", bytes), "how now<|a0|><|a1|>brown cow");
     }
 }
