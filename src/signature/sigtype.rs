@@ -34,7 +34,7 @@ impl SigType {
     /// is not known to map to a signature type.
     pub fn from_file_path<'a, P: Into<&'a Path>>(path: P) -> Option<Self> {
         let path: &Path = path.into();
-        if let Some(extension) = path.extension().map(OsStr::to_str).flatten() {
+        if let Some(extension) = path.extension().and_then(OsStr::to_str) {
             Self::from_file_extension(extension)
         } else {
             None

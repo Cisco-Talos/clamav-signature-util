@@ -61,8 +61,7 @@ impl EngineReq for LogicalSig {
         // Collect all the features required by the various subsigs
         self.sub_sigs
             .iter()
-            .map(|ss| ss.features())
-            .flatten()
+            .flat_map(|ss| ss.features())
             .chain(self.target_desc.features())
             .into()
     }
