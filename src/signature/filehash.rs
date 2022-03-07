@@ -1,7 +1,7 @@
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
     signature::{hash::HashSigParseError, ParseError},
-    util::{self, parse_number_dec, parse_wildcard_field, Hash},
+    util::{self, parse_field, parse_number_dec, Hash},
 };
 use std::{convert::TryFrom, str};
 
@@ -38,7 +38,8 @@ impl TryFrom<&[u8]> for FileHashSig {
         let mut fields = data.split(|b| *b == b':');
 
         let hash = util::parse_hash(fields.next().ok_or(HashSigParseError::MissingHashString)?)?;
-        let file_size = parse_wildcard_field!(
+        let file_size = parse_field!(
+            OPTIONAL
             fields,
             parse_number_dec,
             HashSigParseError::MissingFileSize,

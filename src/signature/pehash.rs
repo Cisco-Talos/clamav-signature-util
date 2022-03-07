@@ -1,7 +1,7 @@
 use super::{hash::HashSigParseError, ParseError, Signature};
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
-    util::{self, parse_number_dec, parse_wildcard_field, Hash},
+    util::{self, parse_field, parse_number_dec, Hash},
 };
 use std::convert::TryFrom;
 use std::str;
@@ -37,7 +37,8 @@ impl TryFrom<&[u8]> for PESectionHashSig {
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut fields = data.split(|b| *b == b':');
-        let size = parse_wildcard_field!(
+        let size = parse_field!(
+            OPTIONAL
             fields,
             parse_number_dec,
             HashSigParseError::MissingFileSize,
