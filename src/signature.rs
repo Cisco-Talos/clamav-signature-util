@@ -38,8 +38,13 @@ pub trait Signature: std::fmt::Debug + EngineReq {
 ///
 /// # Examples
 /// ```
-/// use clam_sigutil::{signature, SigType};
-/// let sig = clam_sigutil::signature::parse_from_cvd(SigType::FileHash, b"44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature");
+/// use clam_sigutil::{
+///     signature::{self, Signature},
+///     SigType,
+/// };
+/// let sigdata = b"44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature";
+/// let sig = clam_sigutil::signature::parse_from_cvd(SigType::FileHash, sigdata)
+///     .expect("parsed signature");
 /// println!("sig name = {}", sig.name());
 /// ```
 pub fn parse_from_cvd(sig_type: SigType, data: &[u8]) -> Result<Box<dyn Signature>, ParseError> {
@@ -51,6 +56,7 @@ pub fn parse_from_cvd(sig_type: SigType, data: &[u8]) -> Result<Box<dyn Signatur
         SigType::ContainerMetadata => Ok(Box::new(
             container_metadata::ContainerMetadataSig::try_from(data)?,
         )),
+        SigType::PhishingURL => Ok(Box::new(phishing::PhishingSig::try_from(data)?)),
         _ => Err(ParseError::UnsupportedSigType),
     }
 }
@@ -81,4 +87,7 @@ pub enum ParseError {
 
     #[error("invalid container metadata signature: {0}")]
     ContainerMetaParse(#[from] container_metadata::ContainerMetadataSigParseError),
+
+    #[error("invalid phishing URL signature: {0}")]
+    PhishingSigParse(#[from] phishing::PhishingSigParseError),
 }
