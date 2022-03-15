@@ -17,6 +17,42 @@ pub enum Hash {
     Sha2_256([u8; SHA2_256_LEN]),
 }
 
+impl Hash {
+    /// Return the size of the hash (in its binary form)
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Md5(hash) => hash.len(),
+            Self::Sha1(hash) => hash.len(),
+            Self::Sha2_256(hash) => hash.len(),
+        }
+    }
+}
+
+impl std::fmt::Display for Hash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // This is designed to operate without additional allocations
+        // hex::encode_to_slice is guaranteed to write only `[0-9a-f]`, and
+        // buffers are guaranteed to be the correct size.
+        match self {
+            Hash::Md5(data) => {
+                let mut out = [0; MD5_LEN * 2];
+                hex::encode_to_slice(data, &mut out).unwrap();
+                f.write_str(unsafe { str::from_utf8_unchecked(&out) })
+            }
+            Hash::Sha1(data) => {
+                let mut out = [0; SHA1_LEN * 2];
+                hex::encode_to_slice(data, &mut out).unwrap();
+                f.write_str(unsafe { str::from_utf8_unchecked(&out) })
+            }
+            Hash::Sha2_256(data) => {
+                let mut out = [0; SHA2_256_LEN * 2];
+                hex::encode_to_slice(data, &mut out).unwrap();
+                f.write_str(unsafe { str::from_utf8_unchecked(&out) })
+            }
+        }
+    }
+}
+
 /// Errors that can be encountered while parsing a hash from hex-encoded format
 #[derive(Debug, Error)]
 pub enum ParseHashError {
@@ -192,6 +228,12 @@ impl std::fmt::Display for SigBytes {
 impl From<Vec<u8>> for SigBytes {
     fn from(bytes: Vec<u8>) -> Self {
         SigBytes(bytes)
+    }
+}
+
+impl From<String> for SigBytes {
+    fn from(s: String) -> Self {
+        SigBytes(s.into_bytes())
     }
 }
 

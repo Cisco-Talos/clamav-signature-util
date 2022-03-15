@@ -1,10 +1,9 @@
-use super::{hash::HashSigParseError, ParseError, Signature};
+use super::{hash::HashSigParseError, ParseError, Signature, ToSigBytesError};
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
     util::{self, parse_field, parse_number_dec, Hash},
 };
-use std::convert::TryFrom;
-use std::str;
+use std::{convert::TryFrom, fmt::Write, str};
 
 /// Hash-based signatures
 #[derive(Debug)]
@@ -17,6 +16,19 @@ pub struct PESectionHashSig {
 impl Signature for PESectionHashSig {
     fn name(&self) -> &str {
         &self.name
+    }
+
+    fn to_sigbytes(&self) -> Result<util::SigBytes, ToSigBytesError> {
+        let mut result = String::with_capacity(self.name.len() + self.hash.len() * 2 + 16);
+
+        if let Some(size) = self.size {
+            write!(result, "{}", size)?
+        } else {
+            result.write_char('*')?
+        }
+
+        write!(result, ":{}:{}", self.hash, self.name)?;
+        Ok(result.into())
     }
 }
 
@@ -70,5 +82,13 @@ mod tests {
                 "f9b304ced34fcce3ab75c6dc58ad59e4d62177ffed35494f79f09bc4e8986c16"
             ))
         );
+    }
+
+    #[test]
+    fn export() {
+        let bytes = "45056:f9b304ced34fcce3ab75c6dc58ad59e4d62177ffed35494f79f09bc4e8986c16:Win.Test.EICAR_MSB-1";
+        let sig: PESectionHashSig = bytes.as_bytes().try_into().unwrap();
+        let exported = sig.to_sigbytes().unwrap().to_string();
+        assert_eq!(bytes, &exported);
     }
 }
