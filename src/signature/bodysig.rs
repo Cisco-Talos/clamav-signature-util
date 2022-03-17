@@ -2,10 +2,10 @@ pub mod bsmatch;
 
 use crate::{
     feature::{EngineReq, FeatureSet},
-    util::{ParseNumberError, Range, RangeParseError, SigChar},
+    util::{ParseNumberError, Range, RangeParseError, SigBytes, SigChar},
 };
 use bsmatch::{AlternateStrings, AnyBytes, CharacterClass, Match};
-use std::convert::TryFrom;
+use std::{convert::TryFrom, io::Write};
 use thiserror::Error;
 
 /// Body signature.  This is an element of both Extended and Logical signatures,
@@ -218,13 +218,24 @@ impl TryFrom<&[u8]> for BodySig {
             }
         }
         if !hex_bytes.is_empty() {
-            matches.push(Match::Literal(hex_bytes))
+            matches.push(Match::Literal(hex::decode(hex_bytes)?))
         }
         // Body-based signatures are hex-encoded
         Ok(BodySig {
             matches,
             min_f_level,
         })
+    }
+}
+
+impl From<&BodySig> for SigBytes {
+    fn from(bodysig: &BodySig) -> Self {
+        let mut s = Vec::new();
+        for bsmatch in &bodysig.matches {
+            let sigbytes = SigBytes::from(bsmatch);
+            s.write_all((&sigbytes).into()).unwrap();
+        }
+        s.into()
     }
 }
 

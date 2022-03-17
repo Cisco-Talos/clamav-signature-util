@@ -1,13 +1,13 @@
 use crate::{
     feature::{EngineReq, FeatureSet},
-    util::{parse_number_dec, ParseNumberError},
+    util::{parse_number_dec, ParseNumberError, SigBytes},
     Feature,
 };
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::FromPrimitive;
 use thiserror::Error;
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+#[derive(Copy, Clone, Debug, FromPrimitive, ToPrimitive)]
 pub enum TargetType {
     /// Any file
     Any = 0,
@@ -62,5 +62,11 @@ impl EngineReq for TargetType {
             TargetType::Java => &[Feature::TargetTypeJava],
             _ => return FeatureSet::default(),
         })
+    }
+}
+
+impl From<TargetType> for SigBytes {
+    fn from(tt: TargetType) -> Self {
+        format!("{}", tt as isize).into()
     }
 }

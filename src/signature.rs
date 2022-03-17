@@ -42,6 +42,10 @@ pub enum ToSigBytesError {
     #[error("formatting: {0}")]
     Fmt(#[from] std::fmt::Error),
 
+    /// Formatting error that occurred while writing raw data to buffer
+    #[error("writing: {0}")]
+    Io(#[from] std::io::Error),
+
     /// Signature type is not supported within CVDs
     #[error("not supported within CVDs")]
     Unsupported,
