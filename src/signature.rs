@@ -19,7 +19,7 @@ pub mod sigtype;
 /// Enumeration of target types (typically found in logical and extended signatures)
 pub mod targettype;
 
-use crate::{feature::EngineReq, util::SigBytes, SigType};
+use crate::{feature::EngineReq, sigbytes::SigBytes, SigType};
 use thiserror::Error;
 
 /// Required functionality for a Signature.

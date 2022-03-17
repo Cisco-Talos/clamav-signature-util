@@ -8,7 +8,8 @@ use super::{
 };
 use crate::{
     feature::{EngineReq, FeatureSet},
-    util::{parse_number_dec, ParseNumberError, SigBytes},
+    sigbytes::SigBytes,
+    util::{parse_number_dec, ParseNumberError},
 };
 use std::{convert::TryFrom, io::Write, str};
 use thiserror::Error;
@@ -261,7 +262,7 @@ impl Signature for ExtendedSig {
         }
     }
 
-    fn to_sigbytes(&self) -> Result<crate::util::SigBytes, super::ToSigBytesError> {
+    fn to_sigbytes(&self) -> Result<SigBytes, super::ToSigBytesError> {
         let mut result = Vec::new();
         if let Some(name) = &self.name {
             result.write_all(name.as_bytes())?;

@@ -1,6 +1,7 @@
 use super::{hash::HashSigParseError, ParseError, Signature, ToSigBytesError};
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
+    sigbytes::SigBytes,
     util::{self, parse_field, parse_number_dec, Hash},
 };
 use std::{convert::TryFrom, fmt::Write, str};
@@ -18,7 +19,7 @@ impl Signature for PESectionHashSig {
         &self.name
     }
 
-    fn to_sigbytes(&self) -> Result<util::SigBytes, ToSigBytesError> {
+    fn to_sigbytes(&self) -> Result<SigBytes, ToSigBytesError> {
         let mut result = String::with_capacity(self.name.len() + self.hash.len() * 2 + 16);
 
         if let Some(size) = self.size {

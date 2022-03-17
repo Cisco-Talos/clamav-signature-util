@@ -2,7 +2,8 @@ pub mod bsmatch;
 
 use crate::{
     feature::{EngineReq, FeatureSet},
-    util::{ParseNumberError, Range, RangeParseError, SigBytes, SigChar},
+    sigbytes::{SigBytes, SigChar},
+    util::{ParseNumberError, Range, RangeParseError},
 };
 use bsmatch::{AlternateStrings, AnyBytes, CharacterClass, Match};
 use std::{convert::TryFrom, io::Write};

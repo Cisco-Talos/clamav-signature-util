@@ -1,6 +1,7 @@
 use crate::{
     feature::{EngineReq, FeatureSet},
-    util::{parse_number_dec, ParseNumberError, SigBytes},
+    sigbytes::SigBytes,
+    util::{parse_number_dec, ParseNumberError},
     Feature,
 };
 use num_derive::{FromPrimitive, ToPrimitive};

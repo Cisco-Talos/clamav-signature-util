@@ -1,7 +1,8 @@
 use super::BodySigParseError;
 use crate::{
     feature::EngineReq,
-    util::{parse_number_dec, Range, SigBytes},
+    sigbytes::SigBytes,
+    util::{parse_number_dec, Range},
 };
 use std::{io::Write, ops::RangeInclusive};
 

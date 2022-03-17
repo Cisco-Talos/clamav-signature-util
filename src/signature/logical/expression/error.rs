@@ -1,7 +1,7 @@
 use std::{fmt, ops::RangeInclusive};
 use thiserror::Error;
 
-use crate::util::SigChar;
+use crate::sigbytes::SigChar;
 
 /// A position within the expression to report the error, either relative to the
 /// start of the expression or at the end (after all characters have been processed)

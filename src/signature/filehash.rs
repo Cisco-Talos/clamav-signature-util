@@ -1,5 +1,6 @@
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
+    sigbytes::SigBytes,
     signature::{hash::HashSigParseError, ParseError, ToSigBytesError},
     util::{self, parse_field, parse_number_dec, Hash},
 };
@@ -18,7 +19,7 @@ impl super::Signature for FileHashSig {
         &self.name
     }
 
-    fn to_sigbytes(&self) -> Result<util::SigBytes, ToSigBytesError> {
+    fn to_sigbytes(&self) -> Result<SigBytes, ToSigBytesError> {
         let mut result = String::with_capacity(self.name.len() + self.hash.len() * 2 + 16);
 
         write!(result, "{}:", self.hash)?;

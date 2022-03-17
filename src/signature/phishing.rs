@@ -4,7 +4,8 @@ use thiserror::Error;
 use crate::{
     feature::EngineReq,
     regexp::{RegexpMatch, RegexpMatchParseError},
-    util::{parse_field, string_from_bytes, unescaped_element, SigBytes},
+    sigbytes::SigBytes,
+    util::{parse_field, string_from_bytes, unescaped_element},
     Signature,
 };
 
