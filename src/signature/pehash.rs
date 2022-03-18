@@ -20,16 +20,17 @@ impl Signature for PESectionHashSig {
     }
 
     fn to_sigbytes(&self) -> Result<SigBytes, ToSigBytesError> {
-        let mut result = String::with_capacity(self.name.len() + self.hash.len() * 2 + 16);
+        let size_hint = self.name.len() + self.hash.len() * 2 + 10;
+        let mut s = SigBytes::with_capacity(size_hint);
 
         if let Some(size) = self.size {
-            write!(result, "{}", size)?
+            write!(s, "{}", size)?
         } else {
-            result.write_char('*')?
+            s.write_char('*')?
         }
 
-        write!(result, ":{}:{}", self.hash, self.name)?;
-        Ok(result.into())
+        write!(s, ":{}:{}", self.hash, self.name)?;
+        Ok(s)
     }
 }
 
