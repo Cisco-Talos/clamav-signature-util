@@ -253,11 +253,12 @@ impl<T: std::str::FromStr + std::fmt::Display> AppendSigBytes for Range<T> {
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         use std::fmt::Write;
 
+        // NOTE: No surrounding characters such as {} are provided.
         match self {
-            Range::Exact(n) => write!(sb, "{{{n}}}")?,
-            Range::ToInclusive(RangeToInclusive { end }) => write!(sb, "{{-{end}}}")?,
-            Range::From(RangeFrom { start }) => write!(sb, "{{{start}-}}")?,
-            Range::Inclusive(range) => write!(sb, "{{{}-{}}}", range.start(), range.end())?,
+            Range::Exact(n) => write!(sb, "{n}")?,
+            Range::ToInclusive(RangeToInclusive { end }) => write!(sb, "-{end}")?,
+            Range::From(RangeFrom { start }) => write!(sb, "{start}-")?,
+            Range::Inclusive(range) => write!(sb, "{}-{}", range.start(), range.end())?,
         }
 
         Ok(())

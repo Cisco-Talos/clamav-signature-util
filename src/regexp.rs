@@ -1,4 +1,5 @@
-use std::str;
+use crate::sigbytes::AppendSigBytes;
+use std::{fmt::Write, str};
 use thiserror::Error;
 
 /// A wrapper for a regular expression that retains its source
@@ -13,6 +14,16 @@ pub struct RegexpMatch {
 pub enum RegexpMatchParseError {
     #[error("regexp is not unicode: {0}")]
     NotUnicode(#[from] str::Utf8Error),
+}
+
+impl AppendSigBytes for RegexpMatch {
+    fn append_sigbytes(
+        &self,
+        sb: &mut crate::sigbytes::SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        sb.write_str(&self.raw)?;
+        Ok(())
+    }
 }
 
 impl TryFrom<&[u8]> for RegexpMatch {

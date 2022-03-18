@@ -1,6 +1,10 @@
-use crate::util::{
-    parse_number_dec, parse_usize_range_inclusive, ParseNumberError, RangeInclusiveParseError,
+use crate::{
+    sigbytes::AppendSigBytes,
+    util::{
+        parse_number_dec, parse_usize_range_inclusive, ParseNumberError, RangeInclusiveParseError,
+    },
 };
+use std::fmt::Write;
 use std::ops::RangeInclusive;
 use thiserror::Error;
 
@@ -17,6 +21,19 @@ pub enum ContainerSizeParseError {
 
     #[error("parsing exact size: {0}")]
     ParseExact(#[from] ParseNumberError<usize>),
+}
+
+impl AppendSigBytes for ContainerSize {
+    fn append_sigbytes(
+        &self,
+        sb: &mut crate::sigbytes::SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        match self {
+            ContainerSize::Exact(size) => write!(sb, "{size}")?,
+            ContainerSize::Range(range) => write!(sb, "{}-{}", range.start(), range.end())?,
+        }
+        Ok(())
+    }
 }
 
 impl TryFrom<&[u8]> for ContainerSize {

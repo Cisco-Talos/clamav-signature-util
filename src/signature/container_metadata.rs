@@ -4,6 +4,7 @@ mod container_type;
 use super::{ParseError, Signature};
 use crate::{
     feature::{EngineReq, FeatureSet},
+    regexp::{RegexpMatch, RegexpMatchParseError},
     sigbytes::AppendSigBytes,
     util::{
         parse_bool_from_int, parse_field, parse_number_dec, unescaped_element,
@@ -13,7 +14,7 @@ use crate::{
 };
 use container_size::{parse_container_size, ContainerSize, ContainerSizeParseError};
 use container_type::{ContainerType, ContainerTypeParseError};
-use std::str;
+use std::{fmt::Write, str};
 use thiserror::Error;
 
 #[allow(dead_code)]
@@ -22,7 +23,7 @@ pub struct ContainerMetadataSig {
     name: String,
     container_type: Option<ContainerType>,
     container_size: Option<ContainerSize>,
-    filename_regexp_src: Option<String>,
+    filename_regexp: Option<RegexpMatch>,
     file_size_in_container: Option<Range<usize>>,
     file_size_real: Option<Range<usize>>,
     is_encrypted: Option<bool>,
@@ -48,7 +49,7 @@ pub enum ContainerMetadataSigParseError {
     MissingFilenameRegexp,
 
     #[error("FileNameREGEX not unicode: {0}")]
-    FilenameRegexpNotUnicode(std::string::FromUtf8Error),
+    FilenameRegexp(RegexpMatchParseError),
 
     #[error("missing FileSizeInContainer field")]
     MissingFSIC,
@@ -124,12 +125,12 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
         )?;
 
         // Field 4
-        let filename_regexp_src = parse_field!(
+        let filename_regexp = parse_field!(
             OPTIONAL
             fields,
-            |bytes| String::from_utf8(bytes.to_owned()),
+            RegexpMatch::try_from,
             ContainerMetadataSigParseError::MissingFilenameRegexp,
-            ContainerMetadataSigParseError::FilenameRegexpNotUnicode
+            ContainerMetadataSigParseError::FilenameRegexp
         )?;
 
         // Field 5
@@ -195,7 +196,7 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
             name,
             container_type,
             container_size,
-            filename_regexp_src,
+            filename_regexp,
             file_size_in_container,
             file_size_real,
             is_encrypted,
@@ -220,19 +221,91 @@ impl EngineReq for ContainerMetadataSig {
 impl AppendSigBytes for ContainerMetadataSig {
     fn append_sigbytes(
         &self,
-        _sb: &mut crate::sigbytes::SigBytes,
+        sb: &mut crate::sigbytes::SigBytes,
     ) -> Result<(), crate::signature::ToSigBytesError> {
-        todo!()
+        sb.write_str(&self.name)?;
+        sb.write_char(':')?;
+
+        if let Some(container_type) = &self.container_type {
+            container_type.append_sigbytes(sb)?;
+        } else {
+            sb.write_char('*')?;
+        }
+        sb.write_char(':')?;
+
+        if let Some(container_size) = &self.container_size {
+            container_size.append_sigbytes(sb)?;
+        } else {
+            sb.write_char('*')?;
+        }
+        sb.write_char(':')?;
+
+        if let Some(filename_regexp) = &self.filename_regexp {
+            filename_regexp.append_sigbytes(sb)?;
+        } else {
+            sb.write_char('*')?;
+        }
+        sb.write_char(':')?;
+
+        if let Some(file_size_in_container) = &self.file_size_in_container {
+            file_size_in_container.append_sigbytes(sb)?;
+        } else {
+            sb.write_char('*')?;
+        }
+        sb.write_char(':')?;
+
+        if let Some(file_size_real) = &self.file_size_real {
+            file_size_real.append_sigbytes(sb)?;
+        } else {
+            sb.write_char('*')?;
+        }
+        sb.write_char(':')?;
+
+        sb.write_char(if let Some(is_encrypted) = self.is_encrypted {
+            if is_encrypted {
+                '1'
+            } else {
+                '0'
+            }
+        } else {
+            '*'
+        })?;
+        sb.write_char(':')?;
+
+        if let Some(file_pos) = &self.file_pos {
+            write!(sb, "{file_pos}")?;
+        } else {
+            sb.write_char('*')?;
+        }
+        sb.write_char(':')?;
+
+        if let Some(res1) = &self.res1 {
+            write!(sb, "{res1}")?;
+        } else {
+            sb.write_char('*')?;
+        }
+
+        // Notice: colon intentially output here so that `Res2` can be present,
+        // but empty.  Res2 is not yet supported at all (since it has no
+        // function).  However, it will need to be included once FLevel min/max
+        // are appended.
+        sb.write_char(':')?;
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::ContainerMetadataSig;
+    use super::*;
+    use crate::Signature;
+
+    const SAMPLE_SIG: &str =
+        r#"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:"#;
 
     #[test]
     fn full_sig() {
-        let bytes = r#"Email.Trojan.Toa-1:CL_TYPE_ZIP:*:Courrt.{1,15}\.scr$:*:*:*:*:*:"#.as_bytes();
+        let bytes = SAMPLE_SIG.as_bytes();
         let sig = ContainerMetadataSig::try_from(bytes).unwrap();
         dbg!(sig);
     }
@@ -253,5 +326,12 @@ mod tests {
         if let Err(e) = ContainerMetadataSig::try_from(bytes) {
             eprintln!("{}", e)
         }
+    }
+
+    #[test]
+    fn export() {
+        let sig = ContainerMetadataSig::try_from(SAMPLE_SIG.as_bytes()).unwrap();
+        let exported = sig.to_sigbytes().unwrap().to_string();
+        assert_eq!(SAMPLE_SIG, &exported);
     }
 }
