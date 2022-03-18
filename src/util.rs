@@ -1,4 +1,4 @@
-use crate::sigbytes::SigBytes;
+use crate::sigbytes::{AppendSigBytes, SigBytes};
 use itertools::Itertools;
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 use std::str;
@@ -249,18 +249,15 @@ where
     Exact(ParseNumberError<T>),
 }
 
-impl<T: std::str::FromStr + std::fmt::Display> Range<T> {
-    pub fn append_sigbytes(
-        &self,
-        s: &mut SigBytes,
-    ) -> Result<(), crate::signature::ToSigBytesError> {
+impl<T: std::str::FromStr + std::fmt::Display> AppendSigBytes for Range<T> {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         use std::fmt::Write;
 
         match self {
-            Range::Exact(n) => write!(s, "{{{n}}}")?,
-            Range::ToInclusive(RangeToInclusive { end }) => write!(s, "{{-{end}}}")?,
-            Range::From(RangeFrom { start }) => write!(s, "{{{start}-}}")?,
-            Range::Inclusive(range) => write!(s, "{{{}-{}}}", range.start(), range.end())?,
+            Range::Exact(n) => write!(sb, "{{{n}}}")?,
+            Range::ToInclusive(RangeToInclusive { end }) => write!(sb, "{{-{end}}}")?,
+            Range::From(RangeFrom { start }) => write!(sb, "{{{start}-}}")?,
+            Range::Inclusive(range) => write!(sb, "{{{}-{}}}", range.start(), range.end())?,
         }
 
         Ok(())

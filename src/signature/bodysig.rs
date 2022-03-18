@@ -2,7 +2,7 @@ pub mod bsmatch;
 
 use crate::{
     feature::{EngineReq, FeatureSet},
-    sigbytes::{SigBytes, SigChar},
+    sigbytes::{AppendSigBytes, SigBytes, SigChar},
     util::{ParseNumberError, Range, RangeParseError},
 };
 use bsmatch::{AlternateStrings, AnyBytes, CharacterClass, Match};
@@ -75,13 +75,10 @@ pub enum BodySigParseError {
     ByteRange(RangeParseError<usize>),
 }
 
-impl BodySig {
-    pub fn append_sigbytes(
-        &self,
-        s: &mut SigBytes,
-    ) -> Result<(), crate::signature::ToSigBytesError> {
+impl AppendSigBytes for BodySig {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         for bsmatch in &self.matches {
-            bsmatch.append_sigbytes(s)?;
+            bsmatch.append_sigbytes(sb)?;
         }
         Ok(())
     }

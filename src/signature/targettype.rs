@@ -1,6 +1,6 @@
 use crate::{
     feature::{EngineReq, FeatureSet},
-    sigbytes::SigBytes,
+    sigbytes::{AppendSigBytes, SigBytes},
     util::{parse_number_dec, ParseNumberError},
     Feature,
 };
@@ -66,14 +66,11 @@ impl EngineReq for TargetType {
     }
 }
 
-impl TargetType {
-    pub fn append_sigbytes(
-        &self,
-        s: &mut SigBytes,
-    ) -> Result<(), crate::signature::ToSigBytesError> {
+impl AppendSigBytes for TargetType {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         use std::fmt::Write;
         if let Some(n) = self.to_usize() {
-            Ok(write!(s, "{}", n)?)
+            Ok(write!(sb, "{}", n)?)
         } else {
             unreachable!()
         }

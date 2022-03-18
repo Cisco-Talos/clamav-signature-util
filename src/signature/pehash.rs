@@ -1,7 +1,7 @@
-use super::{hash::HashSigParseError, ParseError, Signature, ToSigBytesError};
+use super::{hash::HashSigParseError, ParseError, Signature};
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
-    sigbytes::SigBytes,
+    sigbytes::{AppendSigBytes, SigBytes},
     util::{self, parse_field, parse_number_dec, Hash},
 };
 use std::{convert::TryFrom, fmt::Write, str};
@@ -18,20 +18,6 @@ impl Signature for PESectionHashSig {
     fn name(&self) -> &str {
         &self.name
     }
-
-    fn to_sigbytes(&self) -> Result<SigBytes, ToSigBytesError> {
-        let size_hint = self.name.len() + self.hash.len() * 2 + 10;
-        let mut s = SigBytes::with_capacity(size_hint);
-
-        if let Some(size) = self.size {
-            write!(s, "{}", size)?
-        } else {
-            s.write_char('*')?
-        }
-
-        write!(s, ":{}:{}", self.hash, self.name)?;
-        Ok(s)
-    }
 }
 
 impl EngineReq for PESectionHashSig {
@@ -43,6 +29,22 @@ impl EngineReq for PESectionHashSig {
             (Some(_), Hash::Sha2_256(_)) => &[Feature::HashSha256],
             _ => return FeatureSet::default(),
         })
+    }
+}
+
+impl AppendSigBytes for PESectionHashSig {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
+        let size_hint = self.name.len() + self.hash.len() * 2 + 10;
+        sb.try_reserve_exact(size_hint)?;
+
+        if let Some(size) = self.size {
+            write!(sb, "{}", size)?
+        } else {
+            sb.write_char('*')?
+        }
+
+        write!(sb, ":{}:{}", self.hash, self.name)?;
+        Ok(())
     }
 }
 

@@ -8,10 +8,10 @@ use super::{
 };
 use crate::{
     feature::{EngineReq, FeatureSet},
-    sigbytes::SigBytes,
+    sigbytes::{AppendSigBytes, SigBytes},
     util::{parse_number_dec, ParseNumberError},
 };
-use std::{convert::TryFrom, str};
+use std::{convert::TryFrom, fmt::Write, str};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -66,13 +66,8 @@ pub enum OffsetParseError {
     ParseMaxShift(ParseNumberError<usize>),
 }
 
-impl Offset {
-    pub fn append_sigbytes(
-        &self,
-        s: &mut SigBytes,
-    ) -> Result<(), crate::signature::ToSigBytesError> {
-        use std::fmt::Write;
-
+impl AppendSigBytes for Offset {
+    fn append_sigbytes(&self, s: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         if matches!(self, Offset::Normal(OffsetPos::Any)) {
             // Handle the simplest case first
             s.write_char('*')?;
@@ -261,29 +256,6 @@ impl Signature for ExtendedSig {
             "anonymous"
         }
     }
-
-    fn to_sigbytes(&self) -> Result<SigBytes, super::ToSigBytesError> {
-        use std::fmt::Write;
-
-        let mut s = SigBytes::new();
-        if let Some(name) = &self.name {
-            write!(s, "{name}:")?;
-        }
-        // Add the TargetType as an integer
-        self.target_type.append_sigbytes(&mut s)?;
-        s.write_char(':')?;
-        self.offset.append_sigbytes(&mut s)?;
-        if let Some(body_sig) = &self.body_sig {
-            s.write_char(':')?;
-            body_sig.append_sigbytes(&mut s)?;
-            /*
-            let body_sig = SigBytes::from(body_sig);
-            s.write_all((&body_sig).into())?;
-             */
-        }
-
-        Ok(s)
-    }
 }
 
 impl EngineReq for ExtendedSig {
@@ -292,6 +264,24 @@ impl EngineReq for ExtendedSig {
             .as_ref()
             .map(BodySig::features)
             .unwrap_or_default()
+    }
+}
+
+impl AppendSigBytes for ExtendedSig {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
+        if let Some(name) = &self.name {
+            write!(sb, "{name}:")?;
+        }
+        // Add the TargetType as an integer
+        self.target_type.append_sigbytes(sb)?;
+        sb.write_char(':')?;
+        self.offset.append_sigbytes(sb)?;
+        if let Some(body_sig) = &self.body_sig {
+            sb.write_char(':')?;
+            body_sig.append_sigbytes(sb)?;
+        }
+
+        Ok(())
     }
 }
 

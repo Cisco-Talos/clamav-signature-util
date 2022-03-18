@@ -2,7 +2,7 @@ pub mod expression;
 pub mod subsig;
 pub mod targetdesc;
 
-use crate::feature::EngineReq;
+use crate::{feature::EngineReq, sigbytes::AppendSigBytes};
 
 use self::{
     expression::LogExprParseError,
@@ -64,6 +64,15 @@ impl EngineReq for LogicalSig {
             .flat_map(|ss| ss.features())
             .chain(self.target_desc.features())
             .into()
+    }
+}
+
+impl AppendSigBytes for LogicalSig {
+    fn append_sigbytes(
+        &self,
+        _sb: &mut crate::sigbytes::SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        todo!()
     }
 }
 

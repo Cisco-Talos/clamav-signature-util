@@ -1,7 +1,7 @@
 use super::BodySigParseError;
 use crate::{
     feature::EngineReq,
-    sigbytes::SigBytes,
+    sigbytes::{AppendSigBytes, SigBytes},
     util::{parse_number_dec, Range},
 };
 use std::{fmt::Write, ops::RangeInclusive};
@@ -57,11 +57,8 @@ impl std::fmt::Debug for Match {
     }
 }
 
-impl Match {
-    pub fn append_sigbytes(
-        &self,
-        s: &mut SigBytes,
-    ) -> Result<(), crate::signature::ToSigBytesError> {
+impl AppendSigBytes for Match {
+    fn append_sigbytes(&self, s: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         match self {
             Match::Literal(bytes) => {
                 // Is this any faster than using hex::encode (with its allocation)?
@@ -92,11 +89,8 @@ pub enum AnyBytes {
     Range(RangeInclusive<usize>),
 }
 
-impl AnyBytes {
-    pub fn append_sigbytes(
-        &self,
-        s: &mut SigBytes,
-    ) -> Result<(), crate::signature::ToSigBytesError> {
+impl AppendSigBytes for AnyBytes {
+    fn append_sigbytes(&self, s: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         match self {
             AnyBytes::Infinite => s.write_char('*')?,
             AnyBytes::Range(range) => write!(s, "[{}-{}]", range.start(), range.end())?,
@@ -176,11 +170,8 @@ impl TryFrom<(bool, &[u8])> for AlternateStrings {
     }
 }
 
-impl AlternateStrings {
-    pub fn append_sigbytes(
-        &self,
-        s: &mut SigBytes,
-    ) -> Result<(), crate::signature::ToSigBytesError> {
+impl AppendSigBytes for AlternateStrings {
+    fn append_sigbytes(&self, s: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         match self {
             AlternateStrings::FixedWidth {
                 negated,
@@ -235,11 +226,8 @@ impl TryFrom<u8> for CharacterClass {
     }
 }
 
-impl CharacterClass {
-    pub fn append_sigbytes(
-        &self,
-        s: &mut SigBytes,
-    ) -> Result<(), crate::signature::ToSigBytesError> {
+impl AppendSigBytes for CharacterClass {
+    fn append_sigbytes(&self, s: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         match self {
             CharacterClass::WordBoundary => s.write_str("(B)")?,
             CharacterClass::LineOrFileBoundary => s.write_str("(L)")?,

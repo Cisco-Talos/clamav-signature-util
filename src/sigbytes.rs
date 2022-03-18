@@ -1,4 +1,4 @@
-use std::str;
+use std::{collections::TryReserveError, str};
 
 pub const BYTE_DISP_PREFIX: &str = "<|";
 pub const BYTE_DISP_SUFFIX: &str = "|>";
@@ -16,6 +16,17 @@ impl SigBytes {
     pub fn with_capacity(capacity: usize) -> Self {
         SigBytes(Vec::with_capacity(capacity))
     }
+
+    pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
+        self.0.try_reserve(additional)
+    }
+}
+
+/// A trait implemented by entities that can format themselves into the format
+/// used in ClamAV signature databases
+pub trait AppendSigBytes {
+    /// Append ClamAV database-style value into the specified SigBytes container
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError>;
 }
 
 impl std::fmt::Display for SigBytes {
