@@ -11,7 +11,7 @@ use crate::{
     sigbytes::SigBytes,
     util::{parse_number_dec, ParseNumberError},
 };
-use std::{convert::TryFrom, io::Write, str};
+use std::{convert::TryFrom, str};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -66,38 +66,38 @@ pub enum OffsetParseError {
     ParseMaxShift(ParseNumberError<usize>),
 }
 
-impl From<Offset> for SigBytes {
-    fn from(offset: Offset) -> Self {
+impl Offset {
+    pub fn append_sigbytes(
+        &self,
+        s: &mut SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
         use std::fmt::Write;
 
-        if matches!(offset, Offset::Normal(OffsetPos::Any)) {
+        if matches!(self, Offset::Normal(OffsetPos::Any)) {
             // Handle the simplest case first
-            b"*".into()
+            s.write_char('*')?;
         } else {
-            let mut s = String::new();
-            let (pos, maxshift) = match offset {
+            let (pos, maxshift) = match self {
                 Offset::Normal(pos) => (pos, None),
                 Offset::Floating(pos, maxoffset) => (pos, Some(maxoffset)),
             };
             match pos {
                 OffsetPos::Any => unreachable!(),
-                OffsetPos::Absolute(n) => write!(s, "{n}"),
-                OffsetPos::FromEOF(n) => write!(s, "EOF-{n}"),
-                OffsetPos::EP(n) => write!(s, "EP{n:+}"),
+                OffsetPos::Absolute(n) => write!(s, "{n}")?,
+                OffsetPos::FromEOF(n) => write!(s, "EOF-{n}")?,
+                OffsetPos::EP(n) => write!(s, "EP{n:+}")?,
                 OffsetPos::StartOfSection { section_no, offset } => {
-                    write!(s, "S{section_no}+{offset}")
+                    write!(s, "S{section_no}+{offset}")?
                 }
-                OffsetPos::EntireSection(section_no) => write!(s, "SE{section_no}"),
-                OffsetPos::StartOfLastSection(n) => write!(s, "SL+{n}"),
-                OffsetPos::PEVersionInfo => write!(s, "VI"),
+                OffsetPos::EntireSection(section_no) => write!(s, "SE{section_no}")?,
+                OffsetPos::StartOfLastSection(n) => write!(s, "SL+{n}")?,
+                OffsetPos::PEVersionInfo => write!(s, "VI")?,
             }
-            .unwrap();
             if let Some(maxshift) = maxshift {
                 write!(s, ",{maxshift}").unwrap()
             }
-
-            s.into()
         }
+        Ok(())
     }
 }
 
@@ -263,25 +263,26 @@ impl Signature for ExtendedSig {
     }
 
     fn to_sigbytes(&self) -> Result<SigBytes, super::ToSigBytesError> {
-        let mut result = Vec::new();
+        use std::fmt::Write;
+
+        let mut s = SigBytes::new();
         if let Some(name) = &self.name {
-            result.write_all(name.as_bytes())?;
-            result.write_all(b":")?;
+            write!(s, "{name}:")?;
         }
-        // Get the TargetType as an integer
-        let target_type: SigBytes = self.target_type.into();
-        result.write_all((&target_type).into())?;
-        result.write_all(b":")?;
-        let offset = SigBytes::from(self.offset);
-        result.write_all((&offset).into())?;
-
+        // Add the TargetType as an integer
+        self.target_type.append_sigbytes(&mut s)?;
+        s.write_char(':')?;
+        self.offset.append_sigbytes(&mut s)?;
         if let Some(body_sig) = &self.body_sig {
-            result.write_all(b":")?;
+            s.write_char(':')?;
+            body_sig.append_sigbytes(&mut s)?;
+            /*
             let body_sig = SigBytes::from(body_sig);
-            result.write_all((&body_sig).into())?;
+            s.write_all((&body_sig).into())?;
+             */
         }
 
-        Ok(result.into())
+        Ok(s)
     }
 }
 

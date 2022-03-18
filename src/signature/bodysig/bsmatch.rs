@@ -4,7 +4,7 @@ use crate::{
     sigbytes::SigBytes,
     util::{parse_number_dec, Range},
 };
-use std::{io::Write, ops::RangeInclusive};
+use std::{fmt::Write, ops::RangeInclusive};
 
 pub enum Match {
     /// A series of bytes that must match exactly
@@ -57,23 +57,32 @@ impl std::fmt::Debug for Match {
     }
 }
 
-impl From<&Match> for SigBytes {
-    fn from(bsmatch: &Match) -> Self {
-        match bsmatch {
-            Match::Literal(bytes) => hex::encode(bytes).as_bytes().into(),
-            Match::AlternateStrings(astrs) => SigBytes::from(astrs),
-            Match::AnyByte => SigBytes::from(b"??"),
-            Match::AnyBytes(anybytes) => SigBytes::from(anybytes),
-            Match::ByteRange(range) => SigBytes::from(range),
-            Match::CharacterClass(cc) => SigBytes::from(cc),
+impl Match {
+    pub fn append_sigbytes(
+        &self,
+        s: &mut SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        match self {
+            Match::Literal(bytes) => {
+                // Is this any faster than using hex::encode (with its allocation)?
+                for byte in bytes {
+                    write!(s, "{byte:02x}")?
+                }
+            }
+            Match::AlternateStrings(astrs) => astrs.append_sigbytes(s)?,
+            Match::AnyByte => s.write_str("??")?,
+            Match::AnyBytes(anybytes) => anybytes.append_sigbytes(s)?,
+            Match::ByteRange(range) => range.append_sigbytes(s)?,
+            Match::CharacterClass(cc) => cc.append_sigbytes(s)?,
             Match::Mask { mask, value } => match mask {
-                0x0f => format!("?{:x}", value & mask).into(),
-                0xf0 => format!("{:x}?", (value & mask) >> 4).into(),
+                0x0f => write!(s, "?{:x}", value & mask)?,
+                0xf0 => write!(s, "{:x}?", (value & mask) >> 4)?,
                 // There aren't any constructors or syntax that provide for any
                 // other variations.
                 _ => unreachable!(),
             },
         }
+        Ok(())
     }
 }
 
@@ -81,6 +90,19 @@ impl From<&Match> for SigBytes {
 pub enum AnyBytes {
     Infinite,
     Range(RangeInclusive<usize>),
+}
+
+impl AnyBytes {
+    pub fn append_sigbytes(
+        &self,
+        s: &mut SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        match self {
+            AnyBytes::Infinite => s.write_char('*')?,
+            AnyBytes::Range(range) => write!(s, "[{}-{}]", range.start(), range.end())?,
+        }
+        Ok(())
+    }
 }
 
 impl TryFrom<&[u8]> for AnyBytes {
@@ -96,17 +118,6 @@ impl TryFrom<&[u8]> for AnyBytes {
             return Err(BodySigParseError::AnyBytesRangeOrder(start, end));
         }
         Ok(AnyBytes::Range(start..=end))
-    }
-}
-
-impl From<&AnyBytes> for SigBytes {
-    fn from(anybytes: &AnyBytes) -> Self {
-        match anybytes {
-            AnyBytes::Infinite => SigBytes::from(b"*"),
-            AnyBytes::Range(range) => {
-                SigBytes::from(format!("[{}-{}]", range.start(), range.end()))
-            }
-        }
     }
 }
 
@@ -165,32 +176,39 @@ impl TryFrom<(bool, &[u8])> for AlternateStrings {
     }
 }
 
-impl From<&AlternateStrings> for SigBytes {
-    fn from(astrs: &AlternateStrings) -> Self {
-        let mut s = vec![];
-        match astrs {
+impl AlternateStrings {
+    pub fn append_sigbytes(
+        &self,
+        s: &mut SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        match self {
             AlternateStrings::FixedWidth {
                 negated,
                 width,
                 data,
             } => {
                 if *negated {
-                    s.write_all(b"!").unwrap();
+                    s.write_char('!')?;
                 }
                 for (i, astr) in data.chunks_exact(*width).enumerate() {
-                    s.write_all(if i == 0 { b"(" } else { b"|" }).unwrap();
-                    s.write_all(hex::encode(astr).as_bytes()).unwrap();
+                    s.write_char(if i == 0 { '(' } else { '|' }).unwrap();
+                    for byte in astr {
+                        write!(s, "{byte:02x}")?
+                    }
                 }
             }
             AlternateStrings::VariableWidth { ranges, data } => {
                 for (i, range) in ranges.iter().enumerate() {
-                    s.write_all(if i == 0 { b"(" } else { b"|" }).unwrap();
-                    s.write_all(data.get(range.clone()).unwrap()).unwrap();
+                    s.write_char(if i == 0 { '(' } else { '|' }).unwrap();
+                    let data = data.get(range.clone()).unwrap();
+                    for byte in data {
+                        write!(s, "{byte:02x}")?
+                    }
                 }
             }
         }
-        s.write_all(b")").unwrap();
-        s.into()
+        s.write_char(')')?;
+        Ok(())
     }
 }
 
@@ -217,13 +235,17 @@ impl TryFrom<u8> for CharacterClass {
     }
 }
 
-impl From<&CharacterClass> for SigBytes {
-    fn from(cc: &CharacterClass) -> Self {
-        match cc {
-            CharacterClass::WordBoundary => b"(B)".into(),
-            CharacterClass::LineOrFileBoundary => b"(L)".into(),
-            CharacterClass::NonAlphaChar => b"(W)".into(),
+impl CharacterClass {
+    pub fn append_sigbytes(
+        &self,
+        s: &mut SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        match self {
+            CharacterClass::WordBoundary => s.write_str("(B)")?,
+            CharacterClass::LineOrFileBoundary => s.write_str("(L)")?,
+            CharacterClass::NonAlphaChar => s.write_str("(W)")?,
         }
+        Ok(())
     }
 }
 

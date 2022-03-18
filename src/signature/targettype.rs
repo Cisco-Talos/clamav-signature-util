@@ -5,7 +5,7 @@ use crate::{
     Feature,
 };
 use num_derive::{FromPrimitive, ToPrimitive};
-use num_traits::FromPrimitive;
+use num_traits::{FromPrimitive, ToPrimitive};
 use thiserror::Error;
 
 #[derive(Copy, Clone, Debug, FromPrimitive, ToPrimitive)]
@@ -66,8 +66,16 @@ impl EngineReq for TargetType {
     }
 }
 
-impl From<TargetType> for SigBytes {
-    fn from(tt: TargetType) -> Self {
-        format!("{}", tt as isize).into()
+impl TargetType {
+    pub fn append_sigbytes(
+        &self,
+        s: &mut SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        use std::fmt::Write;
+        if let Some(n) = self.to_usize() {
+            Ok(write!(s, "{}", n)?)
+        } else {
+            unreachable!()
+        }
     }
 }

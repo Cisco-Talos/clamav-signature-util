@@ -249,6 +249,24 @@ where
     Exact(ParseNumberError<T>),
 }
 
+impl<T: std::str::FromStr + std::fmt::Display> Range<T> {
+    pub fn append_sigbytes(
+        &self,
+        s: &mut SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        use std::fmt::Write;
+
+        match self {
+            Range::Exact(n) => write!(s, "{{{n}}}")?,
+            Range::ToInclusive(RangeToInclusive { end }) => write!(s, "{{-{end}}}")?,
+            Range::From(RangeFrom { start }) => write!(s, "{{{start}-}}")?,
+            Range::Inclusive(range) => write!(s, "{{{}-{}}}", range.start(), range.end())?,
+        }
+
+        Ok(())
+    }
+}
+
 impl<T> TryFrom<&[u8]> for Range<T>
 where
     T: std::str::FromStr,

@@ -1,7 +1,4 @@
 use std::str;
-use thiserror::Error;
-
-use crate::signature::ToSigBytesError;
 
 pub const BYTE_DISP_PREFIX: &str = "<|";
 pub const BYTE_DISP_SUFFIX: &str = "|>";
