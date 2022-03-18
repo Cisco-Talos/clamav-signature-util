@@ -1,12 +1,25 @@
 use std::str;
+use thiserror::Error;
+
+use crate::signature::ToSigBytesError;
 
 pub const BYTE_DISP_PREFIX: &str = "<|";
 pub const BYTE_DISP_SUFFIX: &str = "|>";
 
 /// A type wrapper around a series of bytes found in a signature.  Allows
 /// implementing `Display` to work around potential unicode problems.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SigBytes(Vec<u8>);
+
+impl SigBytes {
+    pub fn new() -> Self {
+        SigBytes::default()
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        SigBytes(Vec::with_capacity(capacity))
+    }
+}
 
 impl std::fmt::Display for SigBytes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -129,5 +142,25 @@ mod tests {
     fn sigbytes_invalid_long_intermediate() {
         let bytes: SigBytes = b"how now\xa0\xa1brown cow".into();
         assert_eq!(format!("{}", bytes), "how now<|a0|><|a1|>brown cow");
+    }
+}
+
+impl std::io::Write for SigBytes {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
+impl std::fmt::Write for SigBytes {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        use std::io::Write;
+        self.0
+            .write(s.as_bytes())
+            .map(|_| ())
+            .map_err(|_| std::fmt::Error)
     }
 }
