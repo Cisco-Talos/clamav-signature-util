@@ -8,8 +8,11 @@
 pub mod feature;
 /// File type classification
 pub mod filetype;
+/// Regular expressions
+pub mod regexp;
 /// Engine signature parsing and examination
 pub mod signature;
+
 pub(crate) mod util;
 
 pub use feature::Feature;

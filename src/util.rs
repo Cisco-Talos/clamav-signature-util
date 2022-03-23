@@ -243,19 +243,25 @@ pub fn opt_field_value(bytes: &[u8]) -> Option<&[u8]> {
     }
 }
 
-/// Pull the next value from an iterator.  If no values remain, throw $missing_err.
-/// Otherwise, check to see if it's the wildcard value (`*`) and return None.
-/// If the value isn't the wildcard, give it to $parser, and map any error it
-/// returns to $invalid_err.
-macro_rules! parse_wildcard_field {
-    ( $field_iter:expr, $parser:expr, $missing_err:expr, $parse_err:expr) => {
+/// Pull the next value from an iterator.  If no values remain, throw
+/// `$missing_err`.  Otherwise, pass the value to `$parser` and map any error it
+/// returns to `$invalid_err`.
+///
+/// If the `OPTIONAL` prefix is specified, returns an `Option`, substituting
+/// `None` for a literal field value of "`*`" rather than passing the value to
+/// the parser.
+macro_rules! parse_field {
+    ( OPTIONAL $field_iter:expr, $parser:expr, $missing_err:expr, $parse_err:expr) => {
         crate::util::opt_field_value($field_iter.next().ok_or($missing_err)?)
             .map($parser)
             .transpose()
             .map_err($parse_err)
     };
+    ( $field_iter:expr, $parser:expr, $missing_err:expr, $parse_err:expr) => {
+        $parser($field_iter.next().ok_or($missing_err)?).map_err($parse_err)
+    };
 }
-pub(crate) use parse_wildcard_field;
+pub(crate) use parse_field;
 
 /// Generic container for any range of usize
 #[derive(Debug)]
@@ -314,6 +320,17 @@ where
         }
     }
 }
+
+/// Attempt to convert a `&[u8]` into a string.  The standard library doesn't
+/// provide this specific variation.
+///
+/// Note that a `std::str::Utf8Error` is returned rather than a
+/// `std::string::FromUtf8Error` since validation is performed prior to
+/// allocation.
+pub fn string_from_bytes(bytes: &[u8]) -> Result<String, std::str::Utf8Error> {
+    Ok(std::str::from_utf8(bytes)?.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

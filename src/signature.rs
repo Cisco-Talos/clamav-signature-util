@@ -12,6 +12,8 @@ pub mod hash;
 pub mod logical;
 /// Hash-based signature support for Portable Executable files
 pub mod pehash;
+/// Phishing Signatures
+pub mod phishing;
 /// Enumeration of signature types
 pub mod sigtype;
 /// Enumeration of target types (typically found in logical and extended signatures)
@@ -28,6 +30,23 @@ pub trait Signature: std::fmt::Debug + EngineReq {
 
 /// Parse a CVD-style (single-line) signature from a CVD database. Since each
 /// signature type has its own format, the format must be specified.
+///
+/// # Arguments
+///
+/// * `sig_type` - the signature type being provided
+/// * `data` - signature content
+///
+/// # Examples
+/// ```
+/// use clam_sigutil::{
+///     signature::{self, Signature},
+///     SigType,
+/// };
+/// let sigdata = b"44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature";
+/// let sig = clam_sigutil::signature::parse_from_cvd(SigType::FileHash, sigdata)
+///     .expect("parsed signature");
+/// println!("sig name = {}", sig.name());
+/// ```
 pub fn parse_from_cvd(sig_type: SigType, data: &[u8]) -> Result<Box<dyn Signature>, ParseError> {
     match sig_type {
         SigType::Extended => Ok(Box::new(ext::ExtendedSig::try_from(data)?)),
@@ -37,6 +56,7 @@ pub fn parse_from_cvd(sig_type: SigType, data: &[u8]) -> Result<Box<dyn Signatur
         SigType::ContainerMetadata => Ok(Box::new(
             container_metadata::ContainerMetadataSig::try_from(data)?,
         )),
+        SigType::PhishingURL => Ok(Box::new(phishing::PhishingSig::try_from(data)?)),
         _ => Err(ParseError::UnsupportedSigType),
     }
 }
@@ -67,4 +87,7 @@ pub enum ParseError {
 
     #[error("invalid container metadata signature: {0}")]
     ContainerMetaParse(#[from] container_metadata::ContainerMetadataSigParseError),
+
+    #[error("invalid phishing URL signature: {0}")]
+    PhishingSigParse(#[from] phishing::PhishingSigParseError),
 }
