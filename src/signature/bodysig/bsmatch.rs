@@ -1,9 +1,9 @@
 use super::BodySigParseError;
 use crate::{
     feature::EngineReq,
-    util::{parse_number_dec, Range},
+    util::{parse_number_dec, Range, SigBytes},
 };
-use std::ops::RangeInclusive;
+use std::{io::Write, ops::RangeInclusive};
 
 pub enum Match {
     /// A series of bytes that must match exactly
@@ -56,6 +56,26 @@ impl std::fmt::Debug for Match {
     }
 }
 
+impl From<&Match> for SigBytes {
+    fn from(bsmatch: &Match) -> Self {
+        match bsmatch {
+            Match::Literal(bytes) => hex::encode(bytes).as_bytes().into(),
+            Match::AlternateStrings(astrs) => SigBytes::from(astrs),
+            Match::AnyByte => SigBytes::from(b"??"),
+            Match::AnyBytes(anybytes) => SigBytes::from(anybytes),
+            Match::ByteRange(range) => SigBytes::from(range),
+            Match::CharacterClass(cc) => SigBytes::from(cc),
+            Match::Mask { mask, value } => match mask {
+                0x0f => format!("?{:x}", value & mask).into(),
+                0xf0 => format!("{:x}?", (value & mask) >> 4).into(),
+                // There aren't any constructors or syntax that provide for any
+                // other variations.
+                _ => unreachable!(),
+            },
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum AnyBytes {
     Infinite,
@@ -75,6 +95,17 @@ impl TryFrom<&[u8]> for AnyBytes {
             return Err(BodySigParseError::AnyBytesRangeOrder(start, end));
         }
         Ok(AnyBytes::Range(start..=end))
+    }
+}
+
+impl From<&AnyBytes> for SigBytes {
+    fn from(anybytes: &AnyBytes) -> Self {
+        match anybytes {
+            AnyBytes::Infinite => SigBytes::from(b"*"),
+            AnyBytes::Range(range) => {
+                SigBytes::from(format!("[{}-{}]", range.start(), range.end()))
+            }
+        }
     }
 }
 
@@ -104,6 +135,7 @@ impl TryFrom<(bool, &[u8])> for AlternateStrings {
         let mut last_size = None;
         let mut elements_differ_in_size = false;
         for element in value.split(|&b| b == b'|') {
+            let element = hex::decode(element)?;
             if !elements_differ_in_size {
                 match last_size {
                     None => last_size = Some(element.len()),
@@ -112,7 +144,7 @@ impl TryFrom<(bool, &[u8])> for AlternateStrings {
             }
             ranges.push(last_start..=last_start + element.len());
             last_start += element.len();
-            data.extend_from_slice(element);
+            data.extend(element);
         }
 
         if elements_differ_in_size {
@@ -129,6 +161,35 @@ impl TryFrom<(bool, &[u8])> for AlternateStrings {
                 data,
             })
         }
+    }
+}
+
+impl From<&AlternateStrings> for SigBytes {
+    fn from(astrs: &AlternateStrings) -> Self {
+        let mut s = vec![];
+        match astrs {
+            AlternateStrings::FixedWidth {
+                negated,
+                width,
+                data,
+            } => {
+                if *negated {
+                    s.write_all(b"!").unwrap();
+                }
+                for (i, astr) in data.chunks_exact(*width).enumerate() {
+                    s.write_all(if i == 0 { b"(" } else { b"|" }).unwrap();
+                    s.write_all(hex::encode(astr).as_bytes()).unwrap();
+                }
+            }
+            AlternateStrings::VariableWidth { ranges, data } => {
+                for (i, range) in ranges.iter().enumerate() {
+                    s.write_all(if i == 0 { b"(" } else { b"|" }).unwrap();
+                    s.write_all(data.get(range.clone()).unwrap()).unwrap();
+                }
+            }
+        }
+        s.write_all(b")").unwrap();
+        s.into()
     }
 }
 
@@ -152,6 +213,16 @@ impl TryFrom<u8> for CharacterClass {
             b'W' => CharacterClass::NonAlphaChar,
             _ => return Err(BodySigParseError::UnknownCharacterClass),
         })
+    }
+}
+
+impl From<&CharacterClass> for SigBytes {
+    fn from(cc: &CharacterClass) -> Self {
+        match cc {
+            CharacterClass::WordBoundary => b"(B)".into(),
+            CharacterClass::LineOrFileBoundary => b"(L)".into(),
+            CharacterClass::NonAlphaChar => b"(W)".into(),
+        }
     }
 }
 

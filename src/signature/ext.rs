@@ -8,9 +8,9 @@ use super::{
 };
 use crate::{
     feature::{EngineReq, FeatureSet},
-    util::{parse_number_dec, ParseNumberError},
+    util::{parse_number_dec, ParseNumberError, SigBytes},
 };
-use std::{convert::TryFrom, str};
+use std::{convert::TryFrom, io::Write, str};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -63,6 +63,41 @@ pub enum OffsetParseError {
 
     #[error("parsing MaxShift: {0}")]
     ParseMaxShift(ParseNumberError<usize>),
+}
+
+impl From<Offset> for SigBytes {
+    fn from(offset: Offset) -> Self {
+        use std::fmt::Write;
+
+        if matches!(offset, Offset::Normal(OffsetPos::Any)) {
+            // Handle the simplest case first
+            b"*".into()
+        } else {
+            let mut s = String::new();
+            let (pos, maxshift) = match offset {
+                Offset::Normal(pos) => (pos, None),
+                Offset::Floating(pos, maxoffset) => (pos, Some(maxoffset)),
+            };
+            match pos {
+                OffsetPos::Any => unreachable!(),
+                OffsetPos::Absolute(n) => write!(s, "{n}"),
+                OffsetPos::FromEOF(n) => write!(s, "EOF-{n}"),
+                OffsetPos::EP(n) => write!(s, "EP{n:+}"),
+                OffsetPos::StartOfSection { section_no, offset } => {
+                    write!(s, "S{section_no}+{offset}")
+                }
+                OffsetPos::EntireSection(section_no) => write!(s, "SE{section_no}"),
+                OffsetPos::StartOfLastSection(n) => write!(s, "SL+{n}"),
+                OffsetPos::PEVersionInfo => write!(s, "VI"),
+            }
+            .unwrap();
+            if let Some(maxshift) = maxshift {
+                write!(s, ",{maxshift}").unwrap()
+            }
+
+            s.into()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -225,6 +260,28 @@ impl Signature for ExtendedSig {
             "anonymous"
         }
     }
+
+    fn to_sigbytes(&self) -> Result<crate::util::SigBytes, super::ToSigBytesError> {
+        let mut result = Vec::new();
+        if let Some(name) = &self.name {
+            result.write_all(name.as_bytes())?;
+            result.write_all(b":")?;
+        }
+        // Get the TargetType as an integer
+        let target_type: SigBytes = self.target_type.into();
+        result.write_all((&target_type).into())?;
+        result.write_all(b":")?;
+        let offset = SigBytes::from(self.offset);
+        result.write_all((&offset).into())?;
+
+        if let Some(body_sig) = &self.body_sig {
+            result.write_all(b":")?;
+            let body_sig = SigBytes::from(body_sig);
+            result.write_all((&body_sig).into())?;
+        }
+
+        Ok(result.into())
+    }
 }
 
 impl EngineReq for ExtendedSig {
@@ -239,5 +296,19 @@ impl EngineReq for ExtendedSig {
 impl SubSig for ExtendedSig {
     fn subsig_type(&self) -> super::logical::subsig::SubSigType {
         super::logical::subsig::SubSigType::Extended
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE_SIG: &str =
+        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1{9-}7e{-5}!(0f|f1|ce)(B)(L)a??b";
+    #[test]
+    fn export() {
+        let sig: ExtendedSig = SAMPLE_SIG.as_bytes().try_into().unwrap();
+        let exported = sig.to_sigbytes().unwrap().to_string();
+        assert_eq!(SAMPLE_SIG, &exported);
     }
 }

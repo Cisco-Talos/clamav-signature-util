@@ -231,6 +231,12 @@ impl From<Vec<u8>> for SigBytes {
     }
 }
 
+impl<'a> From<&'a SigBytes> for &'a [u8] {
+    fn from(sigbytes: &'a SigBytes) -> Self {
+        &sigbytes.0
+    }
+}
+
 impl From<String> for SigBytes {
     fn from(s: String) -> Self {
         SigBytes(s.into_bytes())
@@ -359,6 +365,17 @@ where
             Ok(Self::Exact(
                 parse_number_dec(value).map_err(RangeParseError::Exact)?,
             ))
+        }
+    }
+}
+
+impl<T: std::str::FromStr + std::fmt::Display> From<&Range<T>> for SigBytes {
+    fn from(range: &Range<T>) -> Self {
+        match range {
+            Range::Exact(n) => format!("{{{n}}}").into(),
+            Range::ToInclusive(RangeToInclusive { end }) => format!("{{-{end}}}").into(),
+            Range::From(RangeFrom { start }) => format!("{{{start}-}}").into(),
+            Range::Inclusive(range) => format!("{{{}-{}}}", range.start(), range.end()).into(),
         }
     }
 }
