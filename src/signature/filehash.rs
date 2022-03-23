@@ -1,9 +1,9 @@
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
-    signature::{hash::HashSigParseError, ParseError},
+    signature::{hash::HashSigParseError, ParseError, ToSigBytesError},
     util::{self, parse_field, parse_number_dec, Hash},
 };
-use std::{convert::TryFrom, str};
+use std::{convert::TryFrom, fmt::Write, str};
 
 /// A signature based on file hash
 #[derive(Debug)]
@@ -16,6 +16,19 @@ pub struct FileHashSig {
 impl super::Signature for FileHashSig {
     fn name(&self) -> &str {
         &self.name
+    }
+
+    fn to_sigbytes(&self) -> Result<util::SigBytes, ToSigBytesError> {
+        let mut result = String::with_capacity(self.name.len() + self.hash.len() * 2 + 16);
+
+        write!(result, "{}:", self.hash)?;
+        if let Some(size) = self.file_size {
+            write!(result, "{}:", size)?
+        } else {
+            result.write_char('*')?
+        }
+        write!(result, "{}", self.name)?;
+        Ok(result.into())
     }
 }
 
@@ -59,6 +72,8 @@ impl TryFrom<&[u8]> for FileHashSig {
 
 #[cfg(test)]
 mod tests {
+    use crate::Signature;
+
     use super::*;
     use hex_literal::hex;
 
@@ -72,5 +87,13 @@ mod tests {
             sig.hash,
             util::Hash::Md5(hex!("44d88612fea8a8f36de82e1278abb02f"))
         );
+    }
+
+    #[test]
+    fn export() {
+        let bytes = "44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature";
+        let sig: FileHashSig = bytes.as_bytes().try_into().unwrap();
+        let exported = sig.to_sigbytes().unwrap().to_string();
+        assert_eq!(bytes, &exported);
     }
 }
