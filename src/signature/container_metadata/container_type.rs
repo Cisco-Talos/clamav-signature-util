@@ -1,6 +1,7 @@
+use crate::sigbytes::AppendSigBytes;
 use enum_variants_strings::EnumVariantsStrings;
 use num_derive::{FromPrimitive, ToPrimitive};
-use std::str;
+use std::{fmt::Write, str};
 use thiserror::Error;
 
 const CL_TYPENO: isize = 500;
@@ -115,6 +116,16 @@ impl TryFrom<&[u8]> for ContainerType {
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         ContainerType::from_str(str::from_utf8(value)?)
             .map_err(|_| ContainerTypeParseError::Unknown)
+    }
+}
+
+impl AppendSigBytes for ContainerType {
+    fn append_sigbytes(
+        &self,
+        sb: &mut crate::sigbytes::SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        write!(sb, "{}", self.to_str())?;
+        Ok(())
     }
 }
 
