@@ -5,7 +5,7 @@ use super::{ParseError, Signature};
 use crate::{
     feature::{EngineReq, FeatureSet},
     util::{
-        parse_bool_from_int, parse_number_dec, parse_wildcard_field, unescaped_element,
+        parse_bool_from_int, parse_field, parse_number_dec, unescaped_element,
         ParseBoolFromIntError, ParseNumberError, Range, RangeParseError,
     },
     Feature,
@@ -105,7 +105,8 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
             .to_owned();
 
         // Field 2
-        let container_type = parse_wildcard_field!(
+        let container_type = parse_field!(
+            OPTIONAL
             fields,
             ContainerType::try_from,
             ContainerMetadataSigParseError::MissingContainerType,
@@ -113,7 +114,8 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
         )?;
 
         // Field 3
-        let container_size = parse_wildcard_field!(
+        let container_size = parse_field!(
+            OPTIONAL
             fields,
             parse_container_size,
             ContainerMetadataSigParseError::MissingContainerSize,
@@ -121,7 +123,8 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
         )?;
 
         // Field 4
-        let filename_regexp_src = parse_wildcard_field!(
+        let filename_regexp_src = parse_field!(
+            OPTIONAL
             fields,
             |bytes| String::from_utf8(bytes.to_owned()),
             ContainerMetadataSigParseError::MissingFilenameRegexp,
@@ -129,7 +132,8 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
         )?;
 
         // Field 5
-        let file_size_in_container = parse_wildcard_field!(
+        let file_size_in_container = parse_field!(
+            OPTIONAL
             fields,
             Range::try_from,
             ContainerMetadataSigParseError::MissingFSIC,
@@ -144,7 +148,8 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
         }
 
         // Field 6
-        let file_size_real = parse_wildcard_field!(
+        let file_size_real = parse_field!(
+            OPTIONAL
             fields,
             Range::try_from,
             ContainerMetadataSigParseError::MissingFSReal,
@@ -159,7 +164,8 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
         }
 
         // Field 7
-        let is_encrypted = parse_wildcard_field!(
+        let is_encrypted = parse_field!(
+            OPTIONAL
             fields,
             parse_bool_from_int,
             ContainerMetadataSigParseError::MissingIsEnc,
@@ -167,7 +173,8 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
         )?;
 
         // Field 8
-        let file_pos = parse_wildcard_field!(
+        let file_pos = parse_field!(
+            OPTIONAL
             fields,
             parse_number_dec,
             ContainerMetadataSigParseError::MissingFilePos,
@@ -175,7 +182,8 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
         )?;
 
         // Field 9
-        let res1 = parse_wildcard_field!(
+        let res1 = parse_field!(
+            OPTIONAL
             fields,
             parse_number_dec::<u32>,
             ContainerMetadataSigParseError::MissingRes1,
@@ -198,7 +206,7 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
 
 impl Signature for ContainerMetadataSig {
     fn name(&self) -> &str {
-        todo!()
+        &self.name
     }
 }
 

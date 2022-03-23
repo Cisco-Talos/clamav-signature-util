@@ -234,8 +234,7 @@ impl EngineReq for BodySig {
             .matches
             .iter()
             .map(Match::features)
-            .map(FeatureSet::into_iter)
-            .flatten()
+            .flat_map(FeatureSet::into_iter)
             .into();
         x
     }
