@@ -19,19 +19,26 @@ pub mod sigtype;
 /// Enumeration of target types (typically found in logical and extended signatures)
 pub mod targettype;
 
-use crate::{feature::EngineReq, util::SigBytes, SigType};
+use crate::{
+    feature::EngineReq,
+    sigbytes::{AppendSigBytes, SigBytes},
+    SigType,
+};
+use std::collections::TryReserveError;
 use thiserror::Error;
 
 /// Required functionality for a Signature.
-pub trait Signature: std::fmt::Debug + EngineReq {
+pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes {
     /// Signature name
     fn name(&self) -> &str;
 
     /// Return ClamAV signature, as would be expected in a CVD
     fn to_sigbytes(&self) -> Result<SigBytes, ToSigBytesError> {
-        // TODO: Remove default implementation when all implementations are
-        //       complete.
-        unimplemented!()
+        // Since this doesn't immediately allocate, implementations will still
+        // have the opportunity to specify an allocation hint.
+        let mut sb = SigBytes::new();
+        self.append_sigbytes(&mut sb)?;
+        Ok(sb)
     }
 }
 
@@ -49,6 +56,9 @@ pub enum ToSigBytesError {
     /// Signature type is not supported within CVDs
     #[error("not supported within CVDs")]
     Unsupported,
+
+    #[error("reserving memory: {0}")]
+    TryReserve(#[from] TryReserveError),
 }
 
 /// Parse a CVD-style (single-line) signature from a CVD database. Since each

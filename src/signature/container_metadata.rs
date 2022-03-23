@@ -4,6 +4,7 @@ mod container_type;
 use super::{ParseError, Signature};
 use crate::{
     feature::{EngineReq, FeatureSet},
+    sigbytes::AppendSigBytes,
     util::{
         parse_bool_from_int, parse_field, parse_number_dec, unescaped_element,
         ParseBoolFromIntError, ParseNumberError, Range, RangeParseError,
@@ -213,6 +214,15 @@ impl Signature for ContainerMetadataSig {
 impl EngineReq for ContainerMetadataSig {
     fn features(&self) -> crate::feature::FeatureSet {
         FeatureSet::from_static(&[Feature::ContentMetadataSig])
+    }
+}
+
+impl AppendSigBytes for ContainerMetadataSig {
+    fn append_sigbytes(
+        &self,
+        _sb: &mut crate::sigbytes::SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        todo!()
     }
 }
 

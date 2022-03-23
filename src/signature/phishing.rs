@@ -1,10 +1,12 @@
+use super::ToSigBytesError;
 use std::str;
 use thiserror::Error;
 
 use crate::{
     feature::EngineReq,
     regexp::{RegexpMatch, RegexpMatchParseError},
-    util::{parse_field, string_from_bytes, unescaped_element, SigBytes},
+    sigbytes::{AppendSigBytes, SigBytes},
+    util::{parse_field, string_from_bytes, unescaped_element},
     Signature,
 };
 
@@ -90,6 +92,12 @@ impl EngineReq for PhishingSig {
     fn features(&self) -> crate::feature::FeatureSet {
         // TODO: Figure out when Phishing signatures appeared
         crate::feature::FeatureSet::default()
+    }
+}
+
+impl AppendSigBytes for PhishingSig {
+    fn append_sigbytes(&self, _: &mut SigBytes) -> std::result::Result<(), ToSigBytesError> {
+        todo!()
     }
 }
 

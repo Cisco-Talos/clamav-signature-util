@@ -1,10 +1,11 @@
 use crate::{
     feature::{EngineReq, FeatureSet},
-    util::{parse_number_dec, ParseNumberError, SigBytes},
+    sigbytes::{AppendSigBytes, SigBytes},
+    util::{parse_number_dec, ParseNumberError},
     Feature,
 };
 use num_derive::{FromPrimitive, ToPrimitive};
-use num_traits::FromPrimitive;
+use num_traits::{FromPrimitive, ToPrimitive};
 use thiserror::Error;
 
 #[derive(Copy, Clone, Debug, FromPrimitive, ToPrimitive)]
@@ -65,8 +66,13 @@ impl EngineReq for TargetType {
     }
 }
 
-impl From<TargetType> for SigBytes {
-    fn from(tt: TargetType) -> Self {
-        format!("{}", tt as isize).into()
+impl AppendSigBytes for TargetType {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
+        use std::fmt::Write;
+        if let Some(n) = self.to_usize() {
+            Ok(write!(sb, "{}", n)?)
+        } else {
+            unreachable!()
+        }
     }
 }

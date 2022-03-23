@@ -1,6 +1,7 @@
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
-    signature::{hash::HashSigParseError, ParseError, ToSigBytesError},
+    sigbytes::{AppendSigBytes, SigBytes},
+    signature::{hash::HashSigParseError, ParseError},
     util::{self, parse_field, parse_number_dec, Hash},
 };
 use std::{convert::TryFrom, fmt::Write, str};
@@ -17,19 +18,6 @@ impl super::Signature for FileHashSig {
     fn name(&self) -> &str {
         &self.name
     }
-
-    fn to_sigbytes(&self) -> Result<util::SigBytes, ToSigBytesError> {
-        let mut result = String::with_capacity(self.name.len() + self.hash.len() * 2 + 16);
-
-        write!(result, "{}:", self.hash)?;
-        if let Some(size) = self.file_size {
-            write!(result, "{}:", size)?
-        } else {
-            result.write_char('*')?
-        }
-        write!(result, "{}", self.name)?;
-        Ok(result.into())
-    }
 }
 
 impl EngineReq for FileHashSig {
@@ -41,6 +29,21 @@ impl EngineReq for FileHashSig {
             (Some(_), Hash::Sha2_256(_)) => &[Feature::HashSha256][..],
             _ => return FeatureSet::default(),
         })
+    }
+}
+
+impl AppendSigBytes for FileHashSig {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
+        let size_hint = self.name.len() + self.hash.len() * 2 + 10;
+        sb.try_reserve_exact(size_hint)?;
+        write!(sb, "{}:", self.hash)?;
+        if let Some(size) = self.file_size {
+            write!(sb, "{}:", size)?
+        } else {
+            sb.write_char('*')?
+        }
+        write!(sb, "{}", self.name)?;
+        Ok(())
     }
 }
 

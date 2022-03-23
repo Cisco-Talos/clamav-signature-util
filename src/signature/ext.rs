@@ -8,9 +8,10 @@ use super::{
 };
 use crate::{
     feature::{EngineReq, FeatureSet},
-    util::{parse_number_dec, ParseNumberError, SigBytes},
+    sigbytes::{AppendSigBytes, SigBytes},
+    util::{parse_number_dec, ParseNumberError},
 };
-use std::{convert::TryFrom, io::Write, str};
+use std::{convert::TryFrom, fmt::Write, str};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -65,38 +66,33 @@ pub enum OffsetParseError {
     ParseMaxShift(ParseNumberError<usize>),
 }
 
-impl From<Offset> for SigBytes {
-    fn from(offset: Offset) -> Self {
-        use std::fmt::Write;
-
-        if matches!(offset, Offset::Normal(OffsetPos::Any)) {
+impl AppendSigBytes for Offset {
+    fn append_sigbytes(&self, s: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
+        if matches!(self, Offset::Normal(OffsetPos::Any)) {
             // Handle the simplest case first
-            b"*".into()
+            s.write_char('*')?;
         } else {
-            let mut s = String::new();
-            let (pos, maxshift) = match offset {
+            let (pos, maxshift) = match self {
                 Offset::Normal(pos) => (pos, None),
                 Offset::Floating(pos, maxoffset) => (pos, Some(maxoffset)),
             };
             match pos {
                 OffsetPos::Any => unreachable!(),
-                OffsetPos::Absolute(n) => write!(s, "{n}"),
-                OffsetPos::FromEOF(n) => write!(s, "EOF-{n}"),
-                OffsetPos::EP(n) => write!(s, "EP{n:+}"),
+                OffsetPos::Absolute(n) => write!(s, "{n}")?,
+                OffsetPos::FromEOF(n) => write!(s, "EOF-{n}")?,
+                OffsetPos::EP(n) => write!(s, "EP{n:+}")?,
                 OffsetPos::StartOfSection { section_no, offset } => {
-                    write!(s, "S{section_no}+{offset}")
+                    write!(s, "S{section_no}+{offset}")?
                 }
-                OffsetPos::EntireSection(section_no) => write!(s, "SE{section_no}"),
-                OffsetPos::StartOfLastSection(n) => write!(s, "SL+{n}"),
-                OffsetPos::PEVersionInfo => write!(s, "VI"),
+                OffsetPos::EntireSection(section_no) => write!(s, "SE{section_no}")?,
+                OffsetPos::StartOfLastSection(n) => write!(s, "SL+{n}")?,
+                OffsetPos::PEVersionInfo => write!(s, "VI")?,
             }
-            .unwrap();
             if let Some(maxshift) = maxshift {
                 write!(s, ",{maxshift}").unwrap()
             }
-
-            s.into()
         }
+        Ok(())
     }
 }
 
@@ -260,28 +256,6 @@ impl Signature for ExtendedSig {
             "anonymous"
         }
     }
-
-    fn to_sigbytes(&self) -> Result<crate::util::SigBytes, super::ToSigBytesError> {
-        let mut result = Vec::new();
-        if let Some(name) = &self.name {
-            result.write_all(name.as_bytes())?;
-            result.write_all(b":")?;
-        }
-        // Get the TargetType as an integer
-        let target_type: SigBytes = self.target_type.into();
-        result.write_all((&target_type).into())?;
-        result.write_all(b":")?;
-        let offset = SigBytes::from(self.offset);
-        result.write_all((&offset).into())?;
-
-        if let Some(body_sig) = &self.body_sig {
-            result.write_all(b":")?;
-            let body_sig = SigBytes::from(body_sig);
-            result.write_all((&body_sig).into())?;
-        }
-
-        Ok(result.into())
-    }
 }
 
 impl EngineReq for ExtendedSig {
@@ -290,6 +264,24 @@ impl EngineReq for ExtendedSig {
             .as_ref()
             .map(BodySig::features)
             .unwrap_or_default()
+    }
+}
+
+impl AppendSigBytes for ExtendedSig {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
+        if let Some(name) = &self.name {
+            write!(sb, "{name}:")?;
+        }
+        // Add the TargetType as an integer
+        self.target_type.append_sigbytes(sb)?;
+        sb.write_char(':')?;
+        self.offset.append_sigbytes(sb)?;
+        if let Some(body_sig) = &self.body_sig {
+            sb.write_char(':')?;
+            body_sig.append_sigbytes(sb)?;
+        }
+
+        Ok(())
     }
 }
 

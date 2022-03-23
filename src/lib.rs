@@ -10,6 +10,8 @@ pub mod feature;
 pub mod filetype;
 /// Regular expressions
 pub mod regexp;
+/// SigBytes (Vec<u8>) wrapper
+pub mod sigbytes;
 /// Engine signature parsing and examination
 pub mod signature;
 

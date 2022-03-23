@@ -2,10 +2,11 @@ pub mod bsmatch;
 
 use crate::{
     feature::{EngineReq, FeatureSet},
-    util::{ParseNumberError, Range, RangeParseError, SigBytes, SigChar},
+    sigbytes::{AppendSigBytes, SigBytes, SigChar},
+    util::{ParseNumberError, Range, RangeParseError},
 };
 use bsmatch::{AlternateStrings, AnyBytes, CharacterClass, Match};
-use std::{convert::TryFrom, io::Write};
+use std::convert::TryFrom;
 use thiserror::Error;
 
 /// Body signature.  This is an element of both Extended and Logical signatures,
@@ -72,6 +73,15 @@ pub enum BodySigParseError {
 
     #[error("parsing ByteRange: {0}")]
     ByteRange(RangeParseError<usize>),
+}
+
+impl AppendSigBytes for BodySig {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
+        for bsmatch in &self.matches {
+            bsmatch.append_sigbytes(sb)?;
+        }
+        Ok(())
+    }
 }
 
 impl TryFrom<&[u8]> for BodySig {
@@ -225,17 +235,6 @@ impl TryFrom<&[u8]> for BodySig {
             matches,
             min_f_level,
         })
-    }
-}
-
-impl From<&BodySig> for SigBytes {
-    fn from(bodysig: &BodySig) -> Self {
-        let mut s = Vec::new();
-        for bsmatch in &bodysig.matches {
-            let sigbytes = SigBytes::from(bsmatch);
-            s.write_all((&sigbytes).into()).unwrap();
-        }
-        s.into()
     }
 }
 
