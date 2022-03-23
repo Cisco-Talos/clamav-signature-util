@@ -8,12 +8,15 @@ pub use pcre::{PCRESubSig, PCRESubSigParseError};
 
 use crate::{
     feature::EngineReq,
+    sigbytes::AppendSigBytes,
     signature::{
         bodysig::{BodySig, BodySigParseError},
         ext::{ExtendedSig, ExtendedSigParseError, Offset, OffsetParseError, OffsetPos},
         targettype::TargetType,
     },
 };
+use downcast_rs::{impl_downcast, Downcast};
+use std::fmt::Write;
 
 use thiserror::Error;
 
@@ -34,9 +37,33 @@ pub struct SubSigModifier {
     pub ascii: bool,
 }
 
-pub trait SubSig: std::fmt::Debug + EngineReq {
+impl AppendSigBytes for SubSigModifier {
+    fn append_sigbytes(
+        &self,
+        sb: &mut crate::sigbytes::SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        if self.ascii {
+            sb.write_char('a')?;
+        }
+        if self.match_fullword {
+            sb.write_char('f')?;
+        }
+        if self.case_insensitive {
+            sb.write_char('i')?;
+        }
+        if self.widechar {
+            sb.write_char('w')?;
+        }
+
+        Ok(())
+    }
+}
+
+pub trait SubSig: std::fmt::Debug + EngineReq + AppendSigBytes + Downcast {
     fn subsig_type(&self) -> SubSigType;
 }
+
+impl_downcast!(SubSig);
 
 pub trait SubSigError: std::error::Error {
     /// Whether or not the error pertains to a signature that was identified as
@@ -103,9 +130,9 @@ pub fn parse_bytes(
         .position(|&b| b == b':')
     {
         let parts = subsig_bytes.split_at(pos);
-        (Offset::try_from(parts.0)?, &parts.1[1..])
+        (Some(Offset::try_from(parts.0)?), &parts.1[1..])
     } else {
-        (Offset::Normal(OffsetPos::Any), subsig_bytes)
+        (None, subsig_bytes)
     };
 
     // Is it a PCRE sub-sig?
@@ -127,6 +154,7 @@ pub fn parse_bytes(
         target_type: TargetType::Any,
         offset,
         body_sig: Some(body_sig),
+        modifier,
     };
     Ok(Box::new(sig) as Box<dyn SubSig>)
 }

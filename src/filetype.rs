@@ -1,5 +1,5 @@
 use num_derive::{FromPrimitive, ToPrimitive};
-use strum_macros::EnumString;
+use strum_macros::{Display, EnumString};
 
 ///
 /// File types that ClamAV knows about
@@ -8,7 +8,7 @@ use strum_macros::EnumString;
 const CL_TYPENO: isize = 500;
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, FromPrimitive, ToPrimitive, EnumString)]
+#[derive(Display, Debug, FromPrimitive, ToPrimitive, EnumString)]
 pub enum FileType {
     CL_TYPE_ANY = 0,
     CL_TYPE_TEXT_ASCII = CL_TYPENO, /* X3.4, ISO-8859, non-ISO ext. ASCII */

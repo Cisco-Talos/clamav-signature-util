@@ -20,6 +20,10 @@ impl SigBytes {
     pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
         self.0.try_reserve(additional)
     }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
 }
 
 /// A trait implemented by entities that can format themselves into the format

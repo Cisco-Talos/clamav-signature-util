@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use clam_sigutil::SigType;
+use clam_sigutil::{sigbytes::SigBytes, SigType};
 use std::{
     fs::File,
     io::{BufRead, BufReader, Read},
@@ -38,6 +38,10 @@ struct Opt {
     /// Signature type for stdin, specified as file extension
     #[structopt(alias = "sigtype", long, parse(try_from_str))]
     sig_type: Option<SigType>,
+
+    /// Re-export signatures after parsing and verify
+    #[structopt(long)]
+    check_export: bool,
 }
 
 pub fn main() -> Result<()> {
@@ -185,6 +189,20 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
                 }
                 if opt.print_features {
                     println!(" > {:?}", sig.features());
+                }
+
+                if opt.check_export {
+                    // Note: This naively compares the two signatures after
+                    // downcasing to suppress issues with different case of hex
+                    // values (a-f/A-F)
+                    let exported = sig.to_sigbytes().unwrap();
+                    if str::from_utf8(exported.as_bytes()).unwrap().to_lowercase()
+                        != str::from_utf8(sigbuf).unwrap().to_lowercase()
+                    {
+                        eprintln!("Export mismatch:");
+                        eprintln!(" < {}", SigBytes::from(sigbuf));
+                        eprintln!(" > {exported}");
+                    }
                 }
             }
             Err(e) => {

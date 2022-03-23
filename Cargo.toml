@@ -9,6 +9,7 @@ validate_regex = ["regex"]
 
 [dependencies]
 anyhow = "1"
+downcast-rs = "1"
 enum-variants-strings = "0.1"
 hex = "0.4"
 hex-literal = "0.3"
@@ -19,10 +20,10 @@ structopt = "0.3"
 strum = "0.24"
 strum_macros = "0.24"
 thiserror = "1"
+url = "2"
 
 # Optional crates
-regex = {version = "1.5.4", optional = true}
-url = "2"
+regex = {version = "1", optional = true}
 
 [[bin]]
 name = "clam-sigutil"

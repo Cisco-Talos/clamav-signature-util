@@ -315,6 +315,34 @@ pub fn string_from_bytes(bytes: &[u8]) -> Result<String, std::str::Utf8Error> {
     Ok(std::str::from_utf8(bytes)?.to_owned())
 }
 
+/// A relative or absolute location within a string. This is primarily used for
+/// error reporting.
+#[derive(Debug)]
+pub enum Position {
+    End,
+    Absolute(usize),
+    Relative(usize),
+    Range(RangeInclusive<usize>),
+}
+
+impl std::fmt::Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Position::End => f.write_str("at end")?,
+            Position::Absolute(pos) => write!(f, "at pos {pos}")?,
+            Position::Relative(pos) => write!(f, "at relative pos {pos}")?,
+            Position::Range(range) => write!(f, "from pos {} to {}", range.start(), range.end())?,
+        }
+        Ok(())
+    }
+}
+
+impl From<usize> for Position {
+    fn from(pos: usize) -> Self {
+        Position::Absolute(pos)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

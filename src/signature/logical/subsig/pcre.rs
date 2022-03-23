@@ -1,9 +1,14 @@
 use crate::{
     feature::{EngineReq, FeatureSet},
-    signature::logical::{expression, SubSigModifier},
+    regexp::{RegexpMatch, RegexpMatchParseError},
+    sigbytes::AppendSigBytes,
+    signature::{
+        ext::{Offset, OffsetPos},
+        logical::{expression, SubSigModifier},
+    },
     Feature,
 };
-use std::str;
+use std::{fmt::Write, str};
 use thiserror::Error;
 
 use super::{SubSig, SubSigType};
@@ -12,10 +17,10 @@ use super::{SubSig, SubSigType};
 #[derive(Debug)]
 pub struct PCRESubSig {
     trigger_expr: Box<dyn expression::Element>,
-    pattern: String,
+    regexp: RegexpMatch,
     // TODO: find a more-compact representation
     flags: Vec<Flag>,
-    offset: crate::signature::ext::Offset,
+    offset: Option<crate::signature::ext::Offset>,
     modifier: Option<SubSigModifier>,
 }
 
@@ -28,6 +33,36 @@ impl SubSig for PCRESubSig {
 impl EngineReq for PCRESubSig {
     fn features(&self) -> crate::feature::FeatureSet {
         FeatureSet::from_static(&[Feature::SubSigPcre])
+    }
+}
+
+impl AppendSigBytes for PCRESubSig {
+    fn append_sigbytes(
+        &self,
+        sb: &mut crate::sigbytes::SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        if let Some(offset) = self.offset {
+            offset.append_sigbytes(sb)?;
+            sb.write_char(':')?;
+        }
+        write!(sb, "{expr}/", expr = self.trigger_expr)?;
+        self.regexp.append_pcre_subsig(sb)?;
+        sb.write_char('/')?;
+        for flag in &self.flags {
+            sb.write_char(match flag {
+                Flag::Global => 'g',
+                Flag::Rolling => 'r',
+                Flag::Encompass => 'e',
+                Flag::PcreCaseless => 'i',
+                Flag::PcreDotAll => 's',
+                Flag::PcreMultiline => 'm',
+                Flag::PcreExtended => 'x',
+                Flag::PcreAnchored => 'A',
+                Flag::PcreDollarEndOnly => 'E',
+                Flag::PcreUngreedy => 'U',
+            })?;
+        }
+        Ok(())
     }
 }
 
@@ -62,6 +97,9 @@ pub enum PCRESubSigParseError {
     #[error("parsing logical expression: {0}")]
     ParseLogExpr(#[from] expression::LogExprParseError),
 
+    #[error("loading pattern: {0}")]
+    RegexpMatch(#[from] RegexpMatchParseError),
+
     #[cfg(validate_regex)]
     #[error("compiling regular expression: {0}")]
     CompileRegex(#[from] regex::Error),
@@ -82,7 +120,7 @@ impl PCRESubSig {
     pub fn from_bytes(
         bytes: &[u8],
         modifier: Option<SubSigModifier>,
-        offset: crate::signature::ext::Offset,
+        offset: Option<crate::signature::ext::Offset>,
     ) -> Result<PCRESubSig, PCRESubSigParseError> {
         // Due to escaping of slashes, we can't simply split on them
         let mut parts = bytes.splitn(2, |&b| b == b'/');
@@ -101,15 +139,8 @@ impl PCRESubSig {
             .map(Flag::try_from)
             .collect::<Result<Vec<Flag>, _>>()?;
 
-        let pattern = str::from_utf8(parts.next().ok_or(PCRESubSigParseError::EmptyPattern)?)
-            .map_err(PCRESubSigParseError::NotUnicode)?;
-        // Clean up the pattern a bit.  Un-escape slashes
-        let pattern = pattern.replace("\\/", "/");
-        // Restore the semicolons
-        let pattern = pattern.replace("\\x3B", ";");
-
-        // Maybe make it compatible with the regex crate?
-        let pattern = pattern.replace("\\'", "'");
+        let regexp =
+            RegexpMatch::from_pcre_subsig(parts.next().ok_or(PCRESubSigParseError::EmptyPattern)?)?;
 
         #[cfg(validate_regex)]
         {
@@ -142,7 +173,7 @@ impl PCRESubSig {
 
         Ok(Self {
             trigger_expr,
-            pattern,
+            regexp,
             flags,
             modifier,
             offset,
@@ -173,13 +204,29 @@ impl TryFrom<u8> for Flag {
 #[cfg(test)]
 mod tests {
     use super::PCRESubSig;
-    use crate::signature::ext::{Offset, OffsetPos};
+    use crate::{
+        sigbytes::{AppendSigBytes, SigBytes},
+        signature::ext::{Offset, OffsetPos},
+    };
+    const SAMPLE_SIG: &str = concat!(
+        r#"0/willReadFrequently.*?(?P<source_img>(\w+|\w+\x5B\w+\x5D))"#,
+        r#"\.createImageData.*?(?P<target_img>(\w+|\w+\x5B\w+\x5D))\s*\x3D\s*"#,
+        r#"(?P=source_img)\.getImageData.*?(?P=source_img)\.putImageData\s*\x28\s*(?P=target_img)/si"#
+    );
 
     #[test]
     fn logical_expr() {
         let subsig_bytes = b"0&1&2/function\\s[a-z0-9]+\x28\x29\\s\x7B\\svar\\s[a-z0-9]+=(\"[0-9a-z]{300,400}\"\x2B\\s){10}/";
-        let sig =
-            PCRESubSig::from_bytes(subsig_bytes, None, Offset::Normal(OffsetPos::Any)).unwrap();
-        dbg!(sig);
+        let _sig = PCRESubSig::from_bytes(subsig_bytes, None, None).unwrap();
+    }
+
+    #[test]
+    fn export() {
+        let bytes = SAMPLE_SIG.as_bytes();
+        let sig = PCRESubSig::from_bytes(bytes, None, None).unwrap();
+        let mut sb = SigBytes::new();
+        sig.append_sigbytes(&mut sb).unwrap();
+        let exported = sb.to_string();
+        assert_eq!(SAMPLE_SIG, &exported);
     }
 }

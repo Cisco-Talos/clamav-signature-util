@@ -1,6 +1,7 @@
 use super::{SubSig, SubSigType};
 use crate::{
     feature::EngineReq,
+    sigbytes::AppendSigBytes,
     signature::logical::SubSigModifier,
     util::{parse_number_dec, ParseNumberError},
 };
@@ -61,6 +62,16 @@ impl SubSig for MacroSubSig {
 }
 
 impl EngineReq for MacroSubSig {}
+
+impl AppendSigBytes for MacroSubSig {
+    fn append_sigbytes(
+        &self,
+        _sb: &mut crate::sigbytes::SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        // TODO: CLAM-1755
+        todo!()
+    }
+}
 
 impl MacroSubSig {
     pub fn from_bytes(

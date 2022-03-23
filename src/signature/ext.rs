@@ -3,7 +3,7 @@ use super::{
         logical::targetdesc::TargetDescParseError, targettype::TargetType, ParseError, Signature,
     },
     bodysig::{BodySig, BodySigParseError},
-    logical::subsig::SubSig,
+    logical::subsig::{SubSig, SubSigModifier},
     targettype::TargetTypeParseError,
 };
 use crate::{
@@ -17,11 +17,14 @@ use thiserror::Error;
 #[derive(Debug)]
 pub struct ExtendedSig {
     pub(crate) name: Option<String>,
-    #[allow(dead_code)]
+
     pub(crate) target_type: TargetType,
-    #[allow(dead_code)]
-    pub(crate) offset: Offset,
+
+    // Note, offset is only optional in sub-signatures
+    pub(crate) offset: Option<Offset>,
     pub(crate) body_sig: Option<BodySig>,
+    /// Modifier (only applicable when used as a subsig with a logical signature)
+    pub(crate) modifier: Option<SubSigModifier>,
 }
 
 #[derive(Debug, Error)]
@@ -153,11 +156,13 @@ impl TryFrom<&[u8]> for ExtendedSig {
             .try_into()
             .map_err(ExtendedSigParseError::TargetTypeParse)?;
 
-        let offset = fields
-            .next()
-            .ok_or(ExtendedSigParseError::MissingOffset)?
-            .try_into()
-            .map_err(ExtendedSigParseError::ParseOffset)?;
+        let offset = Some(
+            fields
+                .next()
+                .ok_or(ExtendedSigParseError::MissingOffset)?
+                .try_into()
+                .map_err(ExtendedSigParseError::ParseOffset)?,
+        );
         let body_sig = match fields
             .next()
             .ok_or(ExtendedSigParseError::MissingHexSignature)?
@@ -171,6 +176,7 @@ impl TryFrom<&[u8]> for ExtendedSig {
             target_type,
             offset,
             body_sig,
+            modifier: None,
         })
     }
 }
@@ -275,7 +281,11 @@ impl AppendSigBytes for ExtendedSig {
         // Add the TargetType as an integer
         self.target_type.append_sigbytes(sb)?;
         sb.write_char(':')?;
-        self.offset.append_sigbytes(sb)?;
+        if let Some(offset) = &self.offset {
+            offset.append_sigbytes(sb)?;
+        } else {
+            debug_assert!(&self.offset.is_none())
+        }
         if let Some(body_sig) = &self.body_sig {
             sb.write_char(':')?;
             body_sig.append_sigbytes(sb)?;

@@ -2,33 +2,17 @@ use super::super::targettype::TargetType;
 use crate::{
     feature::{EngineReq, FeatureSet},
     filetype::FileType,
-    util::{self, parse_number_dec, ParseNumberError},
+    sigbytes::{AppendSigBytes, SigBytes},
+    signature::ToSigBytesError,
+    util::{self, parse_number_dec, ParseNumberError, Range},
 };
-use num_traits::FromPrimitive;
-use std::{ops::RangeInclusive, str, str::FromStr};
+use num_traits::{FromPrimitive, ToPrimitive};
+use std::{fmt::Write, str, str::FromStr};
 use thiserror::Error;
 
 #[derive(Debug, Default)]
 pub struct TargetDesc {
-    /// Target
-    target_type: Option<TargetType>,
-
-    /// Engine
-    f_level: Option<RangeInclusive<usize>>,
-    /// FileSize
-    file_size: Option<RangeInclusive<usize>>,
-    /// EntryPoint
-    entry_point: Option<RangeInclusive<usize>>,
-    /// NumberOfSections
-    number_of_sections: Option<RangeInclusive<usize>>,
-    /// Container
-    container: Option<FileType>,
-    // Undocumented
-    handler_type: Option<FileType>,
-    // IconGroup1
-    icon_group_1: Option<String>,
-    // IconGroup2
-    icon_group_2: Option<String>,
+    attrs: Vec<TargetDescAttr>,
 }
 
 #[derive(Debug, Error)]
@@ -58,6 +42,19 @@ pub enum TargetDescParseError {
     TargetType(#[from] ParseNumberError<usize>),
 }
 
+impl AppendSigBytes for TargetDesc {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), ToSigBytesError> {
+        for (i, attr) in self.attrs.iter().enumerate() {
+            if i > 0 {
+                sb.write_char(',')?;
+            }
+            attr.append_sigbytes(sb)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl TryFrom<&[u8]> for TargetDesc {
     type Error = TargetDescParseError;
 
@@ -72,79 +69,85 @@ impl TryFrom<&[u8]> for TargetDesc {
             // eprintln!("attr_name = {}", str::from_utf8(attr_name)?);
             match attr_name {
                 b"Target" => {
-                    tdesc.target_type = Some(
+                    let target_type =
                         FromPrimitive::from_usize(
                             parse_number_dec(value.ok_or(
                                 TargetDescParseError::TargetDescAttrMissingValue("Target"),
                             )?)
                             .map_err(TargetDescParseError::TargetType)?,
                         )
-                        .ok_or(TargetDescParseError::UnknownTargetType)?,
-                    )
+                        .ok_or(TargetDescParseError::UnknownTargetType)?;
+                    tdesc.attrs.push(TargetDescAttr::TargetType(target_type));
                 }
                 b"Engine" => {
-                    tdesc.f_level =
-                        Some(
-                            util::parse_usize_range_inclusive(value.ok_or(
-                                TargetDescParseError::TargetDescAttrMissingValue("Engine"),
-                            )?)
-                            .map_err(TargetDescParseError::EngineRange)?,
-                        );
+                    let f_level = util::parse_usize_range_inclusive(
+                        value.ok_or(TargetDescParseError::TargetDescAttrMissingValue("Engine"))?,
+                    )
+                    .map_err(TargetDescParseError::EngineRange)?;
+                    tdesc
+                        .attrs
+                        .push(TargetDescAttr::Engine(Range::Inclusive(f_level)));
                 }
                 b"FileSize" => {
-                    tdesc.file_size = Some(util::parse_usize_range_inclusive(
+                    let file_size = util::parse_usize_range_inclusive(
                         value
                             .ok_or(TargetDescParseError::TargetDescAttrMissingValue("FileSize"))?,
-                    )?);
+                    )?;
+                    tdesc
+                        .attrs
+                        .push(TargetDescAttr::FileSize(Range::Inclusive(file_size)));
                 }
                 b"EntryPoint" => {
-                    tdesc.entry_point = Some(util::parse_usize_range_inclusive(value.ok_or(
+                    let entry_point = util::parse_usize_range_inclusive(value.ok_or(
                         TargetDescParseError::TargetDescAttrMissingValue("EntryPoint"),
-                    )?)?)
+                    )?)?;
+                    tdesc
+                        .attrs
+                        .push(TargetDescAttr::EntryPoint(Range::Inclusive(entry_point)));
                 }
 
                 b"NumberOfSections" => {
-                    tdesc.number_of_sections =
-                        Some(util::parse_usize_range_inclusive(value.ok_or(
-                            TargetDescParseError::TargetDescAttrMissingValue("EntryPoint"),
-                        )?)?)
+                    let number_of_sections = util::parse_usize_range_inclusive(value.ok_or(
+                        TargetDescParseError::TargetDescAttrMissingValue("EntryPoint"),
+                    )?)?;
+                    tdesc
+                        .attrs
+                        .push(TargetDescAttr::NumberOfSections(Range::Inclusive(
+                            number_of_sections,
+                        )));
                 }
 
                 b"Container" => {
-                    tdesc.container = Some(
-                        FileType::from_str(
-                            str::from_utf8(value.ok_or(
-                                TargetDescParseError::TargetDescAttrMissingValue("Container"),
-                            )?)
-                            .map_err(TargetDescParseError::Container)?,
-                        )
-                        .map_err(|_| TargetDescParseError::UnknownFileType)?,
+                    let container = FileType::from_str(
+                        str::from_utf8(value.ok_or(
+                            TargetDescParseError::TargetDescAttrMissingValue("Container"),
+                        )?)
+                        .map_err(TargetDescParseError::Container)?,
                     )
+                    .map_err(|_| TargetDescParseError::UnknownFileType)?;
+                    tdesc.attrs.push(TargetDescAttr::Container(container));
                 }
                 b"Intermediates" => panic!("Intermediates"),
                 b"IconGroup1" => {
-                    tdesc.icon_group_1 = Some(
-                        str::from_utf8(value.ok_or(
-                            TargetDescParseError::TargetDescAttrMissingValue("IconGroup1"),
-                        )?)?
-                        .into(),
-                    )
+                    let icon_group_1 = str::from_utf8(value.ok_or(
+                        TargetDescParseError::TargetDescAttrMissingValue("IconGroup1"),
+                    )?)?
+                    .into();
+                    tdesc.attrs.push(TargetDescAttr::IconGroup1(icon_group_1));
                 }
                 b"IconGroup2" => {
-                    tdesc.icon_group_2 = Some(
-                        str::from_utf8(value.ok_or(
-                            TargetDescParseError::TargetDescAttrMissingValue("IconGroup2"),
-                        )?)?
-                        .into(),
-                    )
+                    let icon_group_2 = str::from_utf8(value.ok_or(
+                        TargetDescParseError::TargetDescAttrMissingValue("IconGroup2"),
+                    )?)?
+                    .into();
+                    tdesc.attrs.push(TargetDescAttr::IconGroup2(icon_group_2));
                 }
                 b"HandlerType" => {
-                    tdesc.handler_type = Some(
-                        FileType::from_str(str::from_utf8(value.ok_or(
-                            TargetDescParseError::TargetDescAttrMissingValue("Container"),
-                        )?)?)
-                        .map_err(|_| TargetDescParseError::UnknownFileType)?,
-                    )
+                    let handler_type = FileType::from_str(str::from_utf8(value.ok_or(
+                        TargetDescParseError::TargetDescAttrMissingValue("Container"),
+                    )?)?)
+                    .map_err(|_| TargetDescParseError::UnknownFileType)?;
+                    tdesc.attrs.push(TargetDescAttr::HandlerType(handler_type));
                 }
                 s => {
                     return Err(TargetDescParseError::UnknownTargetDescAttr(
@@ -160,9 +163,64 @@ impl TryFrom<&[u8]> for TargetDesc {
 
 impl EngineReq for TargetDesc {
     fn features(&self) -> FeatureSet {
-        self.target_type
-            .as_ref()
-            .map(TargetType::features)
+        self.attrs
+            .iter()
+            .find_map(|attr| {
+                if let TargetDescAttr::TargetType(target_type) = attr {
+                    Some(target_type.features())
+                } else {
+                    None
+                }
+            })
             .unwrap_or_default()
+    }
+}
+
+#[derive(Debug)]
+pub enum TargetDescAttr {
+    Engine(Range<usize>),
+    TargetType(TargetType),
+    FileSize(Range<usize>),
+    EntryPoint(Range<usize>),
+    NumberOfSections(Range<usize>),
+    Container(FileType),
+    // Undocumented
+    HandlerType(FileType),
+    IconGroup1(String),
+    IconGroup2(String),
+}
+
+impl AppendSigBytes for TargetDescAttr {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
+        match self {
+            TargetDescAttr::Engine(range) => {
+                write!(sb, "Engine:")?;
+                range.append_sigbytes(sb)?;
+            }
+            TargetDescAttr::TargetType(target_type) => {
+                write!(sb, "Target:{}", target_type.to_usize().unwrap())?
+            }
+            TargetDescAttr::FileSize(range) => {
+                write!(sb, "FileSize:")?;
+                range.append_sigbytes(sb)?;
+            }
+            TargetDescAttr::EntryPoint(range) => {
+                write!(sb, "EntryPoint:")?;
+                range.append_sigbytes(sb)?;
+            }
+            TargetDescAttr::NumberOfSections(range) => {
+                write!(sb, "NumberOfSections:")?;
+                range.append_sigbytes(sb)?;
+            }
+            TargetDescAttr::Container(file_type) => {
+                write!(sb, "Container:{file_type}")?;
+            }
+            TargetDescAttr::HandlerType(file_type) => {
+                write!(sb, "HandlerType:{file_type}")?;
+            }
+            TargetDescAttr::IconGroup1(s) => write!(sb, "IconGroup1:{}", s)?,
+            TargetDescAttr::IconGroup2(s) => write!(sb, "IconGroup2:{}", s)?,
+        }
+        Ok(())
     }
 }
