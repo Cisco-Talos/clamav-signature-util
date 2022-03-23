@@ -19,13 +19,32 @@ pub mod sigtype;
 /// Enumeration of target types (typically found in logical and extended signatures)
 pub mod targettype;
 
-use crate::{feature::EngineReq, SigType};
+use crate::{feature::EngineReq, util::SigBytes, SigType};
 use thiserror::Error;
 
 /// Required functionality for a Signature.
 pub trait Signature: std::fmt::Debug + EngineReq {
     /// Signature name
     fn name(&self) -> &str;
+
+    /// Return ClamAV signature, as would be expected in a CVD
+    fn to_sigbytes(&self) -> Result<SigBytes, ToSigBytesError> {
+        // TODO: Remove default implementation when all implementations are
+        //       complete.
+        unimplemented!()
+    }
+}
+
+/// Errors that can be encountered when exporting a Signature to its CVD format
+#[derive(Debug, Error)]
+pub enum ToSigBytesError {
+    /// An error occurred while formatting the signature
+    #[error("formatting: {0}")]
+    Fmt(#[from] std::fmt::Error),
+
+    /// Signature type is not supported within CVDs
+    #[error("not supported within CVDs")]
+    Unsupported,
 }
 
 /// Parse a CVD-style (single-line) signature from a CVD database. Since each
