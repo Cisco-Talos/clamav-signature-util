@@ -9,11 +9,7 @@ use self::{
     subsig::{SubSigModifier, SubSigParseError},
     targetdesc::TargetDescParseError,
 };
-use super::{
-    bodysig::BodySigParseError,
-    ext::{ExtendedSig, Offset, OffsetPos},
-    ParseError, Signature,
-};
+use super::{bodysig::BodySigParseError, ext::ExtendedSig, ParseError, Signature};
 use std::{fmt::Write, str};
 use subsig::SubSig;
 use targetdesc::TargetDesc;

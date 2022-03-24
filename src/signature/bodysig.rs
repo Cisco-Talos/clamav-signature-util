@@ -1,15 +1,15 @@
+pub mod altstr;
 pub mod bsmatch;
 
+use self::altstr::{AlternateStrings, AlternateStringsParseError};
 use crate::{
     feature::{EngineReq, FeatureSet},
     sigbytes::{AppendSigBytes, SigBytes, SigChar},
     util::{ParseNumberError, Position, Range, RangeParseError},
 };
-use bsmatch::{AlternateStrings, AnyBytes, CharacterClass, Match};
+use bsmatch::{AnyBytes, CharacterClass, Match};
 use std::convert::TryFrom;
 use thiserror::Error;
-
-use self::bsmatch::AlternateStringsParseError;
 
 /// Body signature.  This is an element of both Extended and Logical signatures,
 /// and contains byte match patterns.
