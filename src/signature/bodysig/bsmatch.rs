@@ -66,7 +66,14 @@ impl AppendSigBytes for Match {
                     write!(sb, "{byte:02x}")?
                 }
             }
-            Match::AlternateStrings(astrs) => astrs.append_sigbytes(sb)?,
+            Match::AlternateStrings(astrs) => {
+                if let AlternateStrings::FixedWidth { negated: true, .. } = astrs {
+                    sb.write_char('!')?;
+                }
+                sb.write_char('(')?;
+                astrs.append_sigbytes(sb)?;
+                sb.write_char(')')?;
+            }
             Match::AnyByte => sb.write_str("??")?,
             Match::AnyBytes(anybytes) => anybytes.append_sigbytes(sb)?,
             Match::ByteRange(range) => {

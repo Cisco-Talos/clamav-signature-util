@@ -8,6 +8,7 @@ pub mod ext;
 pub mod filehash;
 /// Common functionality for hash-based signatures
 pub mod hash;
+pub mod intmask;
 /// Logical signature support
 pub mod logical;
 /// Hash-based signature support for Portable Executable files
