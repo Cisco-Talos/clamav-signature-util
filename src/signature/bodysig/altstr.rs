@@ -4,7 +4,7 @@ use crate::{
 };
 use std::{
     fmt::Write,
-    ops::{RangeInclusive, Shl},
+    ops::{Range, Shl},
 };
 use thiserror::Error;
 
@@ -29,7 +29,7 @@ pub enum AlternateStrings {
 #[derive(Debug, Clone)]
 pub enum GenAltString {
     /// An alternative string comprised only of literal bytes
-    Literal(RangeInclusive<usize>),
+    Literal(Range<usize>),
     /// An alternative string comprised of a single wildcard byte
     Wildcard(IntWithMask<u8>),
     /// An alternative string containing a mix of both literal and wildcard bytes
@@ -40,7 +40,7 @@ pub enum GenAltString {
 #[derive(Debug, Clone)]
 pub enum AltStrSegment {
     /// A literal byte segment, referencing a range in the data vector
-    Literal(RangeInclusive<usize>),
+    Literal(Range<usize>),
     /// A byte-sized match with one or both nybles wildcarded
     Wildcard(IntWithMask<u8>),
 }
@@ -94,7 +94,7 @@ impl TryFrom<(bool, &[u8])> for AlternateStrings {
 
                 let start = data.len();
                 data.extend(element);
-                astrs.push(GenAltString::Literal(start..=(data.len() - 1)));
+                astrs.push(GenAltString::Literal(start..data.len()));
             } else {
                 // Record that the astrs vector will need to be used due to the
                 // presence of wildcards
@@ -114,7 +114,7 @@ impl TryFrom<(bool, &[u8])> for AlternateStrings {
                                 let start = data.len();
                                 data.append(&mut literal_segment);
                                 let end = data.len();
-                                this_astr.push(AltStrSegment::Literal(start..=(end - 1)));
+                                this_astr.push(AltStrSegment::Literal(start..end));
                             }
                             this_astr.push(AltStrSegment::Wildcard(wc))
                         }
@@ -126,7 +126,7 @@ impl TryFrom<(bool, &[u8])> for AlternateStrings {
                     let start = data.len();
                     data.append(&mut literal_segment);
                     let end = data.len();
-                    this_astr.push(AltStrSegment::Literal(start..=(end - 1)));
+                    this_astr.push(AltStrSegment::Literal(start..end));
                 }
 
                 astrs.push(if this_astr.len() > 1 {
@@ -214,11 +214,7 @@ fn parse_byte_from_hex(hexbyte: &[u8]) -> Result<ParsedByte, hex::FromHexError> 
 impl AppendSigBytes for AlternateStrings {
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         match self {
-            AlternateStrings::FixedWidth {
-                negated,
-                width,
-                data,
-            } => {
+            AlternateStrings::FixedWidth { width, data, .. } => {
                 for (i, astr) in data.chunks_exact(*width).enumerate() {
                     if i > 0 {
                         sb.write_char('|')?;
