@@ -209,29 +209,11 @@ mod tests {
     }
 
     #[test]
-    fn pdb_real_not_unicode() {
-        let result: Result<PhishingSig, PhishingSigParseError> = b"R:\x80".as_ref().try_into();
-        assert!(matches!(
-            result,
-            Err(PhishingSigParseError::RealUrlRegexpParse(_))
-        ));
-    }
-
-    #[test]
     fn pdb_missing_disp() {
         let result: Result<PhishingSig, PhishingSigParseError> = br"R:foo".as_ref().try_into();
         assert!(matches!(
             result,
             Err(PhishingSigParseError::MissingDisplayedUrl)
-        ));
-    }
-
-    #[test]
-    fn pdb_disp_not_unicode() {
-        let result: Result<PhishingSig, PhishingSigParseError> = b"R:.com:\x80".as_ref().try_into();
-        assert!(matches!(
-            result,
-            Err(PhishingSigParseError::DisplayedUrlRegexpParse(_))
         ));
     }
 }
