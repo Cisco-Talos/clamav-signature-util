@@ -104,9 +104,9 @@ pub fn parse_from_cvd(
         SigType::Logical => Ok(logical::LogicalSig::from_sigbytes(data)?.0),
         SigType::FileHash => Ok(filehash::FileHashSig::from_sigbytes(data)?.0),
         SigType::PESectionHash => Ok(pehash::PESectionHashSig::from_sigbytes(data)?.0),
-        SigType::ContainerMetadata => Ok(Box::new(
-            container_metadata::ContainerMetadataSig::try_from(data.as_bytes())?,
-        )),
+        SigType::ContainerMetadata => {
+            Ok(container_metadata::ContainerMetadataSig::from_sigbytes(data)?.0)
+        }
         SigType::PhishingURL => Ok(Box::new(phishing::PhishingSig::try_from(data.as_bytes())?)),
         _ => Err(FromSigBytesParseError::UnsupportedSigType),
     }
@@ -121,12 +121,9 @@ pub fn parse_from_cvd_with_meta(
         SigType::Logical => logical::LogicalSig::from_sigbytes(data)?,
         SigType::FileHash => filehash::FileHashSig::from_sigbytes(data)?,
         SigType::PESectionHash => pehash::PESectionHashSig::from_sigbytes(data)?,
-        SigType::ContainerMetadata => (
-            Box::new(container_metadata::ContainerMetadataSig::try_from(
-                data.as_bytes(),
-            )?) as Box<dyn Signature>,
-            SigMeta::default(),
-        ),
+        SigType::ContainerMetadata => {
+            container_metadata::ContainerMetadataSig::from_sigbytes(data)?
+        }
         SigType::PhishingURL => (
             Box::new(phishing::PhishingSig::try_from(data.as_bytes())?) as Box<dyn Signature>,
             SigMeta::default(),
