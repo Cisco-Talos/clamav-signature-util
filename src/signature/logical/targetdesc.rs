@@ -33,13 +33,22 @@ pub enum TargetDescParseError {
     UnknownFileType,
 
     #[error("parsing engine range")]
-    EngineRange(#[from] util::RangeInclusiveParseError<usize>),
+    EngineRange(util::RangeInclusiveParseError<usize>),
+
+    #[error("parsing engine range")]
+    FileSize(util::RangeInclusiveParseError<usize>),
+
+    #[error("parsing engine range")]
+    EntryPoint(util::RangeInclusiveParseError<usize>),
+
+    #[error("parsing engine range")]
+    NumberOfSections(util::RangeInclusiveParseError<usize>),
 
     #[error("parsing container value: {0}")]
     Container(#[from] std::str::Utf8Error),
 
     #[error("parsing target_type: {0}")]
-    TargetType(#[from] ParseNumberError<usize>),
+    TargetType(ParseNumberError<usize>),
 }
 
 impl AppendSigBytes for TargetDesc {
@@ -92,7 +101,8 @@ impl TryFrom<&[u8]> for TargetDesc {
                     let file_size = util::parse_range_inclusive(
                         value
                             .ok_or(TargetDescParseError::TargetDescAttrMissingValue("FileSize"))?,
-                    )?;
+                    )
+                    .map_err(TargetDescParseError::FileSize)?;
                     tdesc
                         .attrs
                         .push(TargetDescAttr::FileSize(Range::Inclusive(file_size)));
@@ -100,7 +110,8 @@ impl TryFrom<&[u8]> for TargetDesc {
                 b"EntryPoint" => {
                     let entry_point = util::parse_range_inclusive(value.ok_or(
                         TargetDescParseError::TargetDescAttrMissingValue("EntryPoint"),
-                    )?)?;
+                    )?)
+                    .map_err(TargetDescParseError::EntryPoint)?;
                     tdesc
                         .attrs
                         .push(TargetDescAttr::EntryPoint(Range::Inclusive(entry_point)));
@@ -109,7 +120,8 @@ impl TryFrom<&[u8]> for TargetDesc {
                 b"NumberOfSections" => {
                     let number_of_sections = util::parse_range_inclusive(value.ok_or(
                         TargetDescParseError::TargetDescAttrMissingValue("EntryPoint"),
-                    )?)?;
+                    )?)
+                    .map_err(TargetDescParseError::NumberOfSections)?;
                     tdesc
                         .attrs
                         .push(TargetDescAttr::NumberOfSections(Range::Inclusive(
