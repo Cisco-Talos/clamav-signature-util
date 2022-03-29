@@ -1,8 +1,6 @@
 use crate::{
     sigbytes::AppendSigBytes,
-    util::{
-        parse_number_dec, parse_usize_range_inclusive, ParseNumberError, RangeInclusiveParseError,
-    },
+    util::{parse_number_dec, parse_range_inclusive, ParseNumberError, RangeInclusiveParseError},
 };
 use std::fmt::Write;
 use std::ops::RangeInclusive;
@@ -41,7 +39,7 @@ impl TryFrom<&[u8]> for ContainerSize {
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         if value.iter().any(|&b| b == b'-') {
-            Ok(ContainerSize::Range(parse_usize_range_inclusive(value)?))
+            Ok(ContainerSize::Range(parse_range_inclusive(value)?))
         } else {
             Ok(ContainerSize::Exact(parse_number_dec(value)?))
         }
@@ -50,7 +48,7 @@ impl TryFrom<&[u8]> for ContainerSize {
 
 pub fn parse_container_size(bytes: &[u8]) -> Result<ContainerSize, ContainerSizeParseError> {
     if bytes.iter().any(|&b| b == b'-') {
-        Ok(ContainerSize::Range(parse_usize_range_inclusive(bytes)?))
+        Ok(ContainerSize::Range(parse_range_inclusive(bytes)?))
     } else {
         Ok(ContainerSize::Exact(parse_number_dec(bytes)?))
     }

@@ -12,7 +12,7 @@ use thiserror::Error;
 
 #[derive(Debug, Default)]
 pub struct TargetDesc {
-    attrs: Vec<TargetDescAttr>,
+    pub(crate) attrs: Vec<TargetDescAttr>,
 }
 
 #[derive(Debug, Error)]
@@ -80,7 +80,7 @@ impl TryFrom<&[u8]> for TargetDesc {
                     tdesc.attrs.push(TargetDescAttr::TargetType(target_type));
                 }
                 b"Engine" => {
-                    let f_level = util::parse_usize_range_inclusive(
+                    let f_level = util::parse_range_inclusive(
                         value.ok_or(TargetDescParseError::TargetDescAttrMissingValue("Engine"))?,
                     )
                     .map_err(TargetDescParseError::EngineRange)?;
@@ -89,7 +89,7 @@ impl TryFrom<&[u8]> for TargetDesc {
                         .push(TargetDescAttr::Engine(Range::Inclusive(f_level)));
                 }
                 b"FileSize" => {
-                    let file_size = util::parse_usize_range_inclusive(
+                    let file_size = util::parse_range_inclusive(
                         value
                             .ok_or(TargetDescParseError::TargetDescAttrMissingValue("FileSize"))?,
                     )?;
@@ -98,7 +98,7 @@ impl TryFrom<&[u8]> for TargetDesc {
                         .push(TargetDescAttr::FileSize(Range::Inclusive(file_size)));
                 }
                 b"EntryPoint" => {
-                    let entry_point = util::parse_usize_range_inclusive(value.ok_or(
+                    let entry_point = util::parse_range_inclusive(value.ok_or(
                         TargetDescParseError::TargetDescAttrMissingValue("EntryPoint"),
                     )?)?;
                     tdesc
@@ -107,7 +107,7 @@ impl TryFrom<&[u8]> for TargetDesc {
                 }
 
                 b"NumberOfSections" => {
-                    let number_of_sections = util::parse_usize_range_inclusive(value.ok_or(
+                    let number_of_sections = util::parse_range_inclusive(value.ok_or(
                         TargetDescParseError::TargetDescAttrMissingValue("EntryPoint"),
                     )?)?;
                     tdesc

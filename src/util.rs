@@ -131,9 +131,7 @@ where {
 }
 
 /// Parse an inclusive range from `&[u8]` representing "lower-upper"
-pub fn parse_usize_range_inclusive<T>(
-    s: &[u8],
-) -> Result<RangeInclusive<T>, RangeInclusiveParseError<T>>
+pub fn parse_range_inclusive<T>(s: &[u8]) -> Result<RangeInclusive<T>, RangeInclusiveParseError<T>>
 where
     T: std::str::FromStr,
     <T as std::str::FromStr>::Err: std::fmt::Debug,
