@@ -33,7 +33,7 @@ pub enum TargetDescParseError {
     UnknownFileType,
 
     #[error("parsing engine range")]
-    EngineRange(util::RangeInclusiveParseError<usize>),
+    EngineRange(util::RangeInclusiveParseError<u32>),
 
     #[error("parsing engine range")]
     FileSize(util::RangeInclusiveParseError<usize>),
@@ -190,7 +190,7 @@ impl EngineReq for TargetDesc {
 
 #[derive(Debug)]
 pub enum TargetDescAttr {
-    Engine(Range<usize>),
+    Engine(Range<u32>),
     TargetType(TargetType),
     FileSize(Range<usize>),
     EntryPoint(Range<usize>),
