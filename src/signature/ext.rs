@@ -6,13 +6,14 @@ use super::{
     bodysig::{BodySig, BodySigParseError},
     logical::subsig::{SubSig, SubSigModifier},
     targettype::TargetTypeParseError,
+    SigMeta,
 };
 use crate::{
     feature::{EngineReq, FeatureSet},
-    sigbytes::{AppendSigBytes, SigBytes},
+    sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     util::{parse_number_dec, ParseNumberError},
 };
-use std::{convert::TryFrom, fmt::Write, str};
+use std::{fmt::Write, str};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -50,6 +51,69 @@ pub enum ExtendedSigParseError {
 
     #[error("Parsing offset: {0}")]
     ParseOffset(#[from] OffsetParseError),
+
+    #[error("Parsing min_flevel: {0}")]
+    ParseMinFlevel(ParseNumberError<u32>),
+
+    #[error("Parsing max_flevel: {0}")]
+    ParseMaxFlevel(ParseNumberError<u32>),
+}
+
+impl FromSigBytes for ExtendedSig {
+    fn from_sigbytes<'a, SB: Into<&'a SigBytes>>(
+        sb: SB,
+    ) -> Result<(Box<dyn Signature>, super::SigMeta), FromSigBytesParseError> {
+        let mut sigmeta = SigMeta::default();
+        let data = sb.into().as_bytes();
+        let mut fields = data.split(|b| *b == b':');
+
+        let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
+            .map_err(FromSigBytesParseError::NameNotUnicode)?
+            .to_owned();
+        let target_type = fields
+            .next()
+            .ok_or(ExtendedSigParseError::MissingTargetType)?
+            .try_into()
+            .map_err(ExtendedSigParseError::TargetTypeParse)?;
+
+        let offset = Some(
+            fields
+                .next()
+                .ok_or(ExtendedSigParseError::MissingOffset)?
+                .try_into()
+                .map_err(ExtendedSigParseError::ParseOffset)?,
+        );
+        let body_sig = match fields
+            .next()
+            .ok_or(ExtendedSigParseError::MissingHexSignature)?
+        {
+            b"*" => None,
+            s => Some(s.try_into().map_err(ExtendedSigParseError::BodySig)?),
+        };
+
+        // Parse optional min/max flevel
+        if let Some(min_flevel) = fields.next() {
+            sigmeta.min_flevel =
+                Some(parse_number_dec(min_flevel).map_err(ExtendedSigParseError::ParseMinFlevel)?);
+
+            if let Some(max_flevel) = fields.next() {
+                sigmeta.max_flevel = Some(
+                    parse_number_dec(max_flevel).map_err(ExtendedSigParseError::ParseMaxFlevel)?,
+                );
+            }
+        }
+
+        Ok((
+            Box::new(Self {
+                name: Some(name),
+                target_type,
+                offset,
+                body_sig,
+                modifier: None,
+            }),
+            sigmeta,
+        ))
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -140,46 +204,6 @@ pub enum OffsetPosParseError {
 
     #[error("parsing AbsoluteOffset: {0}")]
     ParseAbsoluteOffset(ParseNumberError<usize>),
-}
-
-impl TryFrom<&[u8]> for ExtendedSig {
-    type Error = FromSigBytesParseError;
-
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let mut fields = data.split(|b| *b == b':');
-
-        let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
-            .map_err(FromSigBytesParseError::NameNotUnicode)?
-            .to_owned();
-        let target_type = fields
-            .next()
-            .ok_or(ExtendedSigParseError::MissingTargetType)?
-            .try_into()
-            .map_err(ExtendedSigParseError::TargetTypeParse)?;
-
-        let offset = Some(
-            fields
-                .next()
-                .ok_or(ExtendedSigParseError::MissingOffset)?
-                .try_into()
-                .map_err(ExtendedSigParseError::ParseOffset)?,
-        );
-        let body_sig = match fields
-            .next()
-            .ok_or(ExtendedSigParseError::MissingHexSignature)?
-        {
-            b"*" => None,
-            s => Some(s.try_into().map_err(ExtendedSigParseError::BodySig)?),
-        };
-
-        Ok(Self {
-            name: Some(name),
-            target_type,
-            offset,
-            body_sig,
-            modifier: None,
-        })
-    }
 }
 
 impl TryFrom<&[u8]> for Offset {
@@ -308,10 +332,28 @@ mod tests {
 
     const SAMPLE_SIG: &str =
         "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1{9-}7e{-5}!(0f|f1|ce)(B)(L)a??b";
+    const SAMPLE_SIG_WITH_FLEVEL: &str =
+        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1{9-}7e{-5}!(0f|f1|ce)(B)(L)a??b:99:101";
+
     #[test]
     fn export() {
-        let sig: ExtendedSig = SAMPLE_SIG.as_bytes().try_into().unwrap();
+        let (sig, sigmeta) = ExtendedSig::from_sigbytes(&SAMPLE_SIG.into()).unwrap();
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG, &exported);
+        assert_eq!(sigmeta, SigMeta::default());
+    }
+
+    #[test]
+    fn parse_flevels() {
+        let (sig, sigmeta) = ExtendedSig::from_sigbytes(&SAMPLE_SIG_WITH_FLEVEL.into()).unwrap();
+        let exported = sig.to_sigbytes().unwrap().to_string();
+        assert_eq!(SAMPLE_SIG, &exported);
+        assert_eq!(
+            sigmeta,
+            SigMeta {
+                min_flevel: Some(99),
+                max_flevel: Some(101),
+            }
+        );
     }
 }

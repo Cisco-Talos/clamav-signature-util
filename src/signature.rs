@@ -22,7 +22,7 @@ pub mod targettype;
 
 use crate::{
     feature::EngineReq,
-    sigbytes::{AppendSigBytes, SigBytes},
+    sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     SigType,
 };
 use std::collections::TryReserveError;
@@ -41,6 +41,17 @@ pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes {
         self.append_sigbytes(&mut sb)?;
         Ok(sb)
     }
+}
+
+/// Additional data obtained from a signature when being parsed, but not
+/// necessary for operation of the signature
+#[derive(Default, Debug, PartialEq)]
+pub struct SigMeta {
+    /// Minimum stated feature level
+    min_flevel: Option<u32>,
+
+    /// Maximum stated feature level
+    max_flevel: Option<u32>,
 }
 
 /// Errors that can be encountered when exporting a Signature to its CVD format
@@ -76,26 +87,59 @@ pub enum ToSigBytesError {
 ///     signature::{self, Signature},
 ///     SigType,
 /// };
-/// let sigdata = b"44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature";
-/// let sig = clam_sigutil::signature::parse_from_cvd(SigType::FileHash, sigdata)
+/// let sigdata = b"44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature".into();
+/// let sig = clam_sigutil::signature::parse_from_cvd(SigType::FileHash, &sigdata)
 ///     .expect("parsed signature");
 /// println!("sig name = {}", sig.name());
 /// ```
 pub fn parse_from_cvd(
     sig_type: SigType,
-    data: &[u8],
+    data: &SigBytes,
 ) -> Result<Box<dyn Signature>, FromSigBytesParseError> {
     match sig_type {
-        SigType::Extended => Ok(Box::new(ext::ExtendedSig::try_from(data)?)),
-        SigType::Logical => Ok(Box::new(logical::LogicalSig::try_from(data)?)),
-        SigType::FileHash => Ok(Box::new(filehash::FileHashSig::try_from(data)?)),
-        SigType::PESectionHash => Ok(Box::new(pehash::PESectionHashSig::try_from(data)?)),
+        SigType::Extended => Ok(ext::ExtendedSig::from_sigbytes(data)?.0),
+        SigType::Logical => Ok(logical::LogicalSig::from_sigbytes(data)?.0),
+        SigType::FileHash => Ok(Box::new(filehash::FileHashSig::try_from(data.as_bytes())?)),
+        SigType::PESectionHash => Ok(Box::new(pehash::PESectionHashSig::try_from(
+            data.as_bytes(),
+        )?)),
         SigType::ContainerMetadata => Ok(Box::new(
-            container_metadata::ContainerMetadataSig::try_from(data)?,
+            container_metadata::ContainerMetadataSig::try_from(data.as_bytes())?,
         )),
-        SigType::PhishingURL => Ok(Box::new(phishing::PhishingSig::try_from(data)?)),
+        SigType::PhishingURL => Ok(Box::new(phishing::PhishingSig::try_from(data.as_bytes())?)),
         _ => Err(FromSigBytesParseError::UnsupportedSigType),
     }
+}
+
+pub fn parse_from_cvd_with_meta(
+    sig_type: SigType,
+    data: &SigBytes,
+) -> Result<(Box<dyn Signature>, SigMeta), FromSigBytesParseError> {
+    let (sig, sigmeta) = match sig_type {
+        SigType::Extended => ext::ExtendedSig::from_sigbytes(data)?,
+        SigType::Logical => logical::LogicalSig::from_sigbytes(data)?,
+        SigType::FileHash => (
+            Box::new(filehash::FileHashSig::try_from(data.as_bytes())?) as Box<dyn Signature>,
+            SigMeta::default(),
+        ),
+        SigType::PESectionHash => (
+            Box::new(pehash::PESectionHashSig::try_from(data.as_bytes())?) as Box<dyn Signature>,
+            SigMeta::default(),
+        ),
+        SigType::ContainerMetadata => (
+            Box::new(container_metadata::ContainerMetadataSig::try_from(
+                data.as_bytes(),
+            )?) as Box<dyn Signature>,
+            SigMeta::default(),
+        ),
+        SigType::PhishingURL => (
+            Box::new(phishing::PhishingSig::try_from(data.as_bytes())?) as Box<dyn Signature>,
+            SigMeta::default(),
+        ),
+        _ => return Err(FromSigBytesParseError::UnsupportedSigType),
+    };
+
+    Ok((sig, sigmeta))
 }
 
 /// Errors that can be encountered while parsing signature input

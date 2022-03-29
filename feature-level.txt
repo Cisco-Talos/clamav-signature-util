@@ -21,9 +21,9 @@
 
 70                                      ?
 71                                      ?
-73                                      HashSizeUnknown
+73                                      HashSizeUnknown TargetTypeJava
 
-74         v0.98.0                      HashSha1 HashSha256 TargetTypePdf TargetTypeFlash TargetTypeJava TargetTypeInternal
+74         v0.98.0                      HashSha1 HashSha256 TargetTypePdf TargetTypeFlash TargetTypeInternal
 76         v0.98.1
 77         v0.98.2 v0.98.3 v0.98.4      ?
 79         v0.98.5 v0.98.6              JsonReadApi

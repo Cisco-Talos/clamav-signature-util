@@ -18,7 +18,7 @@ pub struct TargetDesc {
 #[derive(Debug, Error)]
 pub enum TargetDescParseError {
     #[error("unknown TargetDescription attribute: {0}")]
-    UnknownTargetDescAttr(String),
+    UnknownTargetDescAttr(SigBytes),
 
     #[error("TargetDescription contains empty attribute")]
     TargetDescAttrEmpty,
@@ -45,7 +45,16 @@ pub enum TargetDescParseError {
     NumberOfSections(util::RangeInclusiveParseError<usize>),
 
     #[error("parsing container value: {0}")]
-    Container(#[from] std::str::Utf8Error),
+    Container(std::str::Utf8Error),
+
+    #[error("parsing container value: {0}")]
+    HandlerType(std::str::Utf8Error),
+
+    #[error("parsing IconGroup1 value: {0}")]
+    IconGroup1(std::str::Utf8Error),
+
+    #[error("parsing IconGroup2 value: {0}")]
+    IconGroup2(std::str::Utf8Error),
 
     #[error("parsing target_type: {0}")]
     TargetType(ParseNumberError<usize>),
@@ -143,29 +152,30 @@ impl TryFrom<&[u8]> for TargetDesc {
                 b"IconGroup1" => {
                     let icon_group_1 = str::from_utf8(value.ok_or(
                         TargetDescParseError::TargetDescAttrMissingValue("IconGroup1"),
-                    )?)?
+                    )?)
+                    .map_err(TargetDescParseError::IconGroup1)?
                     .into();
                     tdesc.attrs.push(TargetDescAttr::IconGroup1(icon_group_1));
                 }
                 b"IconGroup2" => {
                     let icon_group_2 = str::from_utf8(value.ok_or(
                         TargetDescParseError::TargetDescAttrMissingValue("IconGroup2"),
-                    )?)?
+                    )?)
+                    .map_err(TargetDescParseError::IconGroup2)?
                     .into();
                     tdesc.attrs.push(TargetDescAttr::IconGroup2(icon_group_2));
                 }
                 b"HandlerType" => {
-                    let handler_type = FileType::from_str(str::from_utf8(value.ok_or(
-                        TargetDescParseError::TargetDescAttrMissingValue("Container"),
-                    )?)?)
+                    let handler_type = FileType::from_str(
+                        str::from_utf8(value.ok_or(
+                            TargetDescParseError::TargetDescAttrMissingValue("Container"),
+                        )?)
+                        .map_err(TargetDescParseError::HandlerType)?,
+                    )
                     .map_err(|_| TargetDescParseError::UnknownFileType)?;
                     tdesc.attrs.push(TargetDescAttr::HandlerType(handler_type));
                 }
-                s => {
-                    return Err(TargetDescParseError::UnknownTargetDescAttr(
-                        str::from_utf8(s)?.to_owned(),
-                    ))
-                }
+                s => return Err(TargetDescParseError::UnknownTargetDescAttr(s.into())),
             }
         }
 
