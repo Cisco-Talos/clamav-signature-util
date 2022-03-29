@@ -1,6 +1,7 @@
 use super::{
     super::signature::{
-        logical::targetdesc::TargetDescParseError, targettype::TargetType, ParseError, Signature,
+        logical::targetdesc::TargetDescParseError, targettype::TargetType, FromSigBytesParseError,
+        Signature,
     },
     bodysig::{BodySig, BodySigParseError},
     logical::subsig::{SubSig, SubSigModifier},
@@ -142,13 +143,13 @@ pub enum OffsetPosParseError {
 }
 
 impl TryFrom<&[u8]> for ExtendedSig {
-    type Error = ParseError;
+    type Error = FromSigBytesParseError;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut fields = data.split(|b| *b == b':');
 
-        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)
-            .map_err(ParseError::NameNotUnicode)?
+        let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
+            .map_err(FromSigBytesParseError::NameNotUnicode)?
             .to_owned();
         let target_type = fields
             .next()

@@ -9,7 +9,7 @@ use self::{
     subsig::{SubSigModifier, SubSigParseError},
     targetdesc::TargetDescParseError,
 };
-use super::{bodysig::BodySigParseError, ext::ExtendedSig, ParseError, Signature};
+use super::{bodysig::BodySigParseError, ext::ExtendedSig, FromSigBytesParseError, Signature};
 use std::{fmt::Write, str};
 use subsig::SubSig;
 use targetdesc::TargetDesc;
@@ -142,13 +142,13 @@ fn find_modifier(haystack: &[u8]) -> (Option<SubSigModifier>, &[u8]) {
 }
 
 impl TryFrom<&[u8]> for LogicalSig {
-    type Error = ParseError;
+    type Error = FromSigBytesParseError;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut fields = data.split(|b| *b == b';');
 
-        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)
-            .map_err(ParseError::NameNotUnicode)?
+        let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
+            .map_err(FromSigBytesParseError::NameNotUnicode)?
             .into();
         let target_desc = fields
             .next()

@@ -81,7 +81,10 @@ pub enum ToSigBytesError {
 ///     .expect("parsed signature");
 /// println!("sig name = {}", sig.name());
 /// ```
-pub fn parse_from_cvd(sig_type: SigType, data: &[u8]) -> Result<Box<dyn Signature>, ParseError> {
+pub fn parse_from_cvd(
+    sig_type: SigType,
+    data: &[u8],
+) -> Result<Box<dyn Signature>, FromSigBytesParseError> {
     match sig_type {
         SigType::Extended => Ok(Box::new(ext::ExtendedSig::try_from(data)?)),
         SigType::Logical => Ok(Box::new(logical::LogicalSig::try_from(data)?)),
@@ -91,13 +94,13 @@ pub fn parse_from_cvd(sig_type: SigType, data: &[u8]) -> Result<Box<dyn Signatur
             container_metadata::ContainerMetadataSig::try_from(data)?,
         )),
         SigType::PhishingURL => Ok(Box::new(phishing::PhishingSig::try_from(data)?)),
-        _ => Err(ParseError::UnsupportedSigType),
+        _ => Err(FromSigBytesParseError::UnsupportedSigType),
     }
 }
 
 /// Errors that can be encountered while parsing signature input
 #[derive(Error, Debug)]
-pub enum ParseError {
+pub enum FromSigBytesParseError {
     #[error("unsupported signature type")]
     UnsupportedSigType,
 

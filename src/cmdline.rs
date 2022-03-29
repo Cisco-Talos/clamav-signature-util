@@ -206,7 +206,10 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
                 }
             }
             Err(e) => {
-                if !matches!(e, clam_sigutil::signature::ParseError::UnsupportedSigType) {
+                if !matches!(
+                    e,
+                    clam_sigutil::signature::FromSigBytesParseError::UnsupportedSigType
+                ) {
                     eprintln!(
                         "Unable to process line {}:\n  {}\n  Error: {}\n",
                         line_no,

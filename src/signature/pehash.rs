@@ -1,4 +1,4 @@
-use super::{hash::HashSigParseError, ParseError, Signature};
+use super::{hash::HashSigParseError, FromSigBytesParseError, Signature};
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
     sigbytes::{AppendSigBytes, SigBytes},
@@ -49,7 +49,7 @@ impl AppendSigBytes for PESectionHashSig {
 }
 
 impl TryFrom<&[u8]> for PESectionHashSig {
-    type Error = ParseError;
+    type Error = FromSigBytesParseError;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut fields = data.split(|b| *b == b':');
@@ -61,8 +61,8 @@ impl TryFrom<&[u8]> for PESectionHashSig {
             HashSigParseError::ParseSize
         )?;
         let hash = util::parse_hash(fields.next().ok_or(HashSigParseError::MissingHashString)?)?;
-        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)
-            .map_err(ParseError::NameNotUnicode)?
+        let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
+            .map_err(FromSigBytesParseError::NameNotUnicode)?
             .to_owned();
 
         Ok(Self { name, hash, size })

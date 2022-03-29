@@ -1,7 +1,7 @@
 mod container_size;
 mod container_type;
 
-use super::{ParseError, Signature};
+use super::{FromSigBytesParseError, Signature};
 use crate::{
     feature::{EngineReq, FeatureSet},
     regexp::{RegexpMatch, RegexpMatchParseError},
@@ -95,15 +95,15 @@ pub enum ContainerMetadataSigParseError {
 }
 
 impl TryFrom<&[u8]> for ContainerMetadataSig {
-    type Error = ParseError;
+    type Error = FromSigBytesParseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         // Split on colons, but taking care to ignore escaped ones in case the regexp contains some
         let mut fields = value.split(unescaped_element(b'\\', b':'));
 
         // Field 1
-        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)
-            .map_err(ParseError::NameNotUnicode)?
+        let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
+            .map_err(FromSigBytesParseError::NameNotUnicode)?
             .to_owned();
 
         // Field 2
