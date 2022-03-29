@@ -12,4 +12,10 @@ pub enum HashSigParseError {
 
     #[error("parsing size: {0}")]
     ParseSize(ParseNumberError<usize>),
+
+    #[error("Parsing min_flevel: {0}")]
+    ParseMinFlevel(ParseNumberError<u32>),
+
+    #[error("Parsing max_flevel: {0}")]
+    ParseMaxFlevel(ParseNumberError<u32>),
 }

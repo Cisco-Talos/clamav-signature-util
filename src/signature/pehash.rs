@@ -1,7 +1,7 @@
-use super::{hash::HashSigParseError, FromSigBytesParseError, Signature};
+use super::{hash::HashSigParseError, FromSigBytesParseError, SigMeta, Signature};
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
-    sigbytes::{AppendSigBytes, SigBytes},
+    sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     util::{self, parse_field, parse_number_dec, Hash},
 };
 use std::{convert::TryFrom, fmt::Write, str};
@@ -48,11 +48,12 @@ impl AppendSigBytes for PESectionHashSig {
     }
 }
 
-impl TryFrom<&[u8]> for PESectionHashSig {
-    type Error = FromSigBytesParseError;
-
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let mut fields = data.split(|b| *b == b':');
+impl FromSigBytes for PESectionHashSig {
+    fn from_sigbytes<'a, SB: Into<&'a SigBytes>>(
+        sb: SB,
+    ) -> Result<(Box<dyn crate::Signature>, super::SigMeta), FromSigBytesParseError> {
+        let mut sigmeta = SigMeta::default();
+        let mut fields = sb.into().as_bytes().split(|b| *b == b':');
         let size = parse_field!(
             OPTIONAL
             fields,
@@ -65,7 +66,18 @@ impl TryFrom<&[u8]> for PESectionHashSig {
             .map_err(FromSigBytesParseError::NameNotUnicode)?
             .to_owned();
 
-        Ok(Self { name, hash, size })
+        // Parse optional min/max flevel
+        if let Some(min_flevel) = fields.next() {
+            sigmeta.min_flevel =
+                Some(parse_number_dec(min_flevel).map_err(HashSigParseError::ParseMinFlevel)?);
+
+            if let Some(max_flevel) = fields.next() {
+                sigmeta.max_flevel =
+                    Some(parse_number_dec(max_flevel).map_err(HashSigParseError::ParseMaxFlevel)?);
+            }
+        }
+
+        Ok((Box::new(Self { name, hash, size }), sigmeta))
     }
 }
 
@@ -76,8 +88,9 @@ mod tests {
 
     #[test]
     fn eicar() {
-        let bytes = "45056:f9b304ced34fcce3ab75c6dc58ad59e4d62177ffed35494f79f09bc4e8986c16:Win.Test.EICAR_MSB-1".as_bytes();
-        let sig: PESectionHashSig = bytes.try_into().unwrap();
+        let bytes = b"45056:f9b304ced34fcce3ab75c6dc58ad59e4d62177ffed35494f79f09bc4e8986c16:Win.Test.EICAR_MSB-1".into();
+        let (sig, _) = PESectionHashSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<PESectionHashSig>().unwrap();
         assert_eq!(sig.name, "Win.Test.EICAR_MSB-1");
         assert_eq!(sig.size, Some(45056));
         assert_eq!(
@@ -90,9 +103,10 @@ mod tests {
 
     #[test]
     fn export() {
-        let bytes = "45056:f9b304ced34fcce3ab75c6dc58ad59e4d62177ffed35494f79f09bc4e8986c16:Win.Test.EICAR_MSB-1";
-        let sig: PESectionHashSig = bytes.as_bytes().try_into().unwrap();
-        let exported = sig.to_sigbytes().unwrap().to_string();
-        assert_eq!(bytes, &exported);
+        let bytes = b"45056:f9b304ced34fcce3ab75c6dc58ad59e4d62177ffed35494f79f09bc4e8986c16:Win.Test.EICAR_MSB-1".into();
+        let (sig, _) = PESectionHashSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<PESectionHashSig>().unwrap();
+        let exported = sig.to_sigbytes().unwrap();
+        assert_eq!(&bytes, &exported);
     }
 }

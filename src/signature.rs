@@ -25,11 +25,12 @@ use crate::{
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     SigType,
 };
+use downcast_rs::{impl_downcast, Downcast};
 use std::collections::TryReserveError;
 use thiserror::Error;
 
 /// Required functionality for a Signature.
-pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes {
+pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes + Downcast {
     /// Signature name
     fn name(&self) -> &str;
 
@@ -42,6 +43,8 @@ pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes {
         Ok(sb)
     }
 }
+
+impl_downcast!(Signature);
 
 /// Additional data obtained from a signature when being parsed, but not
 /// necessary for operation of the signature
@@ -99,10 +102,8 @@ pub fn parse_from_cvd(
     match sig_type {
         SigType::Extended => Ok(ext::ExtendedSig::from_sigbytes(data)?.0),
         SigType::Logical => Ok(logical::LogicalSig::from_sigbytes(data)?.0),
-        SigType::FileHash => Ok(Box::new(filehash::FileHashSig::try_from(data.as_bytes())?)),
-        SigType::PESectionHash => Ok(Box::new(pehash::PESectionHashSig::try_from(
-            data.as_bytes(),
-        )?)),
+        SigType::FileHash => Ok(filehash::FileHashSig::from_sigbytes(data)?.0),
+        SigType::PESectionHash => Ok(pehash::PESectionHashSig::from_sigbytes(data)?.0),
         SigType::ContainerMetadata => Ok(Box::new(
             container_metadata::ContainerMetadataSig::try_from(data.as_bytes())?,
         )),
@@ -118,14 +119,8 @@ pub fn parse_from_cvd_with_meta(
     let (sig, sigmeta) = match sig_type {
         SigType::Extended => ext::ExtendedSig::from_sigbytes(data)?,
         SigType::Logical => logical::LogicalSig::from_sigbytes(data)?,
-        SigType::FileHash => (
-            Box::new(filehash::FileHashSig::try_from(data.as_bytes())?) as Box<dyn Signature>,
-            SigMeta::default(),
-        ),
-        SigType::PESectionHash => (
-            Box::new(pehash::PESectionHashSig::try_from(data.as_bytes())?) as Box<dyn Signature>,
-            SigMeta::default(),
-        ),
+        SigType::FileHash => filehash::FileHashSig::from_sigbytes(data)?,
+        SigType::PESectionHash => pehash::PESectionHashSig::from_sigbytes(data)?,
         SigType::ContainerMetadata => (
             Box::new(container_metadata::ContainerMetadataSig::try_from(
                 data.as_bytes(),

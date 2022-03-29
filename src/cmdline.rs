@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use clam_sigutil::{sigbytes::SigBytes, SigType};
+use clam_sigutil::SigType;
 use std::{
     fs::File,
     io::{BufRead, BufReader, Read},
