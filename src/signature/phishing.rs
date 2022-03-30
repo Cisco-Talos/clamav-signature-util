@@ -147,11 +147,10 @@ impl FromSigBytes for PhishingSig {
         if let Some(s) = fields.next() {
             if s.contains(&b'-') {
                 let range = parse_range_inclusive(s).map_err(PhishingSigParseError::FLevelRange)?;
-                sigmeta.min_flevel = Some(*range.start());
-                sigmeta.max_flevel = Some(*range.end());
+                sigmeta.f_level = Some(range.into());
             } else {
-                sigmeta.min_flevel =
-                    Some(parse_number_dec(s).map_err(PhishingSigParseError::FLevelMin)?);
+                let min_flevel = parse_number_dec(s).map_err(PhishingSigParseError::FLevelMin)?;
+                sigmeta.f_level = Some((min_flevel..).into());
             }
         }
 
@@ -226,8 +225,7 @@ mod tests {
         assert_eq!(
             sigmeta,
             SigMeta {
-                min_flevel: Some(99),
-                max_flevel: Some(105)
+                f_level: Some((99..=105).into()),
             }
         );
         let sig = sig.downcast_ref::<PhishingSig>().unwrap();

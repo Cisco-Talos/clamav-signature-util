@@ -203,16 +203,15 @@ impl FromSigBytes for ContainerMetadataSig {
         // Parse optional min/max flevel
         if let Some(min_flevel) = fields.next() {
             if !min_flevel.is_empty() {
-                sigmeta.min_flevel = Some(
-                    parse_number_dec(min_flevel)
-                        .map_err(ContainerMetadataSigParseError::ParseMinFlevel)?,
-                );
+                let min_flevel = parse_number_dec(min_flevel)
+                    .map_err(ContainerMetadataSigParseError::ParseMinFlevel)?;
 
                 if let Some(max_flevel) = fields.next() {
-                    sigmeta.max_flevel = Some(
-                        parse_number_dec(max_flevel)
-                            .map_err(ContainerMetadataSigParseError::ParseMaxFlevel)?,
-                    );
+                    let max_flevel = parse_number_dec(max_flevel)
+                        .map_err(ContainerMetadataSigParseError::ParseMaxFlevel)?;
+                    sigmeta.f_level = Some((min_flevel..=max_flevel).into());
+                } else {
+                    sigmeta.f_level = Some((min_flevel..).into());
                 }
             }
         }
@@ -342,8 +341,7 @@ mod tests {
         assert_eq!(
             meta,
             SigMeta {
-                min_flevel: Some(99),
-                max_flevel: Some(101)
+                f_level: Some((99..=101).into())
             }
         );
     }

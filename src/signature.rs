@@ -23,6 +23,7 @@ pub mod targettype;
 use crate::{
     feature::EngineReq,
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
+    util::Range,
     SigType,
 };
 use downcast_rs::{impl_downcast, Downcast};
@@ -50,11 +51,8 @@ impl_downcast!(Signature);
 /// necessary for operation of the signature
 #[derive(Default, Debug, PartialEq)]
 pub struct SigMeta {
-    /// Minimum stated feature level
-    min_flevel: Option<u32>,
-
-    /// Maximum stated feature level
-    max_flevel: Option<u32>,
+    /// Minimum feature level, or range of valid levels
+    f_level: Option<Range<u32>>,
 }
 
 /// Errors that can be encountered when exporting a Signature to its CVD format

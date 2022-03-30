@@ -94,8 +94,7 @@ impl FromSigBytes for LogicalSig {
             TargetDescAttr::Engine(Range::Inclusive(range)) => Some(range),
             _ => None,
         }) {
-            sigmeta.min_flevel = Some(*range.start());
-            sigmeta.max_flevel = Some(*range.end());
+            sigmeta.f_level = Some((*range.start()..=*range.end()).into());
         }
 
         Ok((
@@ -336,8 +335,7 @@ mod tests {
         assert_eq!(
             sigmeta,
             SigMeta {
-                min_flevel: Some(51),
-                max_flevel: Some(255),
+                f_level: Some((51..=255).into()),
             }
         );
     }

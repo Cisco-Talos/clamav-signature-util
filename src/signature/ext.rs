@@ -93,13 +93,15 @@ impl FromSigBytes for ExtendedSig {
 
         // Parse optional min/max flevel
         if let Some(min_flevel) = fields.next() {
-            sigmeta.min_flevel =
-                Some(parse_number_dec(min_flevel).map_err(ExtendedSigParseError::ParseMinFlevel)?);
+            let min_flevel =
+                parse_number_dec(min_flevel).map_err(ExtendedSigParseError::ParseMinFlevel)?;
 
             if let Some(max_flevel) = fields.next() {
-                sigmeta.max_flevel = Some(
-                    parse_number_dec(max_flevel).map_err(ExtendedSigParseError::ParseMaxFlevel)?,
-                );
+                let max_flevel =
+                    parse_number_dec(max_flevel).map_err(ExtendedSigParseError::ParseMaxFlevel)?;
+                sigmeta.f_level = Some((min_flevel..=max_flevel).into());
+            } else {
+                sigmeta.f_level = Some((min_flevel..).into());
             }
         }
 
@@ -351,8 +353,7 @@ mod tests {
         assert_eq!(
             sigmeta,
             SigMeta {
-                min_flevel: Some(99),
-                max_flevel: Some(101),
+                f_level: Some((99..=101).into()),
             }
         );
     }
