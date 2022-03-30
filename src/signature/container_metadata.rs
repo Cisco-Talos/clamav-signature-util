@@ -202,16 +202,18 @@ impl FromSigBytes for ContainerMetadataSig {
 
         // Parse optional min/max flevel
         if let Some(min_flevel) = fields.next() {
-            sigmeta.min_flevel = Some(
-                parse_number_dec(min_flevel)
-                    .map_err(ContainerMetadataSigParseError::ParseMinFlevel)?,
-            );
-
-            if let Some(max_flevel) = fields.next() {
-                sigmeta.max_flevel = Some(
-                    parse_number_dec(max_flevel)
-                        .map_err(ContainerMetadataSigParseError::ParseMaxFlevel)?,
+            if !min_flevel.is_empty() {
+                sigmeta.min_flevel = Some(
+                    parse_number_dec(min_flevel)
+                        .map_err(ContainerMetadataSigParseError::ParseMinFlevel)?,
                 );
+
+                if let Some(max_flevel) = fields.next() {
+                    sigmeta.max_flevel = Some(
+                        parse_number_dec(max_flevel)
+                            .map_err(ContainerMetadataSigParseError::ParseMaxFlevel)?,
+                    );
+                }
             }
         }
 
@@ -324,10 +326,13 @@ impl AppendSigBytes for ContainerMetadataSig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{sigbytes::SigBytes, Signature};
+    use crate::sigbytes::SigBytes;
 
     const SAMPLE_SIG: &[u8] =
         br#"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:99:101"#;
+
+    const SAMPLE_SIG_WITHOUT_FLEVEL: &[u8] =
+        br#"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:"#;
 
     #[test]
     fn full_sig() {
@@ -363,7 +368,7 @@ mod tests {
 
     #[test]
     fn export() {
-        let input = SAMPLE_SIG.into();
+        let input = SAMPLE_SIG_WITHOUT_FLEVEL.into();
         let (sig, _) = ContainerMetadataSig::from_sigbytes(&input).unwrap();
         let exported = sig.to_sigbytes().unwrap();
         assert_eq!(&input, &exported);
