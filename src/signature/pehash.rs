@@ -4,7 +4,7 @@ use crate::{
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     util::{self, parse_field, parse_number_dec, Hash},
 };
-use std::{convert::TryFrom, fmt::Write, str};
+use std::{fmt::Write, str};
 
 /// Hash-based signatures
 #[derive(Debug)]

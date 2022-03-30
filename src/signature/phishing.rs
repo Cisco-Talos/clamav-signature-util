@@ -8,7 +8,7 @@ use crate::{
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     util::{
         parse_field, parse_number_dec, parse_range_inclusive, string_from_bytes, unescaped_element,
-        ParseNumberError, RangeInclusiveParseError, RangeParseError,
+        ParseNumberError, RangeInclusiveParseError,
     },
     Signature,
 };
