@@ -32,16 +32,16 @@ pub enum TargetDescParseError {
     #[error("unknown FileType")]
     UnknownFileType,
 
-    #[error("parsing engine range")]
+    #[error("parsing EngineRange")]
     EngineRange(util::RangeInclusiveParseError<u32>),
 
-    #[error("parsing engine range")]
+    #[error("parsing FileSize")]
     FileSize(util::RangeInclusiveParseError<usize>),
 
-    #[error("parsing engine range")]
+    #[error("parsing EntryPoint")]
     EntryPoint(util::RangeInclusiveParseError<usize>),
 
-    #[error("parsing engine range")]
+    #[error("parsing NumberOfSections")]
     NumberOfSections(util::RangeInclusiveParseError<usize>),
 
     #[error("parsing container value: {0}")]
