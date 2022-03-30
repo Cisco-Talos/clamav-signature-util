@@ -107,7 +107,7 @@ pub fn parse_from_cvd(
         SigType::ContainerMetadata => {
             Ok(container_metadata::ContainerMetadataSig::from_sigbytes(data)?.0)
         }
-        SigType::PhishingURL => Ok(Box::new(phishing::PhishingSig::try_from(data.as_bytes())?)),
+        SigType::PhishingURL => Ok(phishing::PhishingSig::from_sigbytes(data)?.0),
         _ => Err(FromSigBytesParseError::UnsupportedSigType),
     }
 }
@@ -124,10 +124,7 @@ pub fn parse_from_cvd_with_meta(
         SigType::ContainerMetadata => {
             container_metadata::ContainerMetadataSig::from_sigbytes(data)?
         }
-        SigType::PhishingURL => (
-            Box::new(phishing::PhishingSig::try_from(data.as_bytes())?) as Box<dyn Signature>,
-            SigMeta::default(),
-        ),
+        SigType::PhishingURL => phishing::PhishingSig::from_sigbytes(data)?,
         _ => return Err(FromSigBytesParseError::UnsupportedSigType),
     };
 

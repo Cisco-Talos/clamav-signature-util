@@ -1,12 +1,15 @@
-use super::ToSigBytesError;
+use super::{SigMeta, ToSigBytesError};
 use std::str;
 use thiserror::Error;
 
 use crate::{
     feature::EngineReq,
     regexp::{RegexpMatch, RegexpMatchParseError},
-    sigbytes::{AppendSigBytes, SigBytes},
-    util::{parse_field, string_from_bytes, unescaped_element},
+    sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
+    util::{
+        parse_field, parse_number_dec, parse_range_inclusive, string_from_bytes, unescaped_element,
+        ParseNumberError, RangeInclusiveParseError, RangeParseError,
+    },
     Signature,
 };
 
@@ -72,6 +75,12 @@ pub enum PhishingSigParseError {
 
     #[error("Parsing DisplayedURL field:{0}")]
     DisplayedUrlRegexpParse(RegexpMatchParseError),
+
+    #[error("Parsing FuncLevelSpec range: {0}")]
+    FLevelRange(RangeInclusiveParseError<u32>),
+
+    #[error("Parsing FuncLevelSpec minimum: {0}")]
+    FLevelMin(ParseNumberError<u32>),
 }
 
 #[derive(Debug)]
@@ -101,18 +110,19 @@ impl AppendSigBytes for PhishingSig {
     }
 }
 
-impl TryFrom<&[u8]> for PhishingSig {
-    type Error = PhishingSigParseError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let mut fields = value.split(unescaped_element(b'\\', b':'));
+impl FromSigBytes for PhishingSig {
+    fn from_sigbytes<'a, SB: Into<&'a SigBytes>>(
+        sb: SB,
+    ) -> Result<(Box<dyn Signature>, super::SigMeta), super::FromSigBytesParseError> {
+        let mut sigmeta = SigMeta::default();
+        let mut fields = sb.into().as_bytes().split(unescaped_element(b'\\', b':'));
 
         let prefix = fields
             .next()
             .ok_or(PhishingSigParseError::MissingPreamble)?;
 
         // `R` and `H` may include a filter which is (per specification) ignored
-        if prefix.starts_with(&[b'R']) {
+        let sig = if prefix.starts_with(&[b'R']) {
             Ok(PhishingSig::PDB(PDBMatch::Regexp(make_url_regexp_pair(
                 &mut fields,
             )?)))
@@ -128,7 +138,24 @@ impl TryFrom<&[u8]> for PhishingSig {
                 b"M" => make_wdbmatch_hostname(&mut fields),
                 bytes => Err(PhishingSigParseError::UnknownPrefix(bytes.into())),
             }
+        }?;
+
+        // Parse optional min/max flevel
+        //
+        // Unlike other signatures types, this is specified in a single field,
+        // and as either a minimum value (n), or an inclusive range (n-m).
+        if let Some(s) = fields.next() {
+            if s.contains(&b'-') {
+                let range = parse_range_inclusive(s).map_err(PhishingSigParseError::FLevelRange)?;
+                sigmeta.min_flevel = Some(*range.start());
+                sigmeta.max_flevel = Some(*range.end());
+            } else {
+                sigmeta.min_flevel =
+                    Some(parse_number_dec(s).map_err(PhishingSigParseError::FLevelMin)?);
+            }
         }
+
+        Ok((Box::new(sig), sigmeta))
     }
 }
 
@@ -185,6 +212,8 @@ fn make_wdbmatch_hostname<'a, I: Iterator<Item = &'a [u8]>>(
 
 #[cfg(test)]
 mod tests {
+    use crate::signature::FromSigBytesParseError;
+
     // We lacked examples of PDBs with regular expressions, which is why there
     // are already tests here.  There should be *more* tests -- this was just not
     // covered via test data.
@@ -192,28 +221,49 @@ mod tests {
 
     #[test]
     fn pdb_valid() {
-        let sig: PhishingSig = br"R:.*\.com:.*\.org".as_ref().try_into().unwrap();
+        let input = br"R:.*\.com:.*\.org:99-105".into();
+        let (sig, sigmeta) = PhishingSig::from_sigbytes(&input).unwrap();
+        assert_eq!(
+            sigmeta,
+            SigMeta {
+                min_flevel: Some(99),
+                max_flevel: Some(105)
+            }
+        );
+        let sig = sig.downcast_ref::<PhishingSig>().unwrap();
         assert!(matches!(sig, PhishingSig::PDB(PDBMatch::Regexp { .. })));
     }
 
     #[test]
     fn pdb_valid_with_filter() {
-        let sig: PhishingSig = br"Rignored:.*\.com:.*\.org".as_ref().try_into().unwrap();
+        let input = br"Rignored:.*\.com:.*\.org".into();
+        let (sig, sigmeta) = PhishingSig::from_sigbytes(&input).unwrap();
+        assert_eq!(sigmeta, SigMeta::default(),);
+        let sig = sig.downcast_ref::<PhishingSig>().unwrap();
         assert!(matches!(sig, PhishingSig::PDB(PDBMatch::Regexp { .. })));
     }
 
     #[test]
     fn pdb_missing_real() {
-        let result: Result<PhishingSig, PhishingSigParseError> = br"R".as_ref().try_into();
-        assert!(matches!(result, Err(PhishingSigParseError::MissingRealUrl)));
+        let input = br"R".into();
+        let result = PhishingSig::from_sigbytes(&input);
+        assert!(matches!(
+            result,
+            Err(FromSigBytesParseError::PhishingSigParse(
+                PhishingSigParseError::MissingRealUrl
+            ))
+        ));
     }
 
     #[test]
     fn pdb_missing_disp() {
-        let result: Result<PhishingSig, PhishingSigParseError> = br"R:foo".as_ref().try_into();
+        let input = br"R:foo".into();
+        let result = PhishingSig::from_sigbytes(&input);
         assert!(matches!(
             result,
-            Err(PhishingSigParseError::MissingDisplayedUrl)
+            Err(FromSigBytesParseError::PhishingSigParse(
+                PhishingSigParseError::MissingDisplayedUrl
+            ))
         ));
     }
 }
