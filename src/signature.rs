@@ -99,19 +99,30 @@ pub fn parse_from_cvd(
     sig_type: SigType,
     data: &SigBytes,
 ) -> Result<Box<dyn Signature>, FromSigBytesParseError> {
-    match sig_type {
-        SigType::Extended => Ok(ext::ExtendedSig::from_sigbytes(data)?.0),
-        SigType::Logical => Ok(logical::LogicalSig::from_sigbytes(data)?.0),
-        SigType::FileHash => Ok(filehash::FileHashSig::from_sigbytes(data)?.0),
-        SigType::PESectionHash => Ok(pehash::PESectionHashSig::from_sigbytes(data)?.0),
-        SigType::ContainerMetadata => {
-            Ok(container_metadata::ContainerMetadataSig::from_sigbytes(data)?.0)
-        }
-        SigType::PhishingURL => Ok(phishing::PhishingSig::from_sigbytes(data)?.0),
-        _ => Err(FromSigBytesParseError::UnsupportedSigType),
-    }
+    Ok(parse_from_cvd_with_meta(sig_type, data)?.0)
 }
 
+/// Parse a CVD-style (single-line) signature from a CVD database, returning the
+/// associated metadata encoded into the record. Since each signature type has
+/// its own format, the format must be specified.
+///
+/// # Arguments
+///
+/// * `sig_type` - the signature type being provided
+/// * `data` - signature content
+///
+/// # Examples
+/// ```
+/// use clam_sigutil::{
+///     signature::{self, Signature},
+///     SigType,
+/// };
+/// let sigdata = b"44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature:51:255".into();
+/// let (sig, meta) = clam_sigutil::signature::parse_from_cvd_with_meta(SigType::FileHash, &sigdata)
+///     .expect("parsed signature");
+/// println!("sig name = {}", sig.name());
+/// println!("metadata = {:?}", meta);
+/// ```
 pub fn parse_from_cvd_with_meta(
     sig_type: SigType,
     data: &SigBytes,
