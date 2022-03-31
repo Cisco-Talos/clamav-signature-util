@@ -48,7 +48,6 @@ impl RegexpMatch {
             match state {
                 State::Initial => match byte {
                     b'\\' => state = State::Escape,
-                    b'/' => return Err(RegexpMatchParseError::UnescapedSlash(pos)),
                     b => raw.push(b),
                 },
                 State::Escape if byte == b'x' => {
@@ -108,7 +107,6 @@ impl RegexpMatch {
     ) -> Result<(), crate::signature::ToSigBytesError> {
         for byte in self.raw.iter() {
             match byte {
-                b'/' => sb.write_str(r#"\/"#)?,
                 b';' => sb.write_str(r#"\x3B"#)?,
                 &b => sb.write_char(char::from_u32(b as u32).unwrap())?,
             }
