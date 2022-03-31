@@ -122,7 +122,6 @@ impl AppendSigBytes for RegexpMatch {
     ) -> Result<(), crate::signature::ToSigBytesError> {
         for byte in self.raw.iter() {
             match byte {
-                b'/' => sb.write_str(r#"\/"#)?,
                 &b => sb.write_char(char::from_u32(b as u32).unwrap())?,
             }
         }
