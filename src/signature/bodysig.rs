@@ -3,11 +3,13 @@ pub mod bsmatch;
 use crate::{
     feature::{EngineReq, FeatureSet},
     sigbytes::{AppendSigBytes, SigBytes, SigChar},
-    util::{ParseNumberError, Range, RangeParseError},
+    util::{ParseNumberError, Position, Range, RangeParseError},
 };
 use bsmatch::{AlternateStrings, AnyBytes, CharacterClass, Match};
 use std::convert::TryFrom;
 use thiserror::Error;
+
+use self::bsmatch::AlternateStringsParseError;
 
 /// Body signature.  This is an element of both Extended and Logical signatures,
 /// and contains byte match patterns.
@@ -44,9 +46,6 @@ pub enum BodySigParseError {
     #[error("AnyByte range missing upper limit")]
     InvalidAnyByteRange,
 
-    #[error("generic alternative strings may not be negated")]
-    NegatedGenAlt,
-
     #[error("unsupported character class")]
     UnknownCharacterClass,
 
@@ -59,8 +58,8 @@ pub enum BodySigParseError {
     #[error("invalid character at pos {0}: {1}")]
     InvalidCharacter(usize, SigChar),
 
-    #[error("decoding hex-encoded value: {0}")]
-    FromHex(#[from] hex::FromHexError),
+    #[error("decoding hex-encoded value at pos {0}: {1}")]
+    FromHex(Position, hex::FromHexError),
 
     #[error("parsing AnyBytes start: {0}")]
     AnyBytesStart(ParseNumberError<usize>),
@@ -73,6 +72,9 @@ pub enum BodySigParseError {
 
     #[error("parsing ByteRange: {0}")]
     ByteRange(RangeParseError<usize>),
+
+    #[error("parsing alternative strings {0}: {1}")]
+    AlternateStrings(Position, AlternateStringsParseError),
 }
 
 impl AppendSigBytes for BodySig {
@@ -93,6 +95,7 @@ impl TryFrom<&[u8]> for BodySig {
         let mut hex_bytes = vec![];
         let mut genbuf = vec![];
         let mut bytes = value.iter().enumerate();
+        let mut altstr_pos = 0;
         while let Some((pos, &byte)) = bytes.next() {
             match byte {
                 b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => hex_bytes.push(byte),
@@ -105,13 +108,17 @@ impl TryFrom<&[u8]> for BodySig {
                     };
                     // Flush out the current literal, if necessary
                     if !hex_bytes.is_empty() {
-                        matches.push(Match::Literal(hex::decode(&hex_bytes)?));
+                        matches.push(Match::Literal(
+                            hex::decode(&hex_bytes)
+                                .map_err(|e| BodySigParseError::FromHex(pos.into(), e))?,
+                        ));
                         hex_bytes.clear();
                     }
                     let mut match_byte = [0u8; 1];
                     if let Some(high_nyble) = high_nyble {
                         // Yes, we're mid-byte -- this is a wildcard match on the high-nyble
-                        hex::decode_to_slice(&[high_nyble, b'0'], &mut match_byte)?;
+                        hex::decode_to_slice(&[high_nyble, b'0'], &mut match_byte)
+                            .map_err(|e| BodySigParseError::FromHex(pos.into(), e))?;
                         matches.push(Match::Mask {
                             mask: 0xf0,
                             value: match_byte[0],
@@ -123,7 +130,8 @@ impl TryFrom<&[u8]> for BodySig {
                         matches.push(match low_nyble {
                             b'?' => Match::AnyByte,
                             b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => {
-                                hex::decode_to_slice(&[b'0', low_nyble], &mut match_byte)?;
+                                hex::decode_to_slice(&[b'0', low_nyble], &mut match_byte)
+                                    .map_err(|e| BodySigParseError::FromHex(pos.into(), e))?;
                                 Match::Mask {
                                     mask: 0x0f,
                                     value: match_byte[0],
@@ -137,7 +145,10 @@ impl TryFrom<&[u8]> for BodySig {
                 }
                 other => {
                     if !hex_bytes.is_empty() {
-                        matches.push(Match::Literal(hex::decode(&hex_bytes)?));
+                        matches.push(Match::Literal(
+                            hex::decode(&hex_bytes)
+                                .map_err(|e| BodySigParseError::FromHex(pos.into(), e))?,
+                        ));
                         hex_bytes.clear();
                     }
                     match other {
@@ -166,6 +177,7 @@ impl TryFrom<&[u8]> for BodySig {
                             let negated = other == b'!';
                             // Character class or Alternate strings
                             // Consume until the closing parenthesis is found
+                            altstr_pos = pos;
                             genbuf.clear();
                             loop {
                                 match bytes.next() {
@@ -187,7 +199,13 @@ impl TryFrom<&[u8]> for BodySig {
                                                         AlternateStrings::try_from((
                                                             negated,
                                                             &genbuf[..],
-                                                        ))?,
+                                                        ))
+                                                        .map_err(|e| {
+                                                            BodySigParseError::AlternateStrings(
+                                                                pos.into(),
+                                                                e,
+                                                            )
+                                                        })?,
                                                     )
                                                 } else {
                                                     Match::CharacterClass(CharacterClass::try_from(
@@ -228,7 +246,9 @@ impl TryFrom<&[u8]> for BodySig {
             }
         }
         if !hex_bytes.is_empty() {
-            matches.push(Match::Literal(hex::decode(hex_bytes)?))
+            matches.push(Match::Literal(
+                hex::decode(hex_bytes).map_err(|e| BodySigParseError::FromHex(Position::End, e))?,
+            ))
         }
         // Body-based signatures are hex-encoded
         Ok(BodySig {

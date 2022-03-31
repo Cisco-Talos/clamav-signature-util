@@ -1,6 +1,7 @@
 use super::{SubSig, SubSigType};
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
+    sigbytes::AppendSigBytes,
     signature::logical::SubSigModifier,
     util::{parse_number_dec, ParseNumberError},
 };
@@ -105,6 +106,16 @@ impl SubSig for ByteCmpSubSig {
 impl EngineReq for ByteCmpSubSig {
     fn features(&self) -> FeatureSet {
         FeatureSet::from_static(&[Feature::ByteCompareMin])
+    }
+}
+
+impl AppendSigBytes for ByteCmpSubSig {
+    fn append_sigbytes(
+        &self,
+        _sb: &mut crate::sigbytes::SigBytes,
+    ) -> Result<(), crate::signature::ToSigBytesError> {
+        // TODO: CLAM-1754
+        todo!()
     }
 }
 

@@ -9,8 +9,12 @@ use self::{
     subsig::{SubSigModifier, SubSigParseError},
     targetdesc::TargetDescParseError,
 };
-use super::{bodysig::BodySigParseError, ParseError, Signature};
-use std::str;
+use super::{
+    bodysig::BodySigParseError,
+    ext::{ExtendedSig, Offset, OffsetPos},
+    ParseError, Signature,
+};
+use std::{fmt::Write, str};
 use subsig::SubSig;
 use targetdesc::TargetDesc;
 use thiserror::Error;
@@ -70,9 +74,37 @@ impl EngineReq for LogicalSig {
 impl AppendSigBytes for LogicalSig {
     fn append_sigbytes(
         &self,
-        _sb: &mut crate::sigbytes::SigBytes,
+        sb: &mut crate::sigbytes::SigBytes,
     ) -> Result<(), crate::signature::ToSigBytesError> {
-        todo!()
+        write!(sb, "{};", self.name)?;
+        self.target_desc.append_sigbytes(sb)?;
+        write!(sb, ";{};", self.expression)?;
+        for (i, sub_sig) in self.sub_sigs.iter().enumerate() {
+            if i > 0 {
+                sb.write_char(';')?;
+            }
+            if let Some(ext_sig) = sub_sig.downcast_ref::<ExtendedSig>() {
+                // The extended signature can't be written out directly, as it
+                // will also contain the name and offset (which should only be
+                // inlcuded if non-default).
+                if let Some(offset) = ext_sig.offset {
+                    offset.append_sigbytes(sb)?;
+                    if ext_sig.body_sig.is_some() {
+                        sb.write_char(':')?;
+                    }
+                }
+                if let Some(body_sig) = &ext_sig.body_sig {
+                    body_sig.append_sigbytes(sb)?;
+                }
+                if let Some(modifier) = ext_sig.modifier {
+                    sb.write_str("::")?;
+                    modifier.append_sigbytes(sb)?;
+                }
+            } else {
+                sub_sig.append_sigbytes(sb)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -154,16 +186,28 @@ impl TryFrom<&[u8]> for LogicalSig {
 mod tests {
     use super::*;
 
+    const SAMPLE_SIG: &str = concat!(
+        "PUA.Email.Phishing.FedEx-1;Engine:51-255,Target:4;(0&1)&(2|3);",
+        "697320656e636c6f73656420746f20746865206c6574746572;",
+        "636f6d70656e736174696f6e2066726f6d20796f7520666f722069742773206b656570696e67;",
+        "6f637465742d73747265616d3b6e616d653d2246656445785f4c6162656c5f49445f4f72646572;",
+        "6f637465742d73747265616d3b6e616d653d224c6162656c5f50617263656c5f46656445785f"
+    );
+
+    const SAMPLE_SIG_WITH_PCRE_OFFSET: &str = concat!(
+        r#"Win.Packed.Gandcrab-6535413-0;"#,
+        r#"Engine:81-255,Target:1;"#,
+        r#"4;"#,
+        r#"5050505050e8{2}(ffff|0000);"#,
+        r#"5353535353535353535353ff15;"#,
+        r#"5353535353{7}ff15;"#,
+        r#"6d73636f7265652e646c6c::w;"#,
+        r#"EOF-32:0&1&2&3/\x00{24}[A-Za-z0-9+/=]{8}/"#
+    );
+
     #[test]
     fn full_sig() {
-        let bytes = concat!(
-            "PUA.Email.Phishing.FedEx-1;Engine:51-255,Target:4;(0&1)&(2|3);",
-            "697320656e636c6f73656420746f20746865206c6574746572;",
-            "636f6d70656e736174696f6e2066726f6d20796f7520666f722069742773206b656570696e67;",
-            "6f637465742d73747265616d3b6e616d653d2246656445785f4c6162656c5f49445f4f72646572;",
-            "6f637465742d73747265616d3b6e616d653d224c6162656c5f50617263656c5f46656445785f"
-        )
-        .as_bytes();
+        let bytes = SAMPLE_SIG.as_bytes();
         let sig = LogicalSig::try_from(bytes).unwrap();
         dbg!(sig);
     }
@@ -215,5 +259,19 @@ mod tests {
                 b"blahblahblah".as_ref()
             )
         );
+    }
+
+    #[test]
+    fn export() {
+        let sig: LogicalSig = SAMPLE_SIG.as_bytes().try_into().unwrap();
+        let exported = sig.to_sigbytes().unwrap().to_string();
+        assert_eq!(SAMPLE_SIG, &exported);
+    }
+
+    #[test]
+    fn export_with_offset() {
+        let sig: LogicalSig = SAMPLE_SIG_WITH_PCRE_OFFSET.as_bytes().try_into().unwrap();
+        let exported = sig.to_sigbytes().unwrap().to_string();
+        assert_eq!(SAMPLE_SIG_WITH_PCRE_OFFSET, &exported);
     }
 }
