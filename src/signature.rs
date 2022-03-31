@@ -52,7 +52,7 @@ impl_downcast!(Signature);
 #[derive(Default, Debug, PartialEq)]
 pub struct SigMeta {
     /// Minimum feature level, or range of valid levels
-    f_level: Option<Range<u32>>,
+    pub f_level: Option<Range<u32>>,
 }
 
 /// Errors that can be encountered when exporting a Signature to its CVD format
