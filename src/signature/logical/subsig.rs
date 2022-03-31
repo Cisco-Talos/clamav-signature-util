@@ -11,7 +11,7 @@ use crate::{
     sigbytes::AppendSigBytes,
     signature::{
         bodysig::{BodySig, BodySigParseError},
-        ext::{ExtendedSig, ExtendedSigParseError, Offset, OffsetParseError, OffsetPos},
+        ext::{ExtendedSig, ExtendedSigParseError, Offset, OffsetParseError},
         targettype::TargetType,
     },
 };

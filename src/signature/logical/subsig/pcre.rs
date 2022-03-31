@@ -2,10 +2,7 @@ use crate::{
     feature::{EngineReq, FeatureSet},
     regexp::{RegexpMatch, RegexpMatchParseError},
     sigbytes::AppendSigBytes,
-    signature::{
-        ext::{Offset, OffsetPos},
-        logical::{expression, SubSigModifier},
-    },
+    signature::logical::{expression, SubSigModifier},
     Feature,
 };
 use std::{fmt::Write, str};
@@ -204,10 +201,7 @@ impl TryFrom<u8> for Flag {
 #[cfg(test)]
 mod tests {
     use super::PCRESubSig;
-    use crate::{
-        sigbytes::{AppendSigBytes, SigBytes},
-        signature::ext::{Offset, OffsetPos},
-    };
+    use crate::sigbytes::{AppendSigBytes, SigBytes};
     const SAMPLE_SIG: &str = concat!(
         r#"0/willReadFrequently.*?(?P<source_img>(\w+|\w+\x5B\w+\x5D))"#,
         r#"\.createImageData.*?(?P<target_img>(\w+|\w+\x5B\w+\x5D))\s*\x3D\s*"#,

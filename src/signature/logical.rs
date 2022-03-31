@@ -9,11 +9,7 @@ use self::{
     subsig::{SubSigModifier, SubSigParseError},
     targetdesc::TargetDescParseError,
 };
-use super::{
-    bodysig::BodySigParseError,
-    ext::{ExtendedSig, Offset, OffsetPos},
-    ParseError, Signature,
-};
+use super::{bodysig::BodySigParseError, ext::ExtendedSig, ParseError, Signature};
 use std::{fmt::Write, str};
 use subsig::SubSig;
 use targetdesc::TargetDesc;
@@ -273,5 +269,17 @@ mod tests {
         let sig: LogicalSig = SAMPLE_SIG_WITH_PCRE_OFFSET.as_bytes().try_into().unwrap();
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG_WITH_PCRE_OFFSET, &exported);
+    }
+
+    #[test]
+    fn verify_clam_1752() {
+        let raw_sig = concat!(
+            r#"Win.Trojan.MSShellcode-6360730-0;Engine:81-255,Target:1;1;"#,
+            r#"d97424f4(5?|b?);"#,
+            r#"0/\xd9\x74\x24\xf4[\x50-\x5f\xb0-\xbf].{0,8}[\x29\x2b\x31\x33]\xc9([\xb0-\xbf]|\x66\xb9)/s"#,
+        );
+        let sig: LogicalSig = raw_sig.as_bytes().try_into().unwrap();
+        let exported = sig.to_sigbytes().unwrap().to_string();
+        assert_eq!(raw_sig, &exported);
     }
 }
