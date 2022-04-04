@@ -12,7 +12,7 @@ pub struct ComparisonSet {
     encoding: Encoding,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ComparisonSetParseError {
     #[error("comparison set empty")]
     Empty,

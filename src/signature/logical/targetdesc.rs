@@ -15,7 +15,7 @@ pub struct TargetDesc {
     pub(crate) attrs: Vec<TargetDescAttr>,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum TargetDescParseError {
     #[error("unknown TargetDescription attribute: {0}")]
     UnknownTargetDescAttr(SigBytes),

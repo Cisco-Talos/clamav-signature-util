@@ -20,6 +20,7 @@ pub mod sigtype;
 /// Enumeration of target types (typically found in logical and extended signatures)
 pub mod targettype;
 
+use self::logical::LogicalSigValidationError;
 use crate::{
     feature::EngineReq,
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
@@ -31,7 +32,9 @@ use std::collections::TryReserveError;
 use thiserror::Error;
 
 /// Required functionality for a Signature.
-pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes + Downcast {
+pub trait Signature:
+    std::fmt::Debug + EngineReq + AppendSigBytes + Downcast + Validate<SigValidationError>
+{
     /// Signature name
     fn name(&self) -> &str;
 
@@ -46,6 +49,12 @@ pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes + Downcast {
 }
 
 impl_downcast!(Signature);
+
+pub trait Validate<E: Into<SigValidationError>> {
+    fn validate(&self) -> Result<(), E> {
+        Ok(())
+    }
+}
 
 /// Additional data obtained from a signature when being parsed, but not
 /// necessary for operation of the signature
@@ -141,7 +150,7 @@ pub fn parse_from_cvd_with_meta(
 }
 
 /// Errors that can be encountered while parsing signature input
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum FromSigBytesParseError {
     #[error("unsupported signature type")]
     UnsupportedSigType,
@@ -152,21 +161,30 @@ pub enum FromSigBytesParseError {
     #[error("signature name not unicode")]
     NameNotUnicode(std::str::Utf8Error),
 
-    #[error("error decoding hash-based signature: {0}")]
-    HashSigError(#[from] hash::HashSigParseError),
+    #[error("parsing hash-based signature: {0}")]
+    HashSig(#[from] hash::HashSigParseError),
 
-    #[error("error parsing extended signature: {0}")]
-    ExtendedSigParseError(#[from] ext::ExtendedSigParseError),
+    #[error("parsing extended signature: {0}")]
+    ExtendedSig(#[from] ext::ExtendedSigParseError),
 
-    #[error("parsing hash signature: {0}")]
-    ParseHash(#[from] crate::util::ParseHashError),
+    #[error("parsing logical signature: {0}")]
+    LogicalSig(#[from] logical::LogicalSigParseError),
 
-    #[error("invalid logical signature: {0}")]
-    LogicalSigParse(#[from] logical::LogicalSigParseError),
+    #[error("parsing container metadata signature: {0}")]
+    ContainerMetaSig(#[from] container_metadata::ContainerMetadataSigParseError),
 
-    #[error("invalid container metadata signature: {0}")]
-    ContainerMetaParse(#[from] container_metadata::ContainerMetadataSigParseError),
+    #[error("parsing phishing URL signature: {0}")]
+    PhishingSig(#[from] phishing::PhishingSigParseError),
+}
 
-    #[error("invalid phishing URL signature: {0}")]
-    PhishingSigParse(#[from] phishing::PhishingSigParseError),
+#[derive(Error, Debug, PartialEq)]
+pub enum SigValidationError {
+    #[error("validating hash-based signature: {0}")]
+    HashSig(#[from] hash::HashSigValidationError),
+
+    #[error("validating logical signature: {0}")]
+    LogicalSig(#[from] LogicalSigValidationError),
+
+    #[error("validating container metadata signature: {0}")]
+    ContainerMetaSig(#[from] container_metadata::ContainerMetadataSigValidationError),
 }

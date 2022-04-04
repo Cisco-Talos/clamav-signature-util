@@ -1,11 +1,11 @@
 mod container_size;
 mod container_type;
 
-use super::{FromSigBytesParseError, SigMeta, Signature};
 use crate::{
     feature::{EngineReq, FeatureSet},
     regexp::{RegexpMatch, RegexpMatchParseError},
     sigbytes::{AppendSigBytes, FromSigBytes},
+    signature::{FromSigBytesParseError, SigMeta, SigValidationError, Signature, Validate},
     util::{
         parse_bool_from_int, parse_field, parse_number_dec, unescaped_element,
         ParseBoolFromIntError, ParseNumberError, Range, RangeParseError,
@@ -31,7 +31,7 @@ pub struct ContainerMetadataSig {
     res1: Option<u32>,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ContainerMetadataSigParseError {
     #[error("missing ContainerType field")]
     MissingContainerType,
@@ -99,6 +99,9 @@ pub enum ContainerMetadataSigParseError {
     #[error("Parsing max_flevel: {0}")]
     ParseMaxFlevel(ParseNumberError<u32>),
 }
+
+#[derive(Debug, Error, PartialEq)]
+pub enum ContainerMetadataSigValidationError {}
 
 impl FromSigBytes for ContainerMetadataSig {
     fn from_sigbytes<'a, SB: Into<&'a crate::sigbytes::SigBytes>>(
@@ -239,6 +242,8 @@ impl Signature for ContainerMetadataSig {
     }
 }
 
+impl Validate<SigValidationError> for ContainerMetadataSig {}
+
 impl EngineReq for ContainerMetadataSig {
     fn features(&self) -> crate::feature::FeatureSet {
         FeatureSet::from_static(&[Feature::ContentMetadataSig])
@@ -341,7 +346,7 @@ mod tests {
         assert_eq!(
             meta,
             SigMeta {
-                f_level: Some((99..=101).into())
+                f_level: Some((99..=101).into()),
             }
         );
     }

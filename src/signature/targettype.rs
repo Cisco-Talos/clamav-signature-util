@@ -8,7 +8,7 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use thiserror::Error;
 
-#[derive(Copy, Clone, Debug, FromPrimitive, ToPrimitive)]
+#[derive(Copy, Clone, Debug, PartialEq, FromPrimitive, ToPrimitive)]
 pub enum TargetType {
     /// Any file
     Any = 0,
@@ -38,7 +38,7 @@ pub enum TargetType {
     Java = 12,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum TargetTypeParseError {
     #[error("invalid number: {0}")]
     ParseNumUsize(#[from] ParseNumberError<usize>),

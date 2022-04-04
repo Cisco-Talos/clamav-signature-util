@@ -73,7 +73,7 @@ pub trait SubSigError: std::error::Error {
     fn identified(&self) -> bool;
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum SubSigParseError {
     #[error("parsing Macro subsig: {0}")]
     MacroSubSigParse(#[from] MacroSubSigParseError),

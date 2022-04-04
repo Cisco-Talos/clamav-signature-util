@@ -2,7 +2,7 @@ use crate::util::ParseNumberError;
 use thiserror::Error;
 
 /// Errors common to hash-based signatures
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum HashSigParseError {
     #[error("missing FileSize field")]
     MissingFileSize,
@@ -18,4 +18,10 @@ pub enum HashSigParseError {
 
     #[error("Parsing max_flevel: {0}")]
     ParseMaxFlevel(ParseNumberError<u32>),
+
+    #[error("Parsing hash signature: {0}")]
+    ParseHash(#[from] crate::util::ParseHashError),
 }
+
+#[derive(Debug, Error, PartialEq)]
+pub enum HashSigValidationError {}

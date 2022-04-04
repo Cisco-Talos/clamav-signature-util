@@ -16,7 +16,7 @@ pub struct MacroSubSig {
     modifier: Option<SubSigModifier>,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum MacroSubSigParseError {
     #[error("missing range")]
     MissingRange,

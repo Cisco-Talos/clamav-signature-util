@@ -10,7 +10,7 @@ pub struct RegexpMatch {
     // TODO: add compiled form
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum RegexpMatchParseError {
     #[error("regexp is not unicode: {0}")]
     NotUnicode(#[from] str::Utf8Error),
