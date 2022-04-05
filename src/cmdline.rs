@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use clam_sigutil::{sigbytes::SigBytes, SigType};
+use clam_sigutil::SigType;
 use std::{
     fs::File,
     io::{BufRead, BufReader, Read},
@@ -180,7 +180,8 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
                 str::from_utf8(sigbuf).unwrap_or("!!! Not Unicode !!!")
             );
         }
-        match clam_sigutil::signature::parse_from_cvd(sig_type, sigbuf) {
+        let sigbuf = sigbuf.into();
+        match clam_sigutil::signature::parse_from_cvd(sig_type, &sigbuf) {
             Ok(sig) => {
                 if opt.dump_debug_long {
                     println!(" * {:#?} f_level{:?}", sig, sig.feature_levels());
@@ -197,21 +198,22 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
                     // values (a-f/A-F)
                     let exported = sig.to_sigbytes().unwrap();
                     if str::from_utf8(exported.as_bytes()).unwrap().to_lowercase()
-                        != str::from_utf8(sigbuf).unwrap().to_lowercase()
+                        != str::from_utf8(sigbuf.as_bytes()).unwrap().to_lowercase()
                     {
                         eprintln!("Export mismatch:");
-                        eprintln!(" < {}", SigBytes::from(sigbuf));
+                        eprintln!(" < {}", sigbuf);
                         eprintln!(" > {exported}");
                     }
                 }
             }
             Err(e) => {
-                if !matches!(e, clam_sigutil::signature::ParseError::UnsupportedSigType) {
+                if !matches!(
+                    e,
+                    clam_sigutil::signature::FromSigBytesParseError::UnsupportedSigType
+                ) {
                     eprintln!(
                         "Unable to process line {}:\n  {}\n  Error: {}\n",
-                        line_no,
-                        str::from_utf8(sigbuf).unwrap_or("Not Unicode"),
-                        e
+                        line_no, sigbuf, e
                     );
                     err_count += 1;
                 }

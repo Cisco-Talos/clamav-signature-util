@@ -131,9 +131,7 @@ where {
 }
 
 /// Parse an inclusive range from `&[u8]` representing "lower-upper"
-pub fn parse_usize_range_inclusive<T>(
-    s: &[u8],
-) -> Result<RangeInclusive<T>, RangeInclusiveParseError<T>>
+pub fn parse_range_inclusive<T>(s: &[u8]) -> Result<RangeInclusive<T>, RangeInclusiveParseError<T>>
 where
     T: std::str::FromStr,
     <T as std::str::FromStr>::Err: std::fmt::Debug,
@@ -220,17 +218,35 @@ macro_rules! parse_field {
 }
 pub(crate) use parse_field;
 
-/// Generic container for any range of usize
-#[derive(Debug)]
+/// Generic container for any range of number
+#[derive(Debug, PartialEq)]
 pub enum Range<T: std::str::FromStr> {
     // {n}
     Exact(T),
-    // {-n}
+    // {-n} / ..=n
     ToInclusive(RangeToInclusive<T>),
-    // {n-}
+    // {n-} / n..
     From(RangeFrom<T>),
-    // {n-m}
+    // {n-m} / n..=m
     Inclusive(RangeInclusive<T>),
+}
+
+impl<T: std::str::FromStr> From<std::ops::RangeToInclusive<T>> for Range<T> {
+    fn from(r: std::ops::RangeToInclusive<T>) -> Self {
+        Self::ToInclusive(r)
+    }
+}
+
+impl<T: std::str::FromStr> From<std::ops::RangeInclusive<T>> for Range<T> {
+    fn from(r: std::ops::RangeInclusive<T>) -> Self {
+        Self::Inclusive(r)
+    }
+}
+
+impl<T: std::str::FromStr> From<std::ops::RangeFrom<T>> for Range<T> {
+    fn from(r: std::ops::RangeFrom<T>) -> Self {
+        Self::From(r)
+    }
 }
 
 #[derive(Debug, Error)]

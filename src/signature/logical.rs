@@ -2,14 +2,19 @@ pub mod expression;
 pub mod subsig;
 pub mod targetdesc;
 
-use crate::{feature::EngineReq, sigbytes::AppendSigBytes};
-
 use self::{
     expression::LogExprParseError,
     subsig::{SubSigModifier, SubSigParseError},
-    targetdesc::TargetDescParseError,
+    targetdesc::{TargetDescAttr, TargetDescParseError},
 };
-use super::{bodysig::BodySigParseError, ext::ExtendedSig, ParseError, Signature};
+use super::{
+    bodysig::BodySigParseError, ext::ExtendedSig, FromSigBytesParseError, SigMeta, Signature,
+};
+use crate::{
+    feature::EngineReq,
+    sigbytes::{AppendSigBytes, FromSigBytes},
+    util::Range,
+};
 use std::{fmt::Write, str};
 use subsig::SubSig;
 use targetdesc::TargetDesc;
@@ -53,6 +58,54 @@ pub enum LogicalSigParseError {
 impl Signature for LogicalSig {
     fn name(&self) -> &str {
         &self.name
+    }
+}
+
+impl FromSigBytes for LogicalSig {
+    fn from_sigbytes<'a, SB: Into<&'a crate::sigbytes::SigBytes>>(
+        sb: SB,
+    ) -> Result<(Box<dyn Signature>, super::SigMeta), FromSigBytesParseError> {
+        let mut sigmeta = SigMeta::default();
+        let mut fields = sb.into().as_bytes().split(|b| *b == b';');
+
+        let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
+            .map_err(FromSigBytesParseError::NameNotUnicode)?
+            .into();
+        let target_desc: TargetDesc = fields
+            .next()
+            .ok_or(LogicalSigParseError::MissingTargetDesc)?
+            .try_into()
+            .map_err(LogicalSigParseError::TargetDesc)?;
+        let expression = fields
+            .next()
+            .ok_or(LogicalSigParseError::MissingExpression)?
+            .try_into()
+            .map_err(LogicalSigParseError::LogExprParse)?;
+        let mut sub_sigs = vec![];
+        for (subsig_no, subsig_bytes) in fields.enumerate() {
+            let (modifier, subsig_bytes) = find_modifier(subsig_bytes);
+            sub_sigs.push(
+                subsig::parse_bytes(subsig_bytes, modifier)
+                    .map_err(|e| LogicalSigParseError::SubSigParse(subsig_no, e))?,
+            );
+        }
+
+        if let Some(range) = target_desc.attrs.iter().find_map(|attr| match attr {
+            TargetDescAttr::Engine(Range::Inclusive(range)) => Some(range),
+            _ => None,
+        }) {
+            sigmeta.f_level = Some((*range.start()..=*range.end()).into());
+        }
+
+        Ok((
+            Box::new(Self {
+                name,
+                target_desc,
+                expression,
+                sub_sigs,
+            }),
+            sigmeta,
+        ))
     }
 }
 
@@ -141,14 +194,15 @@ fn find_modifier(haystack: &[u8]) -> (Option<SubSigModifier>, &[u8]) {
     (None, haystack)
 }
 
+/*
 impl TryFrom<&[u8]> for LogicalSig {
-    type Error = ParseError;
+    type Error = FromSigBytesParseError;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut fields = data.split(|b| *b == b';');
 
-        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)
-            .map_err(ParseError::NameNotUnicode)?
+        let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
+            .map_err(FromSigBytesParseError::NameNotUnicode)?
             .into();
         let target_desc = fields
             .next()
@@ -177,6 +231,7 @@ impl TryFrom<&[u8]> for LogicalSig {
         })
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
@@ -203,8 +258,8 @@ mod tests {
 
     #[test]
     fn full_sig() {
-        let bytes = SAMPLE_SIG.as_bytes();
-        let sig = LogicalSig::try_from(bytes).unwrap();
+        let input = SAMPLE_SIG.into();
+        let (sig, _) = LogicalSig::from_sigbytes(&input).unwrap();
         dbg!(sig);
     }
 
@@ -259,16 +314,30 @@ mod tests {
 
     #[test]
     fn export() {
-        let sig: LogicalSig = SAMPLE_SIG.as_bytes().try_into().unwrap();
+        let input = SAMPLE_SIG.into();
+        let (sig, _) = LogicalSig::from_sigbytes(&input).unwrap();
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG, &exported);
     }
 
     #[test]
     fn export_with_offset() {
-        let sig: LogicalSig = SAMPLE_SIG_WITH_PCRE_OFFSET.as_bytes().try_into().unwrap();
+        let input = SAMPLE_SIG_WITH_PCRE_OFFSET.into();
+        let (sig, _) = LogicalSig::from_sigbytes(&input).unwrap();
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG_WITH_PCRE_OFFSET, &exported);
+    }
+
+    #[test]
+    fn get_meta() {
+        let input = SAMPLE_SIG.into();
+        let (_, sigmeta) = LogicalSig::from_sigbytes(&input).unwrap();
+        assert_eq!(
+            sigmeta,
+            SigMeta {
+                f_level: Some((51..=255).into()),
+            }
+        );
     }
 
     #[test]
@@ -277,9 +346,9 @@ mod tests {
             r#"Win.Trojan.MSShellcode-6360730-0;Engine:81-255,Target:1;1;"#,
             r#"d97424f4(5?|b?);"#,
             r#"0/\xd9\x74\x24\xf4[\x50-\x5f\xb0-\xbf].{0,8}[\x29\x2b\x31\x33]\xc9([\xb0-\xbf]|\x66\xb9)/s"#,
-        );
-        let sig: LogicalSig = raw_sig.as_bytes().try_into().unwrap();
-        let exported = sig.to_sigbytes().unwrap().to_string();
-        assert_eq!(raw_sig, &exported);
+        ).into();
+        let (sig, _) = LogicalSig::from_sigbytes(&raw_sig).unwrap();
+        let exported = sig.to_sigbytes().unwrap();
+        assert_eq!(raw_sig, exported);
     }
 }

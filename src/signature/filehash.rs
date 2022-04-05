@@ -1,10 +1,12 @@
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
-    sigbytes::{AppendSigBytes, SigBytes},
-    signature::{hash::HashSigParseError, ParseError},
+    sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
+    signature::{hash::HashSigParseError, FromSigBytesParseError},
     util::{self, parse_field, parse_number_dec, Hash},
 };
-use std::{convert::TryFrom, fmt::Write, str};
+use std::{fmt::Write, str};
+
+use super::SigMeta;
 
 /// A signature based on file hash
 #[derive(Debug)]
@@ -47,11 +49,12 @@ impl AppendSigBytes for FileHashSig {
     }
 }
 
-impl TryFrom<&[u8]> for FileHashSig {
-    type Error = ParseError;
-
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let mut fields = data.split(|b| *b == b':');
+impl FromSigBytes for FileHashSig {
+    fn from_sigbytes<'a, SB: Into<&'a SigBytes>>(
+        sb: SB,
+    ) -> Result<(Box<dyn crate::Signature>, super::SigMeta), FromSigBytesParseError> {
+        let mut sigmeta = SigMeta::default();
+        let mut fields = sb.into().as_bytes().split(|b| *b == b':');
 
         let hash = util::parse_hash(fields.next().ok_or(HashSigParseError::MissingHashString)?)?;
         let file_size = parse_field!(
@@ -61,29 +64,45 @@ impl TryFrom<&[u8]> for FileHashSig {
             HashSigParseError::MissingFileSize,
             HashSigParseError::ParseSize
         )?;
-        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)
-            .map_err(ParseError::NameNotUnicode)?
+        let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
+            .map_err(FromSigBytesParseError::NameNotUnicode)?
             .to_owned();
 
-        Ok(Self {
-            name,
-            hash,
-            file_size,
-        })
+        // Parse optional min/max flevel
+        if let Some(min_flevel) = fields.next() {
+            let min_flevel =
+                parse_number_dec(min_flevel).map_err(HashSigParseError::ParseMinFlevel)?;
+
+            if let Some(max_flevel) = fields.next() {
+                let max_flevel =
+                    parse_number_dec(max_flevel).map_err(HashSigParseError::ParseMaxFlevel)?;
+                sigmeta.f_level = Some((min_flevel..=max_flevel).into());
+            } else {
+                sigmeta.f_level = Some((min_flevel..).into());
+            }
+        }
+
+        Ok((
+            Box::new(Self {
+                name,
+                hash,
+                file_size,
+            }),
+            sigmeta,
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::Signature;
-
     use super::*;
     use hex_literal::hex;
 
     #[test]
     fn eicar() {
-        let bytes = "44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature".as_bytes();
-        let sig: FileHashSig = bytes.try_into().unwrap();
+        let bytes = b"44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature".into();
+        let (sig, _) = FileHashSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<FileHashSig>().unwrap();
         assert_eq!(sig.name, "Eicar-Test-Signature");
         assert_eq!(sig.file_size, Some(68));
         assert_eq!(
@@ -94,9 +113,9 @@ mod tests {
 
     #[test]
     fn export() {
-        let bytes = "44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature";
-        let sig: FileHashSig = bytes.as_bytes().try_into().unwrap();
-        let exported = sig.to_sigbytes().unwrap().to_string();
-        assert_eq!(bytes, &exported);
+        let bytes = b"44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature".into();
+        let (sig, _) = FileHashSig::from_sigbytes(&bytes).unwrap();
+        let exported = sig.to_sigbytes().unwrap();
+        assert_eq!(&bytes, &exported);
     }
 }

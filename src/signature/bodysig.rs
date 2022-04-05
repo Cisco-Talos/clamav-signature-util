@@ -58,7 +58,7 @@ pub enum BodySigParseError {
     #[error("invalid character at pos {0}: {1}")]
     InvalidCharacter(usize, SigChar),
 
-    #[error("decoding hex-encoded value at pos {0}: {1}")]
+    #[error("decoding hex-encoded value {0}: {1}")]
     FromHex(Position, hex::FromHexError),
 
     #[error("parsing AnyBytes start: {0}")]

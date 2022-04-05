@@ -22,14 +22,16 @@ pub mod targettype;
 
 use crate::{
     feature::EngineReq,
-    sigbytes::{AppendSigBytes, SigBytes},
+    sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
+    util::Range,
     SigType,
 };
+use downcast_rs::{impl_downcast, Downcast};
 use std::collections::TryReserveError;
 use thiserror::Error;
 
 /// Required functionality for a Signature.
-pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes {
+pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes + Downcast {
     /// Signature name
     fn name(&self) -> &str;
 
@@ -41,6 +43,16 @@ pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes {
         self.append_sigbytes(&mut sb)?;
         Ok(sb)
     }
+}
+
+impl_downcast!(Signature);
+
+/// Additional data obtained from a signature when being parsed, but not
+/// necessary for operation of the signature
+#[derive(Default, Debug, PartialEq)]
+pub struct SigMeta {
+    /// Minimum feature level, or range of valid levels
+    pub f_level: Option<Range<u32>>,
 }
 
 /// Errors that can be encountered when exporting a Signature to its CVD format
@@ -76,28 +88,61 @@ pub enum ToSigBytesError {
 ///     signature::{self, Signature},
 ///     SigType,
 /// };
-/// let sigdata = b"44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature";
-/// let sig = clam_sigutil::signature::parse_from_cvd(SigType::FileHash, sigdata)
+/// let sigdata = b"44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature".into();
+/// let sig = clam_sigutil::signature::parse_from_cvd(SigType::FileHash, &sigdata)
 ///     .expect("parsed signature");
 /// println!("sig name = {}", sig.name());
 /// ```
-pub fn parse_from_cvd(sig_type: SigType, data: &[u8]) -> Result<Box<dyn Signature>, ParseError> {
-    match sig_type {
-        SigType::Extended => Ok(Box::new(ext::ExtendedSig::try_from(data)?)),
-        SigType::Logical => Ok(Box::new(logical::LogicalSig::try_from(data)?)),
-        SigType::FileHash => Ok(Box::new(filehash::FileHashSig::try_from(data)?)),
-        SigType::PESectionHash => Ok(Box::new(pehash::PESectionHashSig::try_from(data)?)),
-        SigType::ContainerMetadata => Ok(Box::new(
-            container_metadata::ContainerMetadataSig::try_from(data)?,
-        )),
-        SigType::PhishingURL => Ok(Box::new(phishing::PhishingSig::try_from(data)?)),
-        _ => Err(ParseError::UnsupportedSigType),
-    }
+pub fn parse_from_cvd(
+    sig_type: SigType,
+    data: &SigBytes,
+) -> Result<Box<dyn Signature>, FromSigBytesParseError> {
+    Ok(parse_from_cvd_with_meta(sig_type, data)?.0)
+}
+
+/// Parse a CVD-style (single-line) signature from a CVD database, returning the
+/// associated metadata encoded into the record. Since each signature type has
+/// its own format, the format must be specified.
+///
+/// # Arguments
+///
+/// * `sig_type` - the signature type being provided
+/// * `data` - signature content
+///
+/// # Examples
+/// ```
+/// use clam_sigutil::{
+///     signature::{self, Signature},
+///     SigType,
+/// };
+/// let sigdata = b"44d88612fea8a8f36de82e1278abb02f:68:Eicar-Test-Signature:51:255".into();
+/// let (sig, meta) = clam_sigutil::signature::parse_from_cvd_with_meta(SigType::FileHash, &sigdata)
+///     .expect("parsed signature");
+/// println!("sig name = {}", sig.name());
+/// println!("metadata = {:?}", meta);
+/// ```
+pub fn parse_from_cvd_with_meta(
+    sig_type: SigType,
+    data: &SigBytes,
+) -> Result<(Box<dyn Signature>, SigMeta), FromSigBytesParseError> {
+    let (sig, sigmeta) = match sig_type {
+        SigType::Extended => ext::ExtendedSig::from_sigbytes(data)?,
+        SigType::Logical => logical::LogicalSig::from_sigbytes(data)?,
+        SigType::FileHash => filehash::FileHashSig::from_sigbytes(data)?,
+        SigType::PESectionHash => pehash::PESectionHashSig::from_sigbytes(data)?,
+        SigType::ContainerMetadata => {
+            container_metadata::ContainerMetadataSig::from_sigbytes(data)?
+        }
+        SigType::PhishingURL => phishing::PhishingSig::from_sigbytes(data)?,
+        _ => return Err(FromSigBytesParseError::UnsupportedSigType),
+    };
+
+    Ok((sig, sigmeta))
 }
 
 /// Errors that can be encountered while parsing signature input
 #[derive(Error, Debug)]
-pub enum ParseError {
+pub enum FromSigBytesParseError {
     #[error("unsupported signature type")]
     UnsupportedSigType,
 

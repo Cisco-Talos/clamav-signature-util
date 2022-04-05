@@ -12,13 +12,13 @@ use thiserror::Error;
 
 #[derive(Debug, Default)]
 pub struct TargetDesc {
-    attrs: Vec<TargetDescAttr>,
+    pub(crate) attrs: Vec<TargetDescAttr>,
 }
 
 #[derive(Debug, Error)]
 pub enum TargetDescParseError {
     #[error("unknown TargetDescription attribute: {0}")]
-    UnknownTargetDescAttr(String),
+    UnknownTargetDescAttr(SigBytes),
 
     #[error("TargetDescription contains empty attribute")]
     TargetDescAttrEmpty,
@@ -32,14 +32,32 @@ pub enum TargetDescParseError {
     #[error("unknown FileType")]
     UnknownFileType,
 
-    #[error("parsing engine range")]
-    EngineRange(#[from] util::RangeInclusiveParseError<usize>),
+    #[error("parsing EngineRange")]
+    EngineRange(util::RangeInclusiveParseError<u32>),
+
+    #[error("parsing FileSize")]
+    FileSize(util::RangeInclusiveParseError<usize>),
+
+    #[error("parsing EntryPoint")]
+    EntryPoint(util::RangeInclusiveParseError<usize>),
+
+    #[error("parsing NumberOfSections")]
+    NumberOfSections(util::RangeInclusiveParseError<usize>),
 
     #[error("parsing container value: {0}")]
-    Container(#[from] std::str::Utf8Error),
+    Container(std::str::Utf8Error),
+
+    #[error("parsing container value: {0}")]
+    HandlerType(std::str::Utf8Error),
+
+    #[error("parsing IconGroup1 value: {0}")]
+    IconGroup1(std::str::Utf8Error),
+
+    #[error("parsing IconGroup2 value: {0}")]
+    IconGroup2(std::str::Utf8Error),
 
     #[error("parsing target_type: {0}")]
-    TargetType(#[from] ParseNumberError<usize>),
+    TargetType(ParseNumberError<usize>),
 }
 
 impl AppendSigBytes for TargetDesc {
@@ -80,7 +98,7 @@ impl TryFrom<&[u8]> for TargetDesc {
                     tdesc.attrs.push(TargetDescAttr::TargetType(target_type));
                 }
                 b"Engine" => {
-                    let f_level = util::parse_usize_range_inclusive(
+                    let f_level = util::parse_range_inclusive(
                         value.ok_or(TargetDescParseError::TargetDescAttrMissingValue("Engine"))?,
                     )
                     .map_err(TargetDescParseError::EngineRange)?;
@@ -89,27 +107,30 @@ impl TryFrom<&[u8]> for TargetDesc {
                         .push(TargetDescAttr::Engine(Range::Inclusive(f_level)));
                 }
                 b"FileSize" => {
-                    let file_size = util::parse_usize_range_inclusive(
+                    let file_size = util::parse_range_inclusive(
                         value
                             .ok_or(TargetDescParseError::TargetDescAttrMissingValue("FileSize"))?,
-                    )?;
+                    )
+                    .map_err(TargetDescParseError::FileSize)?;
                     tdesc
                         .attrs
                         .push(TargetDescAttr::FileSize(Range::Inclusive(file_size)));
                 }
                 b"EntryPoint" => {
-                    let entry_point = util::parse_usize_range_inclusive(value.ok_or(
+                    let entry_point = util::parse_range_inclusive(value.ok_or(
                         TargetDescParseError::TargetDescAttrMissingValue("EntryPoint"),
-                    )?)?;
+                    )?)
+                    .map_err(TargetDescParseError::EntryPoint)?;
                     tdesc
                         .attrs
                         .push(TargetDescAttr::EntryPoint(Range::Inclusive(entry_point)));
                 }
 
                 b"NumberOfSections" => {
-                    let number_of_sections = util::parse_usize_range_inclusive(value.ok_or(
+                    let number_of_sections = util::parse_range_inclusive(value.ok_or(
                         TargetDescParseError::TargetDescAttrMissingValue("EntryPoint"),
-                    )?)?;
+                    )?)
+                    .map_err(TargetDescParseError::NumberOfSections)?;
                     tdesc
                         .attrs
                         .push(TargetDescAttr::NumberOfSections(Range::Inclusive(
@@ -131,29 +152,30 @@ impl TryFrom<&[u8]> for TargetDesc {
                 b"IconGroup1" => {
                     let icon_group_1 = str::from_utf8(value.ok_or(
                         TargetDescParseError::TargetDescAttrMissingValue("IconGroup1"),
-                    )?)?
+                    )?)
+                    .map_err(TargetDescParseError::IconGroup1)?
                     .into();
                     tdesc.attrs.push(TargetDescAttr::IconGroup1(icon_group_1));
                 }
                 b"IconGroup2" => {
                     let icon_group_2 = str::from_utf8(value.ok_or(
                         TargetDescParseError::TargetDescAttrMissingValue("IconGroup2"),
-                    )?)?
+                    )?)
+                    .map_err(TargetDescParseError::IconGroup2)?
                     .into();
                     tdesc.attrs.push(TargetDescAttr::IconGroup2(icon_group_2));
                 }
                 b"HandlerType" => {
-                    let handler_type = FileType::from_str(str::from_utf8(value.ok_or(
-                        TargetDescParseError::TargetDescAttrMissingValue("Container"),
-                    )?)?)
+                    let handler_type = FileType::from_str(
+                        str::from_utf8(value.ok_or(
+                            TargetDescParseError::TargetDescAttrMissingValue("Container"),
+                        )?)
+                        .map_err(TargetDescParseError::HandlerType)?,
+                    )
                     .map_err(|_| TargetDescParseError::UnknownFileType)?;
                     tdesc.attrs.push(TargetDescAttr::HandlerType(handler_type));
                 }
-                s => {
-                    return Err(TargetDescParseError::UnknownTargetDescAttr(
-                        str::from_utf8(s)?.to_owned(),
-                    ))
-                }
+                s => return Err(TargetDescParseError::UnknownTargetDescAttr(s.into())),
             }
         }
 
@@ -178,7 +200,7 @@ impl EngineReq for TargetDesc {
 
 #[derive(Debug)]
 pub enum TargetDescAttr {
-    Engine(Range<usize>),
+    Engine(Range<u32>),
     TargetType(TargetType),
     FileSize(Range<usize>),
     EntryPoint(Range<usize>),

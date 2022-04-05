@@ -15,7 +15,7 @@ pub mod sigbytes;
 /// Engine signature parsing and examination
 pub mod signature;
 
-pub(crate) mod util;
+pub mod util;
 
 pub use feature::Feature;
 pub use signature::sigtype::SigType;

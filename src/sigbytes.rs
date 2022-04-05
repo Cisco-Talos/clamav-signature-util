@@ -1,11 +1,16 @@
 use std::{collections::TryReserveError, str};
 
+use crate::{
+    signature::{FromSigBytesParseError, SigMeta},
+    Signature,
+};
+
 pub const BYTE_DISP_PREFIX: &str = "<|";
 pub const BYTE_DISP_SUFFIX: &str = "|>";
 
 /// A type wrapper around a series of bytes found in a signature.  Allows
 /// implementing `Display` to work around potential unicode problems.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct SigBytes(Vec<u8>);
 
 impl SigBytes {
@@ -31,6 +36,12 @@ impl SigBytes {
 pub trait AppendSigBytes {
     /// Append ClamAV database-style value into the specified SigBytes container
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError>;
+}
+
+pub trait FromSigBytes {
+    fn from_sigbytes<'a, SB: Into<&'a SigBytes>>(
+        sb: SB,
+    ) -> Result<(Box<dyn Signature>, SigMeta), FromSigBytesParseError>;
 }
 
 impl std::fmt::Display for SigBytes {
@@ -80,6 +91,12 @@ impl<'a> From<&'a SigBytes> for &'a [u8] {
 impl From<String> for SigBytes {
     fn from(s: String) -> Self {
         SigBytes(s.into_bytes())
+    }
+}
+
+impl From<&str> for SigBytes {
+    fn from(s: &str) -> Self {
+        SigBytes(s.as_bytes().to_owned())
     }
 }
 

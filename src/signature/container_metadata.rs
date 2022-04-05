@@ -1,11 +1,11 @@
 mod container_size;
 mod container_type;
 
-use super::{ParseError, Signature};
+use super::{FromSigBytesParseError, SigMeta, Signature};
 use crate::{
     feature::{EngineReq, FeatureSet},
     regexp::{RegexpMatch, RegexpMatchParseError},
-    sigbytes::AppendSigBytes,
+    sigbytes::{AppendSigBytes, FromSigBytes},
     util::{
         parse_bool_from_int, parse_field, parse_number_dec, unescaped_element,
         ParseBoolFromIntError, ParseNumberError, Range, RangeParseError,
@@ -92,18 +92,26 @@ pub enum ContainerMetadataSigParseError {
 
     #[error("invalid Res2 field: {0}")]
     InvalidRes2(ParseNumberError<isize>),
+
+    #[error("Parsing min_flevel: {0}")]
+    ParseMinFlevel(ParseNumberError<u32>),
+
+    #[error("Parsing max_flevel: {0}")]
+    ParseMaxFlevel(ParseNumberError<u32>),
 }
 
-impl TryFrom<&[u8]> for ContainerMetadataSig {
-    type Error = ParseError;
+impl FromSigBytes for ContainerMetadataSig {
+    fn from_sigbytes<'a, SB: Into<&'a crate::sigbytes::SigBytes>>(
+        sb: SB,
+    ) -> Result<(Box<dyn Signature>, super::SigMeta), FromSigBytesParseError> {
+        let mut sigmeta = SigMeta::default();
 
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         // Split on colons, but taking care to ignore escaped ones in case the regexp contains some
-        let mut fields = value.split(unescaped_element(b'\\', b':'));
+        let mut fields = sb.into().as_bytes().split(unescaped_element(b'\\', b':'));
 
         // Field 1
-        let name = str::from_utf8(fields.next().ok_or(ParseError::MissingName)?)
-            .map_err(ParseError::NameNotUnicode)?
+        let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
+            .map_err(FromSigBytesParseError::NameNotUnicode)?
             .to_owned();
 
         // Field 2
@@ -192,17 +200,36 @@ impl TryFrom<&[u8]> for ContainerMetadataSig {
             ContainerMetadataSigParseError::InvalidRes1
         )?;
 
-        Ok(Self {
-            name,
-            container_type,
-            container_size,
-            filename_regexp,
-            file_size_in_container,
-            file_size_real,
-            is_encrypted,
-            file_pos,
-            res1,
-        })
+        // Parse optional min/max flevel
+        if let Some(min_flevel) = fields.next() {
+            if !min_flevel.is_empty() {
+                let min_flevel = parse_number_dec(min_flevel)
+                    .map_err(ContainerMetadataSigParseError::ParseMinFlevel)?;
+
+                if let Some(max_flevel) = fields.next() {
+                    let max_flevel = parse_number_dec(max_flevel)
+                        .map_err(ContainerMetadataSigParseError::ParseMaxFlevel)?;
+                    sigmeta.f_level = Some((min_flevel..=max_flevel).into());
+                } else {
+                    sigmeta.f_level = Some((min_flevel..).into());
+                }
+            }
+        }
+
+        Ok((
+            Box::new(Self {
+                name,
+                container_type,
+                container_size,
+                filename_regexp,
+                file_size_in_container,
+                file_size_real,
+                is_encrypted,
+                file_pos,
+                res1,
+            }),
+            sigmeta,
+        ))
     }
 }
 
@@ -298,23 +325,32 @@ impl AppendSigBytes for ContainerMetadataSig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Signature;
+    use crate::sigbytes::SigBytes;
 
-    const SAMPLE_SIG: &str =
-        r#"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:"#;
+    const SAMPLE_SIG: &[u8] =
+        br#"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:99:101"#;
+
+    const SAMPLE_SIG_WITHOUT_FLEVEL: &[u8] =
+        br#"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:"#;
 
     #[test]
     fn full_sig() {
-        let bytes = SAMPLE_SIG.as_bytes();
-        let sig = ContainerMetadataSig::try_from(bytes).unwrap();
+        let bytes = SAMPLE_SIG.into();
+        let (sig, meta) = ContainerMetadataSig::from_sigbytes(&bytes).unwrap();
         dbg!(sig);
+        assert_eq!(
+            meta,
+            SigMeta {
+                f_level: Some((99..=101).into())
+            }
+        );
     }
 
     #[test]
     fn bad_filename_regex() {
         // This signature has an 8-bit ASCII '¢' sign in the regexp
-        let bytes: &[u8] = &[
-            0x53, 0x61, 0x6e, 0x65, 0x73, 0x65, 0x63, 0x75, 0x72, 0x69, 0x74, 0x79, 0x2e, 0x46,
+        let bytes = SigBytes::from(&[
+            0x53u8, 0x61, 0x6e, 0x65, 0x73, 0x65, 0x63, 0x75, 0x72, 0x69, 0x74, 0x79, 0x2e, 0x46,
             0x6f, 0x78, 0x68, 0x6f, 0x6c, 0x65, 0x2e, 0x5a, 0x69, 0x70, 0x5f, 0x66, 0x73, 0x31,
             0x30, 0x32, 0x37, 0x3a, 0x43, 0x4c, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x5a, 0x49,
             0x50, 0x3a, 0x2a, 0x3a, 0x28, 0x3f, 0x69, 0x29, 0x77, 0x68, 0x61, 0x74, 0x73, 0x61,
@@ -322,16 +358,17 @@ mod tests {
             0x65, 0x20, 0x63, 0x6f, 0x6e, 0x76, 0x65, 0x72, 0x73, 0x61, 0x2e, 0x7b, 0x30, 0x2c,
             0x32, 0x30, 0x7d, 0x5c, 0x2e, 0x65, 0x78, 0x65, 0x24, 0x3a, 0x2a, 0x3a, 0x2a, 0x3a,
             0x2a, 0x3a, 0x31, 0x3a, 0x2a, 0x3a, 0x2a, 0x0a,
-        ];
-        if let Err(e) = ContainerMetadataSig::try_from(bytes) {
+        ]);
+        if let Err(e) = ContainerMetadataSig::from_sigbytes(&bytes) {
             eprintln!("{}", e)
         }
     }
 
     #[test]
     fn export() {
-        let sig = ContainerMetadataSig::try_from(SAMPLE_SIG.as_bytes()).unwrap();
-        let exported = sig.to_sigbytes().unwrap().to_string();
-        assert_eq!(SAMPLE_SIG, &exported);
+        let input = SAMPLE_SIG_WITHOUT_FLEVEL.into();
+        let (sig, _) = ContainerMetadataSig::from_sigbytes(&input).unwrap();
+        let exported = sig.to_sigbytes().unwrap();
+        assert_eq!(&input, &exported);
     }
 }
