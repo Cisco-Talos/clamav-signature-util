@@ -142,7 +142,7 @@ fn process_file(path: &Path, opt: &Opt) -> Result<()> {
         let mut fh = File::open(path)?;
         process_sigs(opt, sig_type, &mut fh)?;
     } else {
-        eprintln!(" file extension doesn't map to known signature type");
+        eprintln!(" file extension {extension:?} doesn't map to known signature type");
     }
     Ok(())
 }
