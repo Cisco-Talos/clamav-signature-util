@@ -24,7 +24,7 @@ pub struct ByteCmpSubSig {
     modifier: Option<SubSigModifier>,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ByteCmpSubSigParseError {
     #[error("missing closing parenthesis")]
     MissingClosingParen,

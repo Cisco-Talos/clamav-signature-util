@@ -45,7 +45,7 @@ pub enum AltStrSegment {
     Wildcard(IntWithMask<u8>),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum AlternateStringsParseError {
     #[error("parsing alternative string {0} hex value: {1}")]
     FromHex(usize, hex::FromHexError),

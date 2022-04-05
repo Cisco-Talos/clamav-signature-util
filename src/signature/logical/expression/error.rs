@@ -5,14 +5,14 @@ use crate::sigbytes::SigChar;
 
 /// A position within the expression to report the error, either relative to the
 /// start of the expression or at the end (after all characters have been processed)
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Position {
     End,
     Relative(usize),
     Range(RangeInclusive<usize>),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum LogExprParseError {
     #[error("invalid character at {0}: {1}")]
     InvalidCharacter(Position, SigChar),

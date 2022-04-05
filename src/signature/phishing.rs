@@ -1,8 +1,8 @@
-use super::{SigMeta, ToSigBytesError};
 use crate::{
     feature::EngineReq,
     regexp::{RegexpMatch, RegexpMatchParseError},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
+    signature::{SigMeta, SigValidationError, ToSigBytesError, Validate},
     util::{
         parse_field, parse_number_dec, parse_range_inclusive, string_from_bytes, unescaped_element,
         ParseNumberError, RangeInclusiveParseError,
@@ -46,7 +46,7 @@ pub struct UrlRegexpPair {
     displayed: RegexpMatch,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum PhishingSigParseError {
     #[error("Missing preamble (first) field")]
     MissingPreamble,
@@ -82,6 +82,9 @@ pub enum PhishingSigParseError {
     FLevelMin(ParseNumberError<u32>),
 }
 
+#[derive(Debug, Error, PartialEq)]
+pub enum PhishingSigValidationError {}
+
 #[derive(Debug)]
 pub enum PhishingSig {
     PDB(PDBMatch),
@@ -95,6 +98,8 @@ impl Signature for PhishingSig {
         "?"
     }
 }
+
+impl Validate<SigValidationError> for PhishingSig {}
 
 impl EngineReq for PhishingSig {
     fn features(&self) -> crate::feature::FeatureSet {
@@ -272,7 +277,7 @@ mod tests {
         let result = PhishingSig::from_sigbytes(&input);
         assert!(matches!(
             result,
-            Err(FromSigBytesParseError::PhishingSigParse(
+            Err(FromSigBytesParseError::PhishingSig(
                 PhishingSigParseError::MissingRealUrl
             ))
         ));
@@ -284,7 +289,7 @@ mod tests {
         let result = PhishingSig::from_sigbytes(&input);
         assert!(matches!(
             result,
-            Err(FromSigBytesParseError::PhishingSigParse(
+            Err(FromSigBytesParseError::PhishingSig(
                 PhishingSigParseError::MissingDisplayedUrl
             ))
         ));

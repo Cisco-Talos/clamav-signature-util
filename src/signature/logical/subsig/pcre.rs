@@ -77,7 +77,7 @@ pub enum Flag {
     PcreUngreedy,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum PCRESubSigParseError {
     #[error("empty")]
     Empty,

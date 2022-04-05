@@ -7,12 +7,13 @@ use self::{
     subsig::{SubSigModifier, SubSigParseError},
     targetdesc::{TargetDescAttr, TargetDescParseError},
 };
-use super::{
-    bodysig::BodySigParseError, ext::ExtendedSig, FromSigBytesParseError, SigMeta, Signature,
-};
 use crate::{
     feature::EngineReq,
     sigbytes::{AppendSigBytes, FromSigBytes},
+    signature::{
+        bodysig::BodySigParseError, ext::ExtendedSig, FromSigBytesParseError, SigMeta,
+        SigValidationError, Signature, Validate,
+    },
     util::Range,
 };
 use std::{fmt::Write, str};
@@ -31,7 +32,7 @@ pub struct LogicalSig {
     sub_sigs: Vec<Box<dyn SubSig>>,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum LogicalSigParseError {
     #[error("parsing body signature index {0}: {1}")]
     BodySigParse(usize, BodySigParseError),
@@ -54,6 +55,9 @@ pub enum LogicalSigParseError {
     #[error("parsing subsig {0}: {1}")]
     SubSigParse(usize, SubSigParseError),
 }
+
+#[derive(Debug, Error, PartialEq)]
+pub enum LogicalSigValidationError {}
 
 impl Signature for LogicalSig {
     fn name(&self) -> &str {
@@ -97,15 +101,14 @@ impl FromSigBytes for LogicalSig {
             sigmeta.f_level = Some((*range.start()..=*range.end()).into());
         }
 
-        Ok((
-            Box::new(Self {
-                name,
-                target_desc,
-                expression,
-                sub_sigs,
-            }),
-            sigmeta,
-        ))
+        let sig = Self {
+            name,
+            target_desc,
+            expression,
+            sub_sigs,
+        };
+
+        Ok((Box::new(sig), sigmeta))
     }
 }
 
@@ -156,6 +159,8 @@ impl AppendSigBytes for LogicalSig {
         Ok(())
     }
 }
+
+impl Validate<SigValidationError> for LogicalSig {}
 
 /// Search from the end of a subsignature to find a modifier of the form "::xxx".
 ///

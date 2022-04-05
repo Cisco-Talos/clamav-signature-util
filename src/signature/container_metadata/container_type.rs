@@ -101,7 +101,7 @@ pub enum ContainerType {
     CL_TYPE_IGNORED, /* please don't add anything below */
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ContainerTypeParseError {
     #[error("not valid unicode: {0}")]
     NotUnicode(#[from] str::Utf8Error),

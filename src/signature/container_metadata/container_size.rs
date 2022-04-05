@@ -12,7 +12,7 @@ pub enum ContainerSize {
     Range(RangeInclusive<usize>),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ContainerSizeParseError {
     #[error("parsing range: {0}")]
     ParseRange(#[from] RangeInclusiveParseError<usize>),

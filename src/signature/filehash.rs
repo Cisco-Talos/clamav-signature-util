@@ -1,12 +1,13 @@
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
-    signature::{hash::HashSigParseError, FromSigBytesParseError},
+    signature::{
+        hash::HashSigParseError, FromSigBytesParseError, SigMeta, SigValidationError, Validate,
+    },
     util::{self, parse_field, parse_number_dec, Hash},
+    Signature,
 };
 use std::{fmt::Write, str};
-
-use super::SigMeta;
 
 /// A signature based on file hash
 #[derive(Debug)]
@@ -16,11 +17,13 @@ pub struct FileHashSig {
     file_size: Option<usize>,
 }
 
-impl super::Signature for FileHashSig {
+impl Signature for FileHashSig {
     fn name(&self) -> &str {
         &self.name
     }
 }
+
+impl Validate<SigValidationError> for FileHashSig {}
 
 impl EngineReq for FileHashSig {
     fn features(&self) -> FeatureSet {
@@ -56,7 +59,8 @@ impl FromSigBytes for FileHashSig {
         let mut sigmeta = SigMeta::default();
         let mut fields = sb.into().as_bytes().split(|b| *b == b':');
 
-        let hash = util::parse_hash(fields.next().ok_or(HashSigParseError::MissingHashString)?)?;
+        let hash = util::parse_hash(fields.next().ok_or(HashSigParseError::MissingHashString)?)
+            .map_err(HashSigParseError::ParseHash)?;
         let file_size = parse_field!(
             OPTIONAL
             fields,

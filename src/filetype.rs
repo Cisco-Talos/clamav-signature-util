@@ -8,7 +8,7 @@ use strum_macros::{Display, EnumString};
 const CL_TYPENO: isize = 500;
 
 #[allow(non_camel_case_types)]
-#[derive(Display, Debug, FromPrimitive, ToPrimitive, EnumString)]
+#[derive(Clone, Debug, PartialEq, Display, EnumString, FromPrimitive, ToPrimitive)]
 pub enum FileType {
     CL_TYPE_ANY = 0,
     CL_TYPE_TEXT_ASCII = CL_TYPENO, /* X3.4, ISO-8859, non-ISO ext. ASCII */

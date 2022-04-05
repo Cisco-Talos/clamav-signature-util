@@ -53,7 +53,7 @@ impl std::fmt::Display for Hash {
 }
 
 /// Errors that can be encountered while parsing a hash from hex-encoded format
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ParseHashError {
     #[error("unable to convert from hex: {0}")]
     InvalidHexChar(#[from] hex::FromHexError),
@@ -95,8 +95,24 @@ where
     Utf8Error(#[from] std::str::Utf8Error),
 }
 
+impl<T> PartialEq for ParseNumberError<T>
+where
+    T: std::str::FromStr,
+    <T as std::str::FromStr>::Err: std::fmt::Debug,
+{
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            // Just assume all "Unparseable" errors are equivalent. This is
+            // mainly used for unit testing.
+            (Self::Unparseable(_), Self::Unparseable(_)) => true,
+            (Self::Utf8Error(l0), Self::Utf8Error(r0)) => l0 == r0,
+            _ => false,
+        }
+    }
+}
+
 /// Errors that can be encountered while trying to parse an inclusive range
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum RangeInclusiveParseError<T>
 where
     T: std::str::FromStr,
@@ -151,7 +167,7 @@ where
     Ok(lower..=upper)
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 #[error("invalid boolean value (must be 0 or 1)")]
 pub struct ParseBoolFromIntError;
 
@@ -219,7 +235,7 @@ macro_rules! parse_field {
 pub(crate) use parse_field;
 
 /// Generic container for any range of number
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Range<T: std::str::FromStr> {
     // {n}
     Exact(T),
@@ -249,7 +265,7 @@ impl<T: std::str::FromStr> From<std::ops::RangeFrom<T>> for Range<T> {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum RangeParseError<T>
 where
     T: std::str::FromStr,
@@ -310,17 +326,6 @@ where
     }
 }
 
-impl<T: std::str::FromStr + std::fmt::Display> From<&Range<T>> for SigBytes {
-    fn from(range: &Range<T>) -> Self {
-        match range {
-            Range::Exact(n) => format!("{{{n}}}").into(),
-            Range::ToInclusive(RangeToInclusive { end }) => format!("{{-{end}}}").into(),
-            Range::From(RangeFrom { start }) => format!("{{{start}-}}").into(),
-            Range::Inclusive(range) => format!("{{{}-{}}}", range.start(), range.end()).into(),
-        }
-    }
-}
-
 /// Attempt to convert a `&[u8]` into a string.  The standard library doesn't
 /// provide this specific variation.
 ///
@@ -333,7 +338,7 @@ pub fn string_from_bytes(bytes: &[u8]) -> Result<String, std::str::Utf8Error> {
 
 /// A relative or absolute location within a string. This is primarily used for
 /// error reporting.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Position {
     End,
     Absolute(usize),

@@ -115,7 +115,7 @@ impl<const N: usize> From<&[u8; N]> for SigBytes {
 
 /// A type wrapper around a single byte found in a signature. Allows implementing
 /// `Display` to work around potential unicode problems
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SigChar(pub u8);
 
 /// Convert a byte to its character representation, or a symbol indicating

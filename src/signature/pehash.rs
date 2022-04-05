@@ -1,7 +1,10 @@
-use super::{hash::HashSigParseError, FromSigBytesParseError, SigMeta, Signature};
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
+    signature::{
+        hash::HashSigParseError, FromSigBytesParseError, SigMeta, SigValidationError, Signature,
+        Validate,
+    },
     util::{self, parse_field, parse_number_dec, Hash},
 };
 use std::{fmt::Write, str};
@@ -19,6 +22,8 @@ impl Signature for PESectionHashSig {
         &self.name
     }
 }
+
+impl Validate<SigValidationError> for PESectionHashSig {}
 
 impl EngineReq for PESectionHashSig {
     fn features(&self) -> FeatureSet {
@@ -61,7 +66,8 @@ impl FromSigBytes for PESectionHashSig {
             HashSigParseError::MissingFileSize,
             HashSigParseError::ParseSize
         )?;
-        let hash = util::parse_hash(fields.next().ok_or(HashSigParseError::MissingHashString)?)?;
+        let hash = util::parse_hash(fields.next().ok_or(HashSigParseError::MissingHashString)?)
+            .map_err(HashSigParseError::ParseHash)?;
         let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
             .map_err(FromSigBytesParseError::NameNotUnicode)?
             .to_owned();

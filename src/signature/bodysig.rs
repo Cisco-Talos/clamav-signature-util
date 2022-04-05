@@ -23,7 +23,7 @@ pub struct BodySig {
 }
 
 // TODO: annotate these errors with their positions within the signature
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum BodySigParseError {
     #[error("nothing following ? wildcard in low-nybble match")]
     ExpectingLowNyble,

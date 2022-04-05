@@ -10,7 +10,7 @@ pub struct Offset {
     encoding: Encoding,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum OffsetParseError {
     #[error("missing offset modifier")]
     MissingOffsetModifier,

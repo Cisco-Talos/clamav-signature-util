@@ -1,16 +1,15 @@
-use super::{
-    super::signature::{
-        logical::targetdesc::TargetDescParseError, targettype::TargetType, FromSigBytesParseError,
-        Signature,
-    },
-    bodysig::{BodySig, BodySigParseError},
-    logical::subsig::{SubSig, SubSigModifier},
-    targettype::TargetTypeParseError,
-    SigMeta,
-};
 use crate::{
     feature::{EngineReq, FeatureSet},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
+    signature::{
+        bodysig::{BodySig, BodySigParseError},
+        logical::{
+            subsig::{SubSig, SubSigModifier},
+            targetdesc::TargetDescParseError,
+        },
+        targettype::{TargetType, TargetTypeParseError},
+        FromSigBytesParseError, SigMeta, SigValidationError, Signature, Validate,
+    },
     util::{parse_number_dec, ParseNumberError},
 };
 use std::{fmt::Write, str};
@@ -29,7 +28,7 @@ pub struct ExtendedSig {
     pub(crate) modifier: Option<SubSigModifier>,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ExtendedSigParseError {
     #[error("missing TargetType field")]
     MissingTargetType,
@@ -58,6 +57,9 @@ pub enum ExtendedSigParseError {
     #[error("Parsing max_flevel: {0}")]
     ParseMaxFlevel(ParseNumberError<u32>),
 }
+
+#[derive(Debug, Error, PartialEq)]
+pub enum ExtendedSigValidationError {}
 
 impl FromSigBytes for ExtendedSig {
     fn from_sigbytes<'a, SB: Into<&'a SigBytes>>(
@@ -124,7 +126,7 @@ pub enum Offset {
     Floating(OffsetPos, usize),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum OffsetParseError {
     #[error("offset missing")]
     Missing,
@@ -178,7 +180,7 @@ pub enum OffsetPos {
     PEVersionInfo,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum OffsetPosParseError {
     #[error("Parsing EOF offset: {0}")]
     ParseEOFOffset(ParseNumberError<usize>),
@@ -290,6 +292,8 @@ impl Signature for ExtendedSig {
         }
     }
 }
+
+impl Validate<SigValidationError> for ExtendedSig {}
 
 impl EngineReq for ExtendedSig {
     fn features(&self) -> FeatureSet {

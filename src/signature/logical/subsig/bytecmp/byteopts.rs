@@ -12,7 +12,7 @@ pub struct ByteOptions {
     extract_bytes: u8,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ByteOptionsParseError {
     #[error("unrecognized byte option")]
     Unrecognized,
