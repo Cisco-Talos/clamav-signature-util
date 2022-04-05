@@ -1,7 +1,4 @@
 use super::{SigMeta, ToSigBytesError};
-use std::str;
-use thiserror::Error;
-
 use crate::{
     feature::EngineReq,
     regexp::{RegexpMatch, RegexpMatchParseError},
@@ -12,6 +9,8 @@ use crate::{
     },
     Signature,
 };
+use std::{fmt::Write, str};
+use thiserror::Error;
 
 #[derive(Debug, Clone, Copy)]
 pub enum PhishDBFormat {
@@ -105,8 +104,34 @@ impl EngineReq for PhishingSig {
 }
 
 impl AppendSigBytes for PhishingSig {
-    fn append_sigbytes(&self, _: &mut SigBytes) -> std::result::Result<(), ToSigBytesError> {
-        todo!()
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> std::result::Result<(), ToSigBytesError> {
+        match self {
+            PhishingSig::PDB(psig) => match psig {
+                PDBMatch::Regexp(UrlRegexpPair { real, displayed }) => {
+                    sb.write_str("R:")?;
+                    real.append_sigbytes(sb)?;
+                    sb.write_char(':')?;
+                    displayed.append_sigbytes(sb)?;
+                }
+                PDBMatch::DisplayedHostname(host) => {
+                    write!(sb, "H:{host}")?;
+                }
+            },
+            PhishingSig::GDB => todo!(),
+            PhishingSig::WDB(wsig) => match wsig {
+                WDBMatch::Regexp(UrlRegexpPair { real, displayed }) => {
+                    sb.write_str("X:")?;
+                    real.append_sigbytes(sb)?;
+                    sb.write_char(':')?;
+                    displayed.append_sigbytes(sb)?;
+                }
+                WDBMatch::MatchHostname { real, displayed } => {
+                    write!(sb, "M:{real}:{displayed}")?;
+                }
+            },
+        }
+
+        Ok(())
     }
 }
 
