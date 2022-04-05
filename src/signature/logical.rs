@@ -5,7 +5,7 @@ pub mod targetdesc;
 use self::{
     expression::LogExprParseError,
     subsig::{SubSigModifier, SubSigParseError},
-    targetdesc::{TargetDescAttr, TargetDescParseError},
+    targetdesc::{TargetDescAttr, TargetDescParseError, TargetDescValidationError},
 };
 use crate::{
     feature::EngineReq,
@@ -46,10 +46,10 @@ pub enum LogicalSigParseError {
     #[error("invalid logical expression: {0}")]
     LogExprParse(#[from] LogExprParseError),
 
-    #[error("missing TargetDescriptionBlock field")]
+    #[error("missing TargetDesc field")]
     MissingTargetDesc,
 
-    #[error("parsing TargetDesc: {0}")]
+    #[error("parsing TargetDesc field: {0}")]
     TargetDesc(#[from] TargetDescParseError),
 
     #[error("parsing subsig {0}: {1}")]
@@ -57,7 +57,10 @@ pub enum LogicalSigParseError {
 }
 
 #[derive(Debug, Error, PartialEq)]
-pub enum LogicalSigValidationError {}
+pub enum LogicalSigValidationError {
+    #[error("validating TargetDesc: {0}")]
+    TargetDesc(#[from] TargetDescValidationError),
+}
 
 impl Signature for LogicalSig {
     fn name(&self) -> &str {
@@ -160,7 +163,14 @@ impl AppendSigBytes for LogicalSig {
     }
 }
 
-impl Validate<SigValidationError> for LogicalSig {}
+impl Validate<SigValidationError> for LogicalSig {
+    fn validate(&self) -> Result<(), SigValidationError> {
+        self.target_desc
+            .validate()
+            .map_err(LogicalSigValidationError::TargetDesc)?;
+        Ok(())
+    }
+}
 
 /// Search from the end of a subsignature to find a modifier of the form "::xxx".
 ///

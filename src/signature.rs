@@ -51,6 +51,7 @@ pub trait Signature:
 impl_downcast!(Signature);
 
 pub trait Validate<E: Into<SigValidationError>> {
+    /// Perform additional validation on a signature
     fn validate(&self) -> Result<(), E> {
         Ok(())
     }
