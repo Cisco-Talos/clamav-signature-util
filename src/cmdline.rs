@@ -19,6 +19,10 @@ struct Opt {
     #[structopt(long, short)]
     verbose: bool,
 
+    /// Perform additional validation on signatures
+    #[structopt(long)]
+    validate: bool,
+
     /// Print original signatures as they're read
     #[structopt(long)]
     print_orig: bool,
@@ -190,6 +194,16 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
                 }
                 if opt.print_features {
                     println!(" > {:?}", sig.features());
+                }
+
+                if opt.validate {
+                    if let Err(e) = sig.validate() {
+                        eprintln!(
+                            "Signature on line {} failed validation:\n  {}\n  Error: {}\n",
+                            line_no, sigbuf, e
+                        );
+                        err_count += 1;
+                    }
                 }
 
                 if opt.check_export {
