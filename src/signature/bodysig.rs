@@ -95,7 +95,6 @@ impl TryFrom<&[u8]> for BodySig {
         let mut hex_bytes = vec![];
         let mut genbuf = vec![];
         let mut bytes = value.iter().enumerate();
-        let mut altstr_pos = 0;
         while let Some((pos, &byte)) = bytes.next() {
             match byte {
                 b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => hex_bytes.push(byte),
@@ -177,7 +176,7 @@ impl TryFrom<&[u8]> for BodySig {
                             let negated = other == b'!';
                             // Character class or Alternate strings
                             // Consume until the closing parenthesis is found
-                            altstr_pos = pos;
+                            let altstr_pos = pos;
                             genbuf.clear();
                             loop {
                                 match bytes.next() {
@@ -202,7 +201,7 @@ impl TryFrom<&[u8]> for BodySig {
                                                         ))
                                                         .map_err(|e| {
                                                             BodySigParseError::AlternateStrings(
-                                                                pos.into(),
+                                                                altstr_pos.into(),
                                                                 e,
                                                             )
                                                         })?,

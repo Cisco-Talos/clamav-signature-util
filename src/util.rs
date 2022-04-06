@@ -18,7 +18,12 @@ pub enum Hash {
 
 impl Hash {
     /// Return the size of the hash (in its binary form)
-    pub fn len(&self) -> usize {
+    pub fn size(&self) -> usize {
+        // FYI, this method is called `size()` rathern than `len()` because its
+        // size is not variable within its subtype.  Naming a method `len()`
+        // results in a clippy lint that complains about the lack of `is_empty()`,
+        // which is never appropriate for this datatype, since it has no variants
+        // that would ever be empty.
         match self {
             Self::Md5(hash) => hash.len(),
             Self::Sha1(hash) => hash.len(),

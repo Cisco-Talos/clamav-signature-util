@@ -39,7 +39,7 @@ impl EngineReq for PESectionHashSig {
 
 impl AppendSigBytes for PESectionHashSig {
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
-        let size_hint = self.name.len() + self.hash.len() * 2 + 10;
+        let size_hint = self.name.len() + self.hash.size() * 2 + 10;
         sb.try_reserve_exact(size_hint)?;
 
         if let Some(size) = self.size {
