@@ -8,7 +8,7 @@ use crate::{
             targetdesc::TargetDescParseError,
         },
         targettype::{TargetType, TargetTypeParseError},
-        FromSigBytesParseError, SigMeta, SigValidationError, Signature, Validate,
+        FromSigBytesParseError, SigMeta, Signature,
     },
     util::{parse_number_dec, ParseNumberError},
 };
@@ -292,8 +292,6 @@ impl Signature for ExtendedSig {
         }
     }
 }
-
-impl Validate<SigValidationError> for ExtendedSig {}
 
 impl EngineReq for ExtendedSig {
     fn features(&self) -> FeatureSet {

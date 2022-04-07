@@ -5,7 +5,7 @@ use crate::{
     feature::{EngineReq, FeatureSet},
     regexp::{RegexpMatch, RegexpMatchParseError},
     sigbytes::{AppendSigBytes, FromSigBytes},
-    signature::{FromSigBytesParseError, SigMeta, SigValidationError, Signature, Validate},
+    signature::{FromSigBytesParseError, SigMeta, Signature},
     util::{
         parse_bool_from_int, parse_field, parse_number_dec, unescaped_element,
         ParseBoolFromIntError, ParseNumberError, Range, RangeParseError,
@@ -241,8 +241,6 @@ impl Signature for ContainerMetadataSig {
         &self.name
     }
 }
-
-impl Validate<SigValidationError> for ContainerMetadataSig {}
 
 impl EngineReq for ContainerMetadataSig {
     fn features(&self) -> crate::feature::FeatureSet {

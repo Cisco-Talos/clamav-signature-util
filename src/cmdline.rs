@@ -185,19 +185,19 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
             );
         }
         let sigbuf = sigbuf.into();
-        match clam_sigutil::signature::parse_from_cvd(sig_type, &sigbuf) {
-            Ok(sig) => {
+        match clam_sigutil::signature::parse_from_cvd_with_meta(sig_type, &sigbuf) {
+            Ok((sig, sigmeta)) => {
                 if opt.dump_debug_long {
-                    println!(" * {:#?} f_level{:?}", sig, sig.feature_levels());
+                    println!(" * {:#?} f_level{:?}", sig, sig.computed_feature_level());
                 } else if opt.dump_debug {
-                    println!(" * {:?} f_level{:?}", sig, sig.feature_levels());
+                    println!(" * {:?} f_level{:?}", sig, sig.computed_feature_level());
                 }
                 if opt.print_features {
                     println!(" > {:?}", sig.features());
                 }
 
                 if opt.validate {
-                    if let Err(e) = sig.validate() {
+                    if let Err(e) = sig.validate(&sigmeta) {
                         eprintln!(
                             "Signature on line {} failed validation:\n  {}\n  Error: {}\n",
                             line_no, sigbuf, e

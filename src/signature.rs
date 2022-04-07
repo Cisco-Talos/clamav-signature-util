@@ -32,9 +32,7 @@ use std::collections::TryReserveError;
 use thiserror::Error;
 
 /// Required functionality for a Signature.
-pub trait Signature:
-    std::fmt::Debug + EngineReq + AppendSigBytes + Downcast + Validate<SigValidationError>
-{
+pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes + Downcast {
     /// Signature name
     fn name(&self) -> &str;
 
@@ -46,13 +44,66 @@ pub trait Signature:
         self.append_sigbytes(&mut sb)?;
         Ok(sb)
     }
+
+    /// Perform all specified validation steps for a signature.
+    fn validate(&self, sigmeta: &SigMeta) -> Result<(), SigValidationError> {
+        self.validate_subelements()?;
+        self.validate_flevel(sigmeta)?;
+        Ok(())
+    }
+
+    /// Validate a signature's constitute elements and/or their relationship to
+    /// one another.
+    fn validate_subelements(&self) -> Result<(), SigValidationError> {
+        Ok(())
+    }
+
+    /// Validate a signature's elements, additional verifying that its metadata
+    /// (i.e., specified min/max feature levels) doesn't conflict with any of the
+    /// elements' constraints
+    fn validate_flevel(&self, sigmeta: &SigMeta) -> Result<(), SigValidationError> {
+        // Check the specified vs. the computed feature level
+        if let Some(computed_flevel) = self.computed_feature_level() {
+            if let Some(computed_min_flevel) = computed_flevel.start() {
+                // Some features within this signature have a minimum feature level.
+                // Confirm that the signature specifies it (or a higher level)
+                match &sigmeta.f_level {
+                    Some(f_level) => match f_level.start() {
+                        Some(spec_min_flevel) => {
+                            if spec_min_flevel < computed_min_flevel {
+                                return Err(SigValidationError::SpecifiedMinFLevelTooLow {
+                                    spec_min_flevel,
+                                    computed_min_flevel,
+                                });
+                            }
+                        }
+                        None => {
+                            // This is the [unlikely] case where a *maximum* FLevel
+                            // was specified without a minimum, but a minimum is required.
+                            return Err(SigValidationError::MinFLevelNotSpecified {
+                                computed_min_flevel,
+                            });
+                        }
+                    },
+                    None => {
+                        return Err(SigValidationError::MinFLevelNotSpecified {
+                            computed_min_flevel,
+                        });
+                    }
+                }
+            }
+            // TODO: check maximum, as well (but maximums are not presently computed)
+        }
+
+        Ok(())
+    }
 }
 
 impl_downcast!(Signature);
 
-pub trait Validate<E: Into<SigValidationError>> {
-    /// Perform additional validation on a signature
-    fn validate(&self) -> Result<(), E> {
+pub trait Validate {
+    /// Perform additional validation on a signature element
+    fn validate(&self) -> Result<(), SigValidationError> {
         Ok(())
     }
 }
@@ -188,4 +239,13 @@ pub enum SigValidationError {
 
     #[error("validating container metadata signature: {0}")]
     ContainerMetaSig(#[from] container_metadata::ContainerMetadataSigValidationError),
+
+    #[error("specified minimum feature level ({spec_min_flevel}) is lower than computed ({computed_min_flevel}")]
+    SpecifiedMinFLevelTooLow {
+        spec_min_flevel: u32,
+        computed_min_flevel: u32,
+    },
+
+    #[error("minimum feature level unspecified; must be at least ({computed_min_flevel})")]
+    MinFLevelNotSpecified { computed_min_flevel: u32 },
 }

@@ -1,9 +1,7 @@
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
-    signature::{
-        hash::HashSigParseError, FromSigBytesParseError, SigMeta, SigValidationError, Validate,
-    },
+    signature::{hash::HashSigParseError, FromSigBytesParseError, SigMeta},
     util::{self, parse_field, parse_number_dec, Hash},
     Signature,
 };
@@ -22,8 +20,6 @@ impl Signature for FileHashSig {
         &self.name
     }
 }
-
-impl Validate<SigValidationError> for FileHashSig {}
 
 impl EngineReq for FileHashSig {
     fn features(&self) -> FeatureSet {

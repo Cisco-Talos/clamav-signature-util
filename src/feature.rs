@@ -3,6 +3,7 @@ mod features {
     include!(concat!(env!("OUT_DIR"), "/features.rs"));
 }
 
+use crate::util::Range;
 pub use features::Feature;
 
 /// A trait that allows definition of a set of engine features (and an associated
@@ -14,13 +15,14 @@ pub trait EngineReq {
         FeatureSet::default()
     }
 
-    /// The minimum and optional maximum feature levels for which this
-    /// signature is supported (as derived from the required features)
-    fn feature_levels(&self) -> (Option<u32>, Option<u32>) {
-        (
-            self.features().into_iter().map(|f| f.min_flevel()).max(),
-            None,
-        )
+    /// The range of feature levels for which this signature is supported (as
+    /// derived from the required features)
+    fn computed_feature_level(&self) -> Option<Range<u32>> {
+        self.features()
+            .into_iter()
+            .map(|f| f.min_flevel())
+            .max()
+            .map(|start| (start..).into())
     }
 }
 

@@ -1,10 +1,7 @@
 use crate::{
     feature::{EngineReq, Feature, FeatureSet},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
-    signature::{
-        hash::HashSigParseError, FromSigBytesParseError, SigMeta, SigValidationError, Signature,
-        Validate,
-    },
+    signature::{hash::HashSigParseError, FromSigBytesParseError, SigMeta, Signature},
     util::{self, parse_field, parse_number_dec, Hash},
 };
 use std::{fmt::Write, str};
@@ -22,8 +19,6 @@ impl Signature for PESectionHashSig {
         &self.name
     }
 }
-
-impl Validate<SigValidationError> for PESectionHashSig {}
 
 impl EngineReq for PESectionHashSig {
     fn features(&self) -> FeatureSet {
