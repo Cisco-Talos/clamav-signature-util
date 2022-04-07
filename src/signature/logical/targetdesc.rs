@@ -85,6 +85,9 @@ pub enum TargetDescValidationError {
 
     #[error("{attr} disallowed without native executable Target")]
     AttrRequiresNativeExecTarget { attr: &'static str },
+
+    #[error("IconGroup1/2 requires PE Target (found {target_type:?})")]
+    IconGroupRequiresTargetTypePE { target_type: Option<TargetType> },
 }
 
 impl AppendSigBytes for TargetDesc {
@@ -246,6 +249,7 @@ impl TargetDesc {
     pub(crate) fn validate(&self) -> Result<(), TargetDescValidationError> {
         self.validate_engine()?;
         self.validate_native_exec_attrs()?;
+        self.validate_icongroup()?;
         Ok(())
     }
 
@@ -298,6 +302,7 @@ impl TargetDesc {
     fn validate_native_exec_attrs(&self) -> Result<(), TargetDescValidationError> {
         let mut is_native_exec = false;
         let mut found_attr = None;
+
         for attr in &self.attrs {
             match attr {
                 TargetDescAttr::TargetType(target_type) => {
@@ -316,6 +321,38 @@ impl TargetDesc {
         }
 
         Ok(())
+    }
+
+    // IconGroup1/2 are only allowed when the TargetType is "PE"
+    fn validate_icongroup(&self) -> Result<(), TargetDescValidationError> {
+        let mut found_icongroup = false;
+        let mut target_type = None;
+
+        for attr in &self.attrs {
+            match attr {
+                TargetDescAttr::TargetType(TargetType::PE) => return Ok(()),
+                TargetDescAttr::TargetType(tt) => {
+                    target_type = Some(*tt);
+                    if found_icongroup {
+                        break;
+                    }
+                }
+                TargetDescAttr::IconGroup1(_) | TargetDescAttr::IconGroup2(_) => {
+                    found_icongroup = true;
+                    if target_type.is_some() {
+                        break;
+                    }
+                }
+                _ => (),
+            }
+        }
+
+        // This is only reached if no TargetType was present, or the TargetType wasn't PE
+        if found_icongroup {
+            return Err(TargetDescValidationError::IconGroupRequiresTargetTypePE { target_type });
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -477,5 +514,52 @@ mod tests {
                 attr: "NumberOfSections"
             })
         )
+    }
+
+    #[test]
+    fn clam_1741_icongroup_requires_pe_target() {
+        let desc = TargetDesc {
+            attrs: vec![
+                TargetDescAttr::Engine((51..=99).into()),
+                TargetDescAttr::TargetType(TargetType::Any),
+                TargetDescAttr::IconGroup1("test".into()),
+            ],
+        };
+        let result = desc.validate();
+        assert_eq!(
+            result,
+            Err(TargetDescValidationError::IconGroupRequiresTargetTypePE {
+                target_type: Some(TargetType::Any)
+            })
+        );
+
+        // Reverse the attributes to test the alternative logic
+        let desc = TargetDesc {
+            attrs: vec![
+                TargetDescAttr::Engine((51..=99).into()),
+                TargetDescAttr::IconGroup1("test".into()),
+                TargetDescAttr::TargetType(TargetType::Any),
+            ],
+        };
+        let result = desc.validate();
+        assert_eq!(
+            result,
+            Err(TargetDescValidationError::IconGroupRequiresTargetTypePE {
+                target_type: Some(TargetType::Any)
+            })
+        );
+
+        // And test with no TargetType at all
+        let desc = TargetDesc {
+            attrs: vec![
+                TargetDescAttr::Engine((51..=99).into()),
+                TargetDescAttr::IconGroup1("test".into()),
+            ],
+        };
+        let result = desc.validate();
+        assert_eq!(
+            result,
+            Err(TargetDescValidationError::IconGroupRequiresTargetTypePE { target_type: None })
+        );
     }
 }
