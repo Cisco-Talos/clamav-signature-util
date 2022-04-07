@@ -240,7 +240,7 @@ pub enum SigValidationError {
     #[error("validating container metadata signature: {0}")]
     ContainerMetaSig(#[from] container_metadata::ContainerMetadataSigValidationError),
 
-    #[error("specified minimum feature level ({spec_min_flevel}) is lower than computed ({computed_min_flevel}")]
+    #[error("specified minimum feature level ({spec_min_flevel}) is lower than computed ({computed_min_flevel})")]
     SpecifiedMinFLevelTooLow {
         spec_min_flevel: u32,
         computed_min_flevel: u32,
