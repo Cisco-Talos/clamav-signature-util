@@ -252,6 +252,19 @@ pub enum Range<T: std::str::FromStr> {
     Inclusive(RangeInclusive<T>),
 }
 
+impl<T: std::str::FromStr + Clone> Range<T> {
+    /// Obtain the lower bound of a range, if applicable (or None, if the range
+    /// has no lower bound)
+    pub fn start(&self) -> Option<T> {
+        match self {
+            Range::Exact(n) => Some(n.clone()),
+            Range::ToInclusive(_) => None,
+            Range::From(r) => Some(r.start.clone()),
+            Range::Inclusive(r) => Some(r.start().clone()),
+        }
+    }
+}
+
 impl<T: std::str::FromStr> From<std::ops::RangeToInclusive<T>> for Range<T> {
     fn from(r: std::ops::RangeToInclusive<T>) -> Self {
         Self::ToInclusive(r)
