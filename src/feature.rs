@@ -16,7 +16,7 @@ pub trait EngineReq {
 
     /// The minimum and optional maximum feature levels for which this
     /// signature is supported (as derived from the required features)
-    fn feature_levels(&self) -> (Option<usize>, Option<usize>) {
+    fn feature_levels(&self) -> (Option<u32>, Option<u32>) {
         (
             self.features().into_iter().map(|f| f.min_flevel()).max(),
             None,

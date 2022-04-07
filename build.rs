@@ -97,7 +97,7 @@ pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), 
             .join("\n")
     )?;
     writeln!(ofh, "impl Feature {{")?;
-    writeln!(ofh, "    pub fn min_flevel(&self) -> usize {{")?;
+    writeln!(ofh, "    pub fn min_flevel(&self) -> u32 {{")?;
     writeln!(ofh, "        match self {{")?;
     ofh.write_all(
         feature_flevel
