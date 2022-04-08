@@ -76,3 +76,12 @@ impl AppendSigBytes for TargetType {
         }
     }
 }
+
+impl TargetType {
+    /// Whether the specified TargetType is a directly executable format (i.e.,
+    /// does not require an interpreter or intermediate loader such as a Java
+    /// runtime, shell, etc.)
+    pub fn is_native_executable(&self) -> bool {
+        matches!(self, TargetType::PE | TargetType::ELF | TargetType::MachO)
+    }
+}

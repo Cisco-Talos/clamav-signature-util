@@ -82,6 +82,9 @@ pub enum TargetDescValidationError {
 
     #[error("TargetDesc {found:?} attr requires Engine attr")]
     AttrRequiresEngine { found: TargetDescAttr },
+
+    #[error("{attr} disallowed without native executable Target")]
+    AttrRequiresNativeExecTarget { attr: &'static str },
 }
 
 impl AppendSigBytes for TargetDesc {
@@ -152,7 +155,7 @@ impl TryFrom<&[u8]> for TargetDesc {
 
                 b"NumberOfSections" => {
                     let number_of_sections = util::parse_range_inclusive(value.ok_or(
-                        TargetDescParseError::TargetDescAttrMissingValue("EntryPoint"),
+                        TargetDescParseError::TargetDescAttrMissingValue("NumberOfSections"),
                     )?)
                     .map_err(TargetDescParseError::NumberOfSections)?;
                     tdesc
@@ -241,6 +244,12 @@ impl EngineReq for TargetDesc {
 
 impl TargetDesc {
     pub(crate) fn validate(&self) -> Result<(), TargetDescValidationError> {
+        self.validate_engine()?;
+        self.validate_native_exec_attrs()?;
+        Ok(())
+    }
+
+    fn validate_engine(&self) -> Result<(), TargetDescValidationError> {
         // See CLAM-1742 for additional details.
 
         // Search for the Engine attribute (along with its index)
@@ -278,6 +287,31 @@ impl TargetDesc {
                 return Err(TargetDescValidationError::AttrRequiresEngine {
                     found: attr.clone(),
                 });
+            }
+        }
+
+        Ok(())
+    }
+
+    // Verify that the EntryPoint and NumberOfSections attributes are present
+    // only when a native executable target is specified.
+    fn validate_native_exec_attrs(&self) -> Result<(), TargetDescValidationError> {
+        let mut is_native_exec = false;
+        let mut found_attr = None;
+        for attr in &self.attrs {
+            match attr {
+                TargetDescAttr::TargetType(target_type) => {
+                    is_native_exec = target_type.is_native_executable()
+                }
+                TargetDescAttr::EntryPoint(_) => found_attr = Some("EntryPoint"),
+                TargetDescAttr::NumberOfSections(_) => found_attr = Some("NumberOfSections"),
+                _ => (),
+            }
+        }
+
+        if let Some(attr) = found_attr {
+            if !is_native_exec {
+                return Err(TargetDescValidationError::AttrRequiresNativeExecTarget { attr });
             }
         }
 
@@ -417,5 +451,31 @@ mod tests {
             result,
             Err(TargetDescValidationError::AttrRequiresEngine { found: ATTR })
         );
+    }
+
+    #[test]
+    fn clam_1749_disallow_ep_without_binary_target() {
+        let desc = TargetDesc {
+            attrs: vec![TargetDescAttr::EntryPoint((5..).into())],
+        };
+        let result = desc.validate();
+        assert_eq!(
+            result,
+            Err(TargetDescValidationError::AttrRequiresNativeExecTarget { attr: "EntryPoint" })
+        )
+    }
+
+    #[test]
+    fn clam_1749_disallow_nos_without_binary_target() {
+        let desc = TargetDesc {
+            attrs: vec![TargetDescAttr::NumberOfSections((5..).into())],
+        };
+        let result = desc.validate();
+        assert_eq!(
+            result,
+            Err(TargetDescValidationError::AttrRequiresNativeExecTarget {
+                attr: "NumberOfSections"
+            })
+        )
     }
 }
