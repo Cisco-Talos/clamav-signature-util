@@ -12,7 +12,7 @@ use crate::{
     sigbytes::{AppendSigBytes, FromSigBytes},
     signature::{
         bodysig::BodySigParseError, ext::ExtendedSig, FromSigBytesParseError, SigMeta,
-        SigValidationError, Signature, Validate,
+        SigValidationError, Signature,
     },
     util::Range,
 };
@@ -65,6 +65,13 @@ pub enum LogicalSigValidationError {
 impl Signature for LogicalSig {
     fn name(&self) -> &str {
         &self.name
+    }
+
+    fn validate_subelements(&self) -> Result<(), SigValidationError> {
+        self.target_desc
+            .validate()
+            .map_err(LogicalSigValidationError::TargetDesc)?;
+        Ok(())
     }
 }
 
@@ -159,15 +166,6 @@ impl AppendSigBytes for LogicalSig {
                 sub_sig.append_sigbytes(sb)?;
             }
         }
-        Ok(())
-    }
-}
-
-impl Validate<SigValidationError> for LogicalSig {
-    fn validate(&self) -> Result<(), SigValidationError> {
-        self.target_desc
-            .validate()
-            .map_err(LogicalSigValidationError::TargetDesc)?;
         Ok(())
     }
 }
@@ -365,5 +363,20 @@ mod tests {
         let (sig, _) = LogicalSig::from_sigbytes(&raw_sig).unwrap();
         let exported = sig.to_sigbytes().unwrap();
         assert_eq!(raw_sig, exported);
+    }
+
+    #[test]
+    fn validate_min_flevel() {
+        // This signature contains a PCRE subsig, which should force a minimum
+        // feature level of 81 per the `feature-level.txt` file.
+        let raw_sig = br#"TestSig;Engine:80-255;0;/foobar/"#.into();
+        let (sig, sigmeta) = LogicalSig::from_sigbytes(&raw_sig).unwrap();
+        assert_eq!(
+            sig.validate(&sigmeta),
+            Err(SigValidationError::SpecifiedMinFLevelTooLow {
+                spec_min_flevel: 80,
+                computed_min_flevel: 81
+            })
+        );
     }
 }

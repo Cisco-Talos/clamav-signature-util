@@ -2,7 +2,7 @@ use crate::{
     feature::EngineReq,
     regexp::{RegexpMatch, RegexpMatchParseError},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
-    signature::{SigMeta, SigValidationError, ToSigBytesError, Validate},
+    signature::{SigMeta, ToSigBytesError},
     util::{
         parse_field, parse_number_dec, parse_range_inclusive, string_from_bytes, unescaped_element,
         ParseNumberError, RangeInclusiveParseError,
@@ -98,8 +98,6 @@ impl Signature for PhishingSig {
         "?"
     }
 }
-
-impl Validate<SigValidationError> for PhishingSig {}
 
 impl EngineReq for PhishingSig {
     fn features(&self) -> crate::feature::FeatureSet {
