@@ -6,6 +6,8 @@ pub mod container_metadata;
 pub mod ext;
 /// File hash signature support
 pub mod filehash;
+/// Filetype Magic signatures
+pub mod ftmagic;
 /// Common functionality for hash-based signatures
 pub mod hash;
 pub mod intmask;
@@ -195,6 +197,7 @@ pub fn parse_from_cvd_with_meta(
             container_metadata::ContainerMetadataSig::from_sigbytes(data)?
         }
         SigType::PhishingURL => phishing::PhishingSig::from_sigbytes(data)?,
+        SigType::FTMagic => ftmagic::FTMagicSig::from_sigbytes(data)?,
         _ => return Err(FromSigBytesParseError::UnsupportedSigType),
     };
 
@@ -227,6 +230,9 @@ pub enum FromSigBytesParseError {
 
     #[error("parsing phishing URL signature: {0}")]
     PhishingSig(#[from] phishing::PhishingSigParseError),
+
+    #[error("parsing file type magic signature: {0}")]
+    FTMagicSig(#[from] ftmagic::FTMagicParseError),
 }
 
 #[derive(Error, Debug, PartialEq)]
