@@ -1,13 +1,13 @@
 use super::super::targettype::TargetType;
 use crate::{
     feature::{EngineReq, FeatureSet},
-    filetype::FileType,
+    filetype::{FileType, FileTypeParseError},
     sigbytes::{AppendSigBytes, SigBytes},
     signature::ToSigBytesError,
     util::{self, parse_number_dec, ParseNumberError, Range},
 };
 use num_traits::{FromPrimitive, ToPrimitive};
-use std::{fmt::Write, str, str::FromStr};
+use std::{fmt::Write, str};
 use thiserror::Error;
 
 // The minimum Engine (flevel) that must be present when the Engine attribute is
@@ -49,18 +49,13 @@ pub enum TargetDescParseError {
     NumberOfSections(util::RangeInclusiveParseError<usize>),
 
     #[error("parsing container value: {0}")]
-    Container(std::str::Utf8Error),
+    Container(FileTypeParseError),
 
-    // Intermediate containers have two possible errors, UTF-8 conversion…
     #[error("parsing Intermediate container element: {0}")]
-    IntermediateContainer(std::str::Utf8Error),
-
-    // …and resolving to a known container type
-    #[error("resolving Intermediate container element: {0}")]
-    IntermediateContainerFileType(strum::ParseError),
+    IntermediateContainer(FileTypeParseError),
 
     #[error("parsing container value: {0}")]
-    HandlerType(std::str::Utf8Error),
+    HandlerType(FileTypeParseError),
 
     #[error("parsing IconGroup1 value: {0}")]
     IconGroup1(std::str::Utf8Error),
@@ -169,13 +164,12 @@ impl TryFrom<&[u8]> for TargetDesc {
                 }
 
                 b"Container" => {
-                    let container = FileType::from_str(
-                        str::from_utf8(value.ok_or(
-                            TargetDescParseError::TargetDescAttrMissingValue("Container"),
-                        )?)
-                        .map_err(TargetDescParseError::Container)?,
-                    )
-                    .map_err(|_| TargetDescParseError::UnknownFileType)?;
+                    let container = value
+                        .ok_or(TargetDescParseError::TargetDescAttrMissingValue(
+                            "Container",
+                        ))?
+                        .try_into()
+                        .map_err(TargetDescParseError::Container)?;
                     tdesc.attrs.push(TargetDescAttr::Container(container));
                 }
                 b"Intermediates" => {
@@ -187,11 +181,9 @@ impl TryFrom<&[u8]> for TargetDesc {
                         .split(|&b| b == b'>')
                     {
                         containers.push(
-                            FileType::from_str(
-                                str::from_utf8(container)
-                                    .map_err(TargetDescParseError::IntermediateContainer)?,
-                            )
-                            .map_err(TargetDescParseError::IntermediateContainerFileType)?,
+                            container
+                                .try_into()
+                                .map_err(TargetDescParseError::IntermediateContainer)?,
                         );
                     }
                     tdesc.attrs.push(TargetDescAttr::Intermediates(containers));
@@ -213,13 +205,12 @@ impl TryFrom<&[u8]> for TargetDesc {
                     tdesc.attrs.push(TargetDescAttr::IconGroup2(icon_group_2));
                 }
                 b"HandlerType" => {
-                    let handler_type = FileType::from_str(
-                        str::from_utf8(value.ok_or(
-                            TargetDescParseError::TargetDescAttrMissingValue("Container"),
-                        )?)
-                        .map_err(TargetDescParseError::HandlerType)?,
-                    )
-                    .map_err(|_| TargetDescParseError::UnknownFileType)?;
+                    let handler_type = value
+                        .ok_or(TargetDescParseError::TargetDescAttrMissingValue(
+                            "Container",
+                        ))?
+                        .try_into()
+                        .map_err(TargetDescParseError::HandlerType)?;
                     tdesc.attrs.push(TargetDescAttr::HandlerType(handler_type));
                 }
                 s => return Err(TargetDescParseError::UnknownTargetDescAttr(s.into())),
@@ -349,7 +340,7 @@ impl TargetDesc {
 
         // This is only reached if no TargetType was present, or the TargetType wasn't PE
         if found_icongroup {
-            return Err(TargetDescValidationError::IconGroupRequiresTargetTypePE { target_type });
+            Err(TargetDescValidationError::IconGroupRequiresTargetTypePE { target_type })
         } else {
             Ok(())
         }

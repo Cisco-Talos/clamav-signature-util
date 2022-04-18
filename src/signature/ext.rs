@@ -138,6 +138,19 @@ pub enum OffsetParseError {
     ParseMaxShift(ParseNumberError<usize>),
 }
 
+impl Offset {
+    /// Return the offset value if the offset is a normal (non-floating)
+    /// offset, and is of OffsetPos::Absolute.  Returns None if the offset is
+    /// of any other type.
+    pub fn absolute(&self) -> Option<usize> {
+        if let Offset::Normal(OffsetPos::Absolute(value)) = self {
+            Some(*value)
+        } else {
+            None
+        }
+    }
+}
+
 impl AppendSigBytes for Offset {
     fn append_sigbytes(&self, s: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         if matches!(self, Offset::Normal(OffsetPos::Any)) {

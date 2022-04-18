@@ -38,6 +38,18 @@ pub trait AppendSigBytes {
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError>;
 }
 
+// Simple hex encoding of binary sequences, the most-typical representation within
+// signature databases for literal strings.
+impl AppendSigBytes for &[u8] {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
+        use std::fmt::Write;
+        for byte in self.iter() {
+            write!(sb, "{:02x}", byte)?;
+        }
+        Ok(())
+    }
+}
+
 pub trait FromSigBytes {
     fn from_sigbytes<'a, SB: Into<&'a SigBytes>>(
         sb: SB,

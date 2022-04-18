@@ -16,6 +16,8 @@ pub enum SigType {
     PhishingURL,
     /// [File Hash signature](crate::signature::filehash::FileHashSig)
     FileHash,
+    /// [Filetype Magic signature](crate::signature::filetype_magic::FTMagic)
+    FTMagic,
     /// [Portable Executable Section Hash signature](crate::signature::pehash::PESectionHashSig)
     PESectionHash,
     /// Yara signature
@@ -68,6 +70,9 @@ impl SigType {
             "hdb" | "hsb" | "hdu" | "hsu" => SigType::FileHash,
             // PE section has signatures
             "mdb" | "msb" | "mdu" | "msu" => SigType::PESectionHash,
+
+            // Filetype Magic signatures
+            "ftm" => SigType::FTMagic,
 
             _ => return None,
         })
