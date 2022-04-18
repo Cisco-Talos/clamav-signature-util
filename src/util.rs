@@ -32,6 +32,19 @@ impl Hash {
     }
 }
 
+impl AppendSigBytes for Hash {
+    fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
+        // All of the contained data types are differently-sized arrays, hence
+        // the need for separate match arms
+        match self {
+            Hash::Md5(bytes) => bytes.as_slice().append_sigbytes(sb)?,
+            Hash::Sha1(bytes) => bytes.as_slice().append_sigbytes(sb)?,
+            Hash::Sha2_256(bytes) => bytes.as_slice().append_sigbytes(sb)?,
+        }
+        Ok(())
+    }
+}
+
 impl std::fmt::Display for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // This is designed to operate without additional allocations
