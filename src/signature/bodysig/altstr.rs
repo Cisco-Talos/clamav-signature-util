@@ -219,9 +219,7 @@ impl AppendSigBytes for AlternateStrings {
                     if i > 0 {
                         sb.write_char('|')?;
                     }
-                    for byte in astr {
-                        write!(sb, "{byte:02x}")?
-                    }
+                    astr.append_sigbytes(sb)?;
                 }
             }
             AlternateStrings::Generic {
@@ -234,13 +232,13 @@ impl AppendSigBytes for AlternateStrings {
                     }
                     match astr {
                         GenAltString::Literal(range) => {
-                            append_hex(sb, data.get(range.clone()).unwrap())?
+                            data.get(range.clone()).unwrap().append_sigbytes(sb)?;
                         }
                         GenAltString::Mixed(genalts) => {
                             for genalt in genalts {
                                 match genalt {
                                     AltStrSegment::Literal(range) => {
-                                        append_hex(sb, data.get(range.clone()).unwrap())?
+                                        data.get(range.clone()).unwrap().append_sigbytes(sb)?
                                     }
                                     AltStrSegment::Wildcard(wc) => write!(sb, "{:x}", wc)?,
                                 }
@@ -253,13 +251,6 @@ impl AppendSigBytes for AlternateStrings {
         }
         Ok(())
     }
-}
-
-fn append_hex(sb: &mut SigBytes, data: &[u8]) -> std::fmt::Result {
-    for byte in data {
-        write!(sb, "{byte:02x}")?
-    }
-    Ok(())
 }
 
 #[cfg(test)]

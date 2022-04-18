@@ -60,12 +60,7 @@ impl std::fmt::Debug for Match {
 impl AppendSigBytes for Match {
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         match self {
-            Match::Literal(bytes) => {
-                // Is this any faster than using hex::encode (with its allocation)?
-                for byte in bytes {
-                    write!(sb, "{byte:02x}")?
-                }
-            }
+            Match::Literal(bytes) => bytes.as_slice().append_sigbytes(sb)?,
             Match::AlternateStrings(astrs) => {
                 if let AlternateStrings::FixedWidth { negated: true, .. } = astrs {
                     sb.write_char('!')?;
