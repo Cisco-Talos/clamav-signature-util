@@ -43,6 +43,8 @@ pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), 
     let mut flevel_versions = BTreeMap::new();
     let mut feature_flevel = BTreeMap::new();
 
+    let filetype_features = load_filetypes(manifest_dir, output_dir)?;
+
     for line in ifh.lines().map(Result::unwrap) {
         let line = line.trim();
         // Skip comments
@@ -86,16 +88,15 @@ pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), 
 
     let mut ofh = BufWriter::new(File::create(output_dir.join("features.rs"))?);
     writeln!(ofh, "/// An identifier of an engine feature required for parsing and/or matching a particular signature or signature element.")?;
-    writeln!(ofh, "#[derive(Debug, Clone, Copy)]")?;
-    writeln!(
-        ofh,
-        "pub enum Feature {{\n{}\n}}",
-        feature_flevel
-            .iter()
-            .map(|(feature, _)| format!("    {},", feature))
-            .collect::<Vec<String>>()
-            .join("\n")
-    )?;
+    writeln!(ofh, "#[derive(Clone, Debug, Copy, PartialEq)]")?;
+    writeln!(ofh, "pub enum Feature {{")?;
+    feature_flevel
+        .iter()
+        .for_each(|(feature, _)| writeln!(ofh, "    {},", feature).unwrap());
+    filetype_features
+        .iter()
+        .for_each(|(feature, _)| writeln!(ofh, "    {},", feature).unwrap());
+    writeln!(ofh, "}}")?;
     writeln!(ofh, "impl Feature {{")?;
     writeln!(ofh, "    pub fn min_flevel(&self) -> u32 {{")?;
     writeln!(ofh, "        match self {{")?;
@@ -107,9 +108,99 @@ pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), 
             .join("")
             .as_bytes(),
     )?;
+    ofh.write_all(
+        filetype_features
+            .iter()
+            .filter(|(_, &flevel)| flevel > 0)
+            .map(|(feature, flevel)| format!("        Feature::{} => {},\n", feature, flevel))
+            .collect::<Vec<String>>()
+            .join("")
+            .as_bytes(),
+    )?;
     writeln!(ofh, "        }}")?;
     writeln!(ofh, "    }}")?;
     writeln!(ofh, "}}")?;
 
     Ok(())
+}
+
+pub fn load_filetypes(
+    manifest_dir: &Path,
+    output_dir: &Path,
+) -> Result<BTreeMap<String, u32>, std::io::Error> {
+    println!("cargo:rerun-if-changed=filetypes.txt");
+    let ifh = BufReader::new(File::open(manifest_dir.join("filetypes.txt"))?);
+    // Mapping of FileType feature tags to minimum FLevel
+    let mut filetype_min_flevel = BTreeMap::new();
+    // Mapping of the textual (C constant) file types to CamelCase feature tags
+    let mut filetype_feature_tag = BTreeMap::new();
+
+    for line in ifh.lines().map(Result::unwrap) {
+        let mut flevel: Option<u32> = None;
+        let mut these_filetypes = vec![];
+        let line = line.trim();
+
+        // Skip comments
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        for element in line.split_ascii_whitespace() {
+            dbg!(&element);
+            if let Ok(n) = element.parse() {
+                flevel = Some(n)
+            } else if element.starts_with("CL_TYPE_") {
+                these_filetypes.push(element.to_owned());
+            }
+        }
+        dbg!(&these_filetypes);
+
+        // This should be present on every line
+        let flevel = flevel.expect("flevel");
+
+        these_filetypes.into_iter().for_each(|ft| {
+            let feature_tag = format!(
+                "FileType{}",
+                change_case::pascal_case(ft.strip_prefix("CL_TYPE_").unwrap())
+            );
+            if flevel > 0 {
+                filetype_min_flevel.insert(feature_tag.clone(), flevel);
+            }
+            filetype_feature_tag.insert(ft, feature_tag);
+        });
+    }
+
+    // Write out the C-style constants
+    {
+        let mut ofh = BufWriter::new(File::create(output_dir.join("filetypes-c_const"))?);
+        writeln!(ofh, "#[allow(non_camel_case_types)]")?;
+        writeln!(
+            ofh,
+            "#[derive(Clone, Debug, PartialEq, Display, EnumString, FromPrimitive, ToPrimitive)]"
+        )?;
+        writeln!(ofh, "pub enum FileType {{")?;
+        filetype_feature_tag.iter().for_each(|(filetype, _)| {
+            writeln!(ofh, "{filetype},").unwrap();
+        });
+        writeln!(ofh, "}}")?;
+    }
+
+    // Write out string-constant-to-CamelCase match arms
+    {
+        let mut ofh = BufWriter::new(File::create(
+            output_dir.join("filetypes-match-filetype-to-feature_tag.rs"),
+        )?);
+        writeln!(ofh, "match self {{")?;
+        filetype_feature_tag
+            .iter()
+            .filter(|(_, feature_tag)| filetype_min_flevel.get(feature_tag.as_str()).is_some())
+            .for_each(|(filetype, feature_tag)| {
+                writeln!(ofh, "FileType::{filetype} => Some(Feature::{feature_tag}),").unwrap();
+            });
+        writeln!(ofh, "_ => None,")?;
+        writeln!(ofh, "}}")?;
+    }
+
+    // These will be folded into the feature-tag/feature-level table
+    Ok(filetype_min_flevel)
 }
