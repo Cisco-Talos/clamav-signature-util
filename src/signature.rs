@@ -24,7 +24,7 @@ pub mod targettype;
 
 use self::logical::LogicalSigValidationError;
 use crate::{
-    feature::EngineReq,
+    feature::{EngineReq, FeatureSetWithMinFlevel},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     util::Range,
     SigType,
@@ -76,6 +76,7 @@ pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes + Downcast {
                                 return Err(SigValidationError::SpecifiedMinFLevelTooLow {
                                     spec_min_flevel,
                                     computed_min_flevel,
+                                    feature_set: self.features().into(),
                                 });
                             }
                         }
@@ -84,12 +85,14 @@ pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes + Downcast {
                             // was specified without a minimum, but a minimum is required.
                             return Err(SigValidationError::MinFLevelNotSpecified {
                                 computed_min_flevel,
+                                feature_set: self.features().into(),
                             });
                         }
                     },
                     None => {
                         return Err(SigValidationError::MinFLevelNotSpecified {
                             computed_min_flevel,
+                            feature_set: self.features().into(),
                         });
                     }
                 }
@@ -246,12 +249,16 @@ pub enum SigValidationError {
     #[error("validating container metadata signature: {0}")]
     ContainerMetaSig(#[from] container_metadata::ContainerMetadataSigValidationError),
 
-    #[error("specified minimum feature level ({spec_min_flevel}) is lower than computed ({computed_min_flevel})")]
+    #[error("specified minimum feature level ({spec_min_flevel}) is lower than computed ({computed_min_flevel}), requires features {feature_set:?}")]
     SpecifiedMinFLevelTooLow {
         spec_min_flevel: u32,
         computed_min_flevel: u32,
+        feature_set: FeatureSetWithMinFlevel,
     },
 
-    #[error("minimum feature level unspecified; must be at least ({computed_min_flevel})")]
-    MinFLevelNotSpecified { computed_min_flevel: u32 },
+    #[error("minimum feature level unspecified; must be at least ({computed_min_flevel}), requires features {feature_set:?}")]
+    MinFLevelNotSpecified {
+        computed_min_flevel: u32,
+        feature_set: FeatureSetWithMinFlevel,
+    },
 }
