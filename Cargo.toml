@@ -28,3 +28,6 @@ regex = {version = "1", optional = true}
 [[bin]]
 name = "clam-sigutil"
 path = "src/cmdline.rs"
+
+[build-dependencies]
+change-case = "0.2"

@@ -5,6 +5,7 @@ use crate::{
     sigbytes::{AppendSigBytes, SigBytes},
     signature::ToSigBytesError,
     util::{self, parse_number_dec, ParseNumberError, Range},
+    Feature,
 };
 use num_traits::{FromPrimitive, ToPrimitive};
 use std::{fmt::Write, str};
@@ -223,16 +224,19 @@ impl TryFrom<&[u8]> for TargetDesc {
 
 impl EngineReq for TargetDesc {
     fn features(&self) -> FeatureSet {
-        self.attrs
-            .iter()
-            .find_map(|attr| {
-                if let TargetDescAttr::TargetType(target_type) = attr {
-                    Some(target_type.features())
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_default()
+        FeatureSet::from(
+            self.attrs
+                .iter()
+                .filter_map(|attr| match attr {
+                    TargetDescAttr::TargetType(target_type) => Some(target_type.features()),
+                    TargetDescAttr::Container(file_type) => Some(file_type.features()),
+                    TargetDescAttr::HandlerType(file_type) => Some(file_type.features()),
+                    _ => None,
+                })
+                .flatten()
+                .collect::<Vec<Feature>>()
+                .into_iter(),
+        )
     }
 }
 

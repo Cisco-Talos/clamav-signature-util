@@ -375,7 +375,8 @@ mod tests {
             sig.validate(&sigmeta),
             Err(SigValidationError::SpecifiedMinFLevelTooLow {
                 spec_min_flevel: 80,
-                computed_min_flevel: 81
+                computed_min_flevel: 81,
+                feature_set: sig.features().into(),
             })
         );
     }

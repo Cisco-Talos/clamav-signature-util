@@ -4,7 +4,7 @@ use super::{
     FromSigBytesParseError, SigMeta,
 };
 use crate::{
-    feature::EngineReq,
+    feature::{EngineReq, FeatureSet},
     filetype::{FileType, FileTypeParseError},
     sigbytes::{AppendSigBytes, FromSigBytes},
     signature::bodysig::BodySig,
@@ -233,7 +233,16 @@ impl AppendSigBytes for FTMagicSig {
     }
 }
 
-impl EngineReq for FTMagicSig {}
+impl EngineReq for FTMagicSig {
+    fn features(&self) -> crate::feature::FeatureSet {
+        FeatureSet::from(
+            self.rtype
+                .features()
+                .into_iter()
+                .chain(self.file_type.features().into_iter()),
+        )
+    }
+}
 
 #[cfg(test)]
 mod tests {

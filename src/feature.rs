@@ -28,6 +28,7 @@ pub trait EngineReq {
 
 /// A wrapper around a set of features identifiers, which may be known at compile
 /// time or computed after examining signature content.
+#[derive(PartialEq)]
 pub enum FeatureSet {
     Empty,
     Static(&'static [Feature]),
@@ -79,8 +80,52 @@ impl std::fmt::Debug for FeatureSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Empty => write!(f, "None"),
-            Self::Static(arg0) => write!(f, "{:?}", arg0),
-            Self::Built(arg0) => write!(f, "{:?}", arg0),
+            Self::Static(features) => write!(f, "{:?}", features),
+            Self::Built(features) => write!(f, "{:?}", features),
+        }
+    }
+}
+
+impl std::fmt::Display for Feature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let min_flevel = self.min_flevel();
+        // f.debug_
+        write!(f, "{self:?}<{min_flevel}>")
+    }
+}
+
+/// A wrapper type for a FeatureSet that includes the minimum feature FLEVELs in debug formatting
+pub struct FeatureWithMinFlevel(Feature);
+
+impl std::fmt::Debug for FeatureWithMinFlevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let feature = &self.0;
+        let min_flevel = self.0.min_flevel();
+        write!(f, "{feature:?}:{min_flevel}")
+    }
+}
+
+#[derive(PartialEq)]
+pub struct FeatureSetWithMinFlevel(FeatureSet);
+
+impl From<FeatureSet> for FeatureSetWithMinFlevel {
+    fn from(fs: FeatureSet) -> Self {
+        FeatureSetWithMinFlevel(fs)
+    }
+}
+
+impl std::fmt::Debug for FeatureSetWithMinFlevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            FeatureSet::Empty => f.debug_list().finish(),
+            FeatureSet::Static(features) => f
+                .debug_list()
+                .entries(features.iter().cloned().map(FeatureWithMinFlevel))
+                .finish(),
+            FeatureSet::Built(features) => f
+                .debug_list()
+                .entries(features.iter().cloned().map(FeatureWithMinFlevel))
+                .finish(),
         }
     }
 }
