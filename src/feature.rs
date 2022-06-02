@@ -94,7 +94,8 @@ impl std::fmt::Display for Feature {
     }
 }
 
-/// A wrapper type for a FeatureSet that includes the minimum feature FLEVELs in debug formatting
+/// A wrapper type for a Feature that includes the minimum feature FLEVEL in
+/// debug formatting
 pub struct FeatureWithMinFlevel(Feature);
 
 impl std::fmt::Debug for FeatureWithMinFlevel {
@@ -105,6 +106,8 @@ impl std::fmt::Debug for FeatureWithMinFlevel {
     }
 }
 
+/// A wrapper type for a FeatureSet that includes the minimum feature FLEVEL in
+/// debug formatting
 #[derive(PartialEq)]
 pub struct FeatureSetWithMinFlevel(FeatureSet);
 

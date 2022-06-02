@@ -10,7 +10,7 @@ pub const BYTE_DISP_SUFFIX: &str = "|>";
 
 /// A type wrapper around a series of bytes found in a signature.  Allows
 /// implementing `Display` to work around potential unicode problems.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Default, PartialEq)]
 pub struct SigBytes(Vec<u8>);
 
 impl SigBytes {
@@ -27,6 +27,21 @@ impl SigBytes {
     }
 
     pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for SigBytes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let raw = format!("{}", &self);
+        write!(f, "{:?}", raw)
+    }
+}
+
+impl std::ops::Deref for SigBytes {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }

@@ -3,7 +3,7 @@ use num_traits::{bounds::Bounded, cast, sign::Unsigned, PrimInt};
 use std::fmt::Write;
 
 /// An integer with an associated mask, used for matching other integers
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct IntWithMask<T> {
     pub value: T,
     pub mask: T,

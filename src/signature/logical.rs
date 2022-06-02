@@ -7,13 +7,11 @@ use self::{
     subsig::{SubSigModifier, SubSigParseError},
     targetdesc::{TargetDescAttr, TargetDescParseError, TargetDescValidationError},
 };
+use super::bodysig::parse::BodySigParseError;
 use crate::{
     feature::EngineReq,
     sigbytes::{AppendSigBytes, FromSigBytes},
-    signature::{
-        bodysig::BodySigParseError, ext::ExtendedSig, FromSigBytesParseError, SigMeta,
-        SigValidationError, Signature,
-    },
+    signature::{ext::ExtendedSig, FromSigBytesParseError, SigMeta, SigValidationError, Signature},
     util::Range,
 };
 use std::{fmt::Write, str};
@@ -60,6 +58,12 @@ pub enum LogicalSigParseError {
 pub enum LogicalSigValidationError {
     #[error("validating TargetDesc: {0}")]
     TargetDesc(#[from] TargetDescValidationError),
+
+    #[error("validating extended signature (subsig {idx}): {err}")]
+    SubSig {
+        idx: usize,
+        err: Box<SigValidationError>,
+    },
 }
 
 impl Signature for LogicalSig {
@@ -67,10 +71,21 @@ impl Signature for LogicalSig {
         &self.name
     }
 
-    fn validate_subelements(&self) -> Result<(), SigValidationError> {
+    fn validate_subelements(&self, sigmeta: &SigMeta) -> Result<(), SigValidationError> {
         self.target_desc
             .validate()
             .map_err(LogicalSigValidationError::TargetDesc)?;
+        for (idx, sub_sig) in self.sub_sigs.iter().enumerate() {
+            if let Some(extsig) = sub_sig.downcast_ref::<ExtendedSig>() {
+                extsig
+                    .validate(sigmeta)
+                    .map_err(|err| LogicalSigValidationError::SubSig {
+                        idx,
+                        err: Box::new(err),
+                    })?;
+            }
+        }
+
         Ok(())
     }
 }

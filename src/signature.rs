@@ -49,14 +49,14 @@ pub trait Signature: std::fmt::Debug + EngineReq + AppendSigBytes + Downcast {
 
     /// Perform all specified validation steps for a signature.
     fn validate(&self, sigmeta: &SigMeta) -> Result<(), SigValidationError> {
-        self.validate_subelements()?;
+        self.validate_subelements(sigmeta)?;
         self.validate_flevel(sigmeta)?;
         Ok(())
     }
 
     /// Validate a signature's constitute elements and/or their relationship to
     /// one another.
-    fn validate_subelements(&self) -> Result<(), SigValidationError> {
+    fn validate_subelements(&self, _sigmeta: &SigMeta) -> Result<(), SigValidationError> {
         Ok(())
     }
 

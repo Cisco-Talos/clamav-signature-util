@@ -1,8 +1,9 @@
+use super::bodysig::parse::BodySigParseError;
 use crate::{
     feature::{EngineReq, FeatureSet},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     signature::{
-        bodysig::{BodySig, BodySigParseError},
+        bodysig::BodySig,
         logical::{
             subsig::{SubSig, SubSigModifier},
             targetdesc::TargetDescParseError,
@@ -57,9 +58,6 @@ pub enum ExtendedSigParseError {
     #[error("Parsing max_flevel: {0}")]
     ParseMaxFlevel(ParseNumberError<u32>),
 }
-
-#[derive(Debug, Error, PartialEq)]
-pub enum ExtendedSigValidationError {}
 
 impl FromSigBytes for ExtendedSig {
     fn from_sigbytes<'a, SB: Into<&'a SigBytes>>(
@@ -303,6 +301,52 @@ impl Signature for ExtendedSig {
         } else {
             "anonymous"
         }
+    }
+
+    fn validate(&self, sigmeta: &SigMeta) -> Result<(), super::SigValidationError> {
+        self.validate_subelements(sigmeta)?;
+        self.validate_flevel(sigmeta)?;
+        Ok(())
+    }
+
+    fn validate_flevel(&self, sigmeta: &SigMeta) -> Result<(), super::SigValidationError> {
+        // Check the specified vs. the computed feature level
+        if let Some(computed_flevel) = self.computed_feature_level() {
+            if let Some(computed_min_flevel) = computed_flevel.start() {
+                // Some features within this signature have a minimum feature level.
+                // Confirm that the signature specifies it (or a higher level)
+                match &sigmeta.f_level {
+                    Some(f_level) => match f_level.start() {
+                        Some(spec_min_flevel) => {
+                            if spec_min_flevel < computed_min_flevel {
+                                return Err(super::SigValidationError::SpecifiedMinFLevelTooLow {
+                                    spec_min_flevel,
+                                    computed_min_flevel,
+                                    feature_set: self.features().into(),
+                                });
+                            }
+                        }
+                        None => {
+                            // This is the [unlikely] case where a *maximum* FLevel
+                            // was specified without a minimum, but a minimum is required.
+                            return Err(super::SigValidationError::MinFLevelNotSpecified {
+                                computed_min_flevel,
+                                feature_set: self.features().into(),
+                            });
+                        }
+                    },
+                    None => {
+                        return Err(super::SigValidationError::MinFLevelNotSpecified {
+                            computed_min_flevel,
+                            feature_set: self.features().into(),
+                        });
+                    }
+                }
+            }
+            // TODO: check maximum, as well (but maximums are not presently computed)
+        }
+
+        Ok(())
     }
 }
 

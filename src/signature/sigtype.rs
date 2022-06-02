@@ -74,6 +74,29 @@ impl SigType {
             // Filetype Magic signatures
             "ftm" => SigType::FTMagic,
 
+            // Trusted and Revoked Certificates
+            "crb" => todo!(),
+
+            // False positive list
+            "sfp" | "fp" => todo!(),
+
+            "info" => todo!(),
+
+            // Icon signatures
+            "idb" => todo!(),
+
+            // Deprecated types
+            "zmd" | "rmd" | "db" => todo!(),
+
+            // Configuration
+            "cfg" => todo!(),
+
+            // Oh crap
+            "sdb" => todo!(),
+
+            // Imp hash
+            "imp" => todo!(),
+
             _ => return None,
         })
     }
