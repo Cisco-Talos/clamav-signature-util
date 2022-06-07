@@ -132,12 +132,6 @@ pub enum BodySigParseError {
     #[error("may not begin with a wildcard-type pattern (found {pattern:?})")]
     LeadingWildcard { pattern: Pattern },
 
-    // A series of match bytes was too short to contribute to a matcher
-    #[error(
-        "the series of match bytes starting {start_pos} was too short to contribute to a matcher"
-    )]
-    MatchBytesTooShort { start_pos: Position },
-
     /// There must be at least one sized pattern of length 2 or more
     #[error("does not contain byte pattern of length 2 or greater")]
     MinPatternLen,
@@ -258,8 +252,8 @@ struct ParseContext {
     // Location of the most-recent left parenthesis
     left_paren_pos: usize,
 
-    // Longest pattern found (for patterns that have length)
-    longest_pattern: usize,
+    // Sufficiently-long static pattern found
+    min_static_string_found: bool,
 }
 
 impl ParseContext {
@@ -448,19 +442,15 @@ impl ParseContext {
 
     // Push a new match criteria with error checking
     fn push_pattern(&mut self, pattern: Pattern) -> Result<(), BodySigParseError> {
-        // Body signatures must begin with a sized pattern
-        if let Some(len) = pattern.subpat_len() {
-            self.longest_pattern = self.longest_pattern.max(len);
-        } else if self.patterns.is_empty() && pattern.is_wildcard() {
-            return Err(BodySigParseError::LeadingWildcard { pattern });
-        }
-
-        // String patterns must contain at least two bytes
-        if let Pattern::String(matchbytes, _) = &pattern {
-            if matchbytes.len() < 2 {
-                return Err(BodySigParseError::MatchBytesTooShort {
-                    start_pos: self.match_bytes_start.into(),
-                });
+        if pattern.is_wildcard() {
+            // Body signatures must begin with a sized pattern
+            if self.patterns.is_empty() {
+                return Err(BodySigParseError::LeadingWildcard { pattern });
+            }
+        } else if !self.min_static_string_found {
+            // Non-wildcard patterns can satisfy this requirement
+            if let Some(len) = pattern.subpat_len() {
+                self.min_static_string_found = len >= 2;
             }
         }
 
@@ -924,7 +914,7 @@ impl TryFrom<&[u8]> for BodySig {
         }
 
         // Make sure there's a pattern that can contribute to the matcher
-        if pc.longest_pattern < 2 {
+        if !pc.min_static_string_found {
             return Err(BodySigParseError::MinPatternLen);
         }
 

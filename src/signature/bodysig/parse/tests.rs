@@ -830,13 +830,7 @@ fn trailing_wildcard() {
 #[test]
 fn short_match_bytes() {
     assert_eq!(
-        Err(BodySigParseError::MatchBytesTooShort {
-            start_pos: 13.into()
-        }),
+        Err(BodySigParseError::MinPatternLen),
         BodySig::try_from(b"(a?ee|?bff)*aa".as_slice())
     );
-
-    if let Err(e) = BodySig::try_from(b"(a?ee|?bff)*aa".as_slice()) {
-        eprintln!("{}", e)
-    }
 }
