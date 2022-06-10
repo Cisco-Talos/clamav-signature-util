@@ -15,10 +15,12 @@ pub enum ByteAnchorSide {
 
 #[derive(PartialEq)]
 pub enum Pattern {
-    /// A series of bytes, possible containing fixed-size wildcards
+    /// A series of bytes, possible containing fixed-size wildcards. Represented
+    /// as `xx`, `x?`, `?x` or `??`, where `x` is a hexadecimal digit, and `?` is
+    /// a nyble that will be ignored.
     String(MatchBytes, BitFlags<PatternModifier>),
 
-    /// An "anchored byte" expression (either `BY[n-m]HEXSIG` or `HEXSIG[n-m]BY`)
+    /// An "anchored byte" expression (represented as `BY[n-m]HEXSIG` or `HEXSIG[n-m]BY`)
     AnchoredByte {
         anchor_side: ByteAnchorSide,
         byte: MatchByte,
@@ -26,7 +28,8 @@ pub enum Pattern {
         string: MatchBytes,
     },
 
-    /// Alternative strings.  Matches on any of two or more strings.
+    /// Alternative strings.  A parenthetical group of one or more strings
+    /// separated with the pipe (`|`) character
     AlternativeStrings(AlternativeStrings),
 
     /// A range of bytes that are ignored, but anchored to neighboring matches
@@ -34,25 +37,25 @@ pub enum Pattern {
     /// `{n-}` or `{n-m}` to match inclusive or open-ended ranges.
     ByteRange(Range<usize>),
 
-    /// An unbounded range of bytes
+    /// An unbounded range of bytes (represented as `*`)
     Wildcard,
 }
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum MatchByte {
-    // A match of the full byte value
+    // A match of the full byte value (e.g., "af")
     Full(u8),
 
-    // A match that ignores the high nyble
+    // A match that ignores the high nyble, matching only the low nyble (e.g., "?f")
     LowNyble(u8),
 
-    // A match that ignores the low nyble, matching only the high nyble
+    // A match that ignores the low nyble, matching only the high nyble (e.g., "f?")
     HighNyble(u8),
 
-    // A match that ignores the entire byte
+    // A match that ignores the entire byte (e.g., "??")
     Any,
 
-    // A match that ignores a fixed, small set of bytes.
+    // A match that ignores a fixed, small set of bytes (represented as `{n}`)
     //
     // This is included as a MatchByte variation because, internally, these tend
     // to get expanded into a series of full-byte wildcards when given to matcher
@@ -163,16 +166,6 @@ impl Pattern {
     /// beginning of a signature)
     pub fn is_wildcard(&self) -> bool {
         matches!(self, Pattern::Wildcard | Pattern::ByteRange(..))
-    }
-
-    /// Return the number of bytes a match contributes to a subpattern, or None
-    /// if cannot contribute to a subpattern
-    pub fn subpat_len(&self) -> Option<usize> {
-        match self {
-            Pattern::String(mb, ..) => Some(mb.len()),
-            Pattern::AnchoredByte { string, .. } => Some(string.len()),
-            Pattern::Wildcard | Pattern::ByteRange(..) | Pattern::AlternativeStrings(..) => None,
-        }
     }
 }
 

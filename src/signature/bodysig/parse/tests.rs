@@ -45,18 +45,22 @@ fn string_with_wildcards() {
             patterns: vec![Pattern::String(
                 vec![
                     MatchByte::Full(0xaa),
+                    MatchByte::Full(0xbb),
                     MatchByte::Any,
-                    MatchByte::Full(0xaa),
+                    MatchByte::Full(0xcc),
+                    MatchByte::Full(0xdd),
                     MatchByte::LowNyble(0x05),
-                    MatchByte::Full(0xaa),
+                    MatchByte::Full(0xee),
+                    MatchByte::Full(0xff),
                     MatchByte::HighNyble(0x50),
-                    MatchByte::Full(0xaa),
+                    MatchByte::Full(0x00),
+                    MatchByte::Full(0x11),
                 ]
                 .into(),
                 PatternModifier::empty()
             )],
         }),
-        b"aa??aa?5aa5?aa".as_slice().try_into()
+        b"aabb??ccdd?5eeff5?0011".as_slice().try_into()
     )
 }
 
@@ -65,23 +69,12 @@ fn string_with_ifinibyte_wildcard() {
     assert_eq!(
         Ok(BodySig {
             patterns: vec![
-                Pattern::String(
-                    vec![MatchByte::Full(0xaa), MatchByte::Any, MatchByte::Full(0xaa),].into(),
-                    PatternModifier::empty()
-                ),
+                Pattern::String(hex!("0011").into(), PatternModifier::empty()),
                 Pattern::Wildcard,
-                Pattern::String(
-                    vec![
-                        MatchByte::Full(0xaa),
-                        MatchByte::HighNyble(0x50),
-                        MatchByte::Full(0xaa),
-                    ]
-                    .into(),
-                    PatternModifier::empty()
-                )
+                Pattern::String(hex!("2233").into(), PatternModifier::empty())
             ],
         }),
-        b"aa??aa*aa5?aa".as_slice().try_into()
+        b"0011*2233".as_slice().try_into()
     )
 }
 
@@ -92,14 +85,16 @@ fn string_with_fixed_range_wildcard() {
             patterns: vec![Pattern::String(
                 vec![
                     MatchByte::Full(0xaa),
+                    MatchByte::Full(0xbb),
                     MatchByte::WildcardMany { size: 63 },
-                    MatchByte::Full(0xaa),
+                    MatchByte::Full(0xcc),
+                    MatchByte::Full(0xdd),
                 ]
                 .into(),
                 PatternModifier::empty()
             ),],
         }),
-        b"aa{63}aa".as_slice().try_into()
+        b"aabb{63}ccdd".as_slice().try_into()
     )
 }
 
@@ -781,6 +776,11 @@ fn decimal_overflow() {
         Err(BodySigParseError::DecimalOverflow { pos: 27.into() }),
         BodySig::try_from(b"0123{4-184467440737095516150}".as_slice())
     );
+    // Test in left position
+    assert_eq!(
+        Err(BodySigParseError::DecimalOverflow { pos: 25.into() }),
+        BodySig::try_from(b"0123{184467440737095516150-1}".as_slice())
+    );
 }
 
 #[test]
@@ -830,7 +830,59 @@ fn trailing_wildcard() {
 #[test]
 fn short_match_bytes() {
     assert_eq!(
-        Err(BodySigParseError::MinPatternLen),
-        BodySig::try_from(b"(a?ee|?bff)*aa".as_slice())
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 12.into()
+        }),
+        BodySig::try_from(b"(a?ee|?bff)*aa".as_slice()),
+    );
+}
+
+#[test]
+fn legal_two_byte_with_fixed_wildcard() {
+    assert_eq!(
+        Ok(BodySig {
+            patterns: vec![Pattern::String(
+                vec![
+                    MatchByte::WildcardMany { size: 2 },
+                    MatchByte::Full(0xaa),
+                    MatchByte::Full(0xbb),
+                ]
+                .into(),
+                PatternModifier::empty()
+            ),],
+        }),
+        BodySig::try_from(b"{2}aabb".as_slice())
+    );
+}
+
+#[test]
+fn no_static_bytes_within_string() {
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 5.into()
+        }),
+        BodySig::try_from(b"aabb*a?b???{2}".as_slice())
+    );
+}
+
+#[test]
+fn no_static_bytes_within_string_leading_wildcard() {
+    // This tests that the reported position is correct when the string includes
+    // a brace wildcard
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 5.into()
+        }),
+        BodySig::try_from(b"aabb*{2}a?b???{2}".as_slice())
+    );
+}
+
+#[test]
+fn negated_generic_altstr() {
+    assert_eq!(
+        Err(BodySigParseError::NegatedGenericAltStr {
+            start_pos: 7.into()
+        }),
+        BodySig::try_from(b"012345!(aa|bbbb|cc)".as_slice())
     );
 }

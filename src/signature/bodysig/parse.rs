@@ -44,7 +44,7 @@ pub enum BodySigParseError {
 
     /// The upper range bound for the wildcard portion of an anchored-byte match
     /// exceeds the maximum
-    #[error("invalid/missing upper bound {found} for anchored-byte wildcard range opened {bracket_pos} (must be <={ANCHORED_BYTE_RANGE_MAX} and greater than lower bound {lower}) ")]
+    #[error("invalid/missing upper bound {found} for anchored-byte wildcard range opened {bracket_pos} (must be <={ANCHORED_BYTE_RANGE_MAX} and greater than lower bound {lower})")]
     AnchoredByteInvalidUpperBound {
         bracket_pos: Position,
         found: usize,
@@ -132,9 +132,15 @@ pub enum BodySigParseError {
     #[error("may not begin with a wildcard-type pattern (found {pattern:?})")]
     LeadingWildcard { pattern: Pattern },
 
-    /// There must be at least one sized pattern of length 2 or more
-    #[error("does not contain byte pattern of length 2 or greater")]
-    MinPatternLen,
+    /// There must be at least static byte pattern of length 2 or more
+    #[error(
+        "string starting {start_pos} does not contain static byte pattern of length 2 or greater"
+    )]
+    MinStaticBytes { start_pos: Position },
+
+    // A generic alternative string set may not be negated
+    #[error("generic alternative strings starting {start_pos} negated")]
+    NegatedGenericAltStr { start_pos: Position },
 
     // Negation (`!`) must be followed by a character class or set of alternative
     // strings
@@ -171,14 +177,13 @@ pub enum BodySigParseError {
         found: SigChar,
     },
 
-    // --
-    /// A pipe (`|`) charactr was found outside of an alternative string set
-    #[error("pipe (`|`) character not expected {pos}")]
-    UnexpectedPipeChar { pos: Position },
-
     /// A closing parenthesis was found that has no matching opening parenthesis
     #[error("unmatched closing parenthesis {pos}")]
     UnmatchedClosingParen { pos: Position },
+
+    /// A pipe (`|`) charactr was found outside of an alternative string set
+    #[error("pipe (`|`) character not expected {pos}")]
+    UnexpectedPipeChar { pos: Position },
 }
 
 enum State {
@@ -230,8 +235,12 @@ struct ParseContext {
 
     // Bytes currently contributing to a match
     match_bytes: TinyVec<[MatchByte; 128]>,
-    // Location of the first of the current set of match bytes
+    // Location of the first of the current set of match bytes (outside of alternatives)
     match_bytes_start: usize,
+    // The location of the first full byte match. This resets when a nyble wildcard is found
+    match_bytes_static_range: Option<(usize, usize)>,
+    // The locations of sufficiently-large static strings within the match bytes
+    match_bytes_static_ranges: TinyVec<[(usize, usize); 4]>,
     // Accumulated pattern modifier for the current set of match bytes
     pattern_modifier: BitFlags<PatternModifier>,
 
@@ -251,9 +260,6 @@ struct ParseContext {
 
     // Location of the most-recent left parenthesis
     left_paren_pos: usize,
-
-    // Sufficiently-long static pattern found
-    min_static_string_found: bool,
 }
 
 impl ParseContext {
@@ -280,21 +286,33 @@ impl ParseContext {
         Ok(())
     }
 
+    fn flush_static_range(&mut self) -> Result<(), BodySigParseError> {
+        if let Some((start, end)) = self.match_bytes_static_range.take() {
+            if end - start < 2 {
+                return Err(BodySigParseError::MinStaticBytes {
+                    start_pos: self.match_bytes_start.into(),
+                });
+            } else {
+                self.match_bytes_static_ranges.push((start, end));
+            }
+        }
+        Ok(())
+    }
+
     // Handle the closure of a character class
     #[inline]
     fn handle_cc_close(&mut self) -> State {
-        if let Some(pa) = self.paren_cxt.take() {
-            if let Some(character_class) = &pa.character_class {
-                // If this was the 'B' character class, the partial
-                // byte value associated with it will be discarded
-                // when the state transitions back to HighNyble.
+        let pa = self.paren_cxt.take().unwrap();
+        if let Some(character_class) = &pa.character_class {
+            // If this was the 'B' character class, the partial
+            // byte value associated with it will be discarded
+            // when the state transitions back to HighNyble.
 
-                // Assign this character class and the current negation to the correct side
-                // The assumption is left if match_bytes is empty.
-                self.pattern_modifier |=
-                    character_class.pattern_modifier(self.match_bytes.is_empty(), self.negated);
-                self.negated = false;
-            }
+            // Assign this character class and the current negation to the correct side
+            // The assumption is left if match_bytes is empty.
+            self.pattern_modifier |=
+                character_class.pattern_modifier(self.match_bytes.is_empty(), self.negated);
+            self.negated = false;
         }
         State::HighNyble
     }
@@ -324,7 +342,10 @@ impl ParseContext {
                         byte,
                         range,
                         string: self.match_bytes.to_vec().into(),
-                    })?;
+                    })
+                    // There are no failures currently possible here, so
+                    // `.unwrap()` to make code coverage happy.
+                    .unwrap();
                     self.match_bytes.clear();
                 }
                 PendingAnchoredByte::HaveString {
@@ -343,7 +364,10 @@ impl ParseContext {
                             byte,
                             range,
                             string,
-                        })?;
+                        })
+                        // There are no failures currently possible here, so
+                        // `.unwrap()` to make code coverage happy.
+                        .unwrap();
                     } else {
                         return Err(BodySigParseError::AnchoredByteExpectingSingleByte {
                             start_pos: (self.left_bracket_pos - string.len() * 2).into(),
@@ -394,27 +418,29 @@ impl ParseContext {
                 PAREN_RIGHT => {
                     if let Some(pa) = &mut self.paren_cxt.take() {
                         pa.push_alternative_string(&mut self.match_bytes, true)?;
-                        if let Some(range) = pa.ranges.first() {
-                            if pa.is_generic {
-                                // TODO: error out if negated
-                                self.push_pattern(Pattern::AlternativeStrings(
-                                    AlternativeStrings::Generic {
-                                        data: pa.astr_data.to_vec().into(),
-                                        ranges: pa.ranges.to_vec(),
-                                    },
-                                ))?;
-                            } else {
-                                // + 1 here to account for the fact that
-                                // inclusive ranges reference the upper *index*
-                                let width = range.end() + 1;
-                                self.push_pattern(Pattern::AlternativeStrings(
-                                    AlternativeStrings::FixedWidth {
-                                        negated: self.negated,
-                                        width,
-                                        data: pa.astr_data.to_vec().into(),
-                                    },
-                                ))?;
-                            }
+                        let first_range = pa.ranges.first().unwrap();
+                        if pa.is_generic {
+                            // TODO: error out if negated
+                            self.push_pattern(Pattern::AlternativeStrings(
+                                AlternativeStrings::Generic {
+                                    data: pa.astr_data.to_vec().into(),
+                                    ranges: pa.ranges.to_vec(),
+                                },
+                            ))?;
+                        } else {
+                            // + 1 here to account for the fact that
+                            // inclusive ranges reference the upper *index*
+                            let width = first_range.end() + 1;
+                            self.push_pattern(Pattern::AlternativeStrings(
+                                AlternativeStrings::FixedWidth {
+                                    negated: self.negated,
+                                    width,
+                                    data: pa.astr_data.to_vec().into(),
+                                },
+                            ))
+                            // There are no failures currently possible here, so
+                            // `.unwrap()` to make code coverage happy.
+                            .unwrap();
                         }
                         self.negated = false;
                         Ok(State::HighNyble)
@@ -433,24 +459,67 @@ impl ParseContext {
         }
     }
 
-    fn push_matchbyte(&mut self, mb: MatchByte, pos: usize) {
-        if self.match_bytes.is_empty() {
-            self.match_bytes_start = pos;
+    // Contribute a byte to the current set of match bytes
+    //
+    // Note that `start_pos` should be set to the location of the *high* nyble or the
+    // opening curly brace (for small multi-byte wildcards) so that error reporting
+    // is correct.
+    fn push_matchbyte(&mut self, mb: MatchByte, start_pos: usize) -> Result<(), BodySigParseError> {
+        if self.paren_cxt.is_none() && self.match_bytes.is_empty() {
+            self.match_bytes_start = start_pos;
         }
         self.match_bytes.push(mb);
+        if self.paren_cxt.is_none() {
+            if matches!(mb, MatchByte::Full(_)) {
+                let len = self.match_bytes.len();
+                // Set a default, or replace the second value with the new bound
+                self.match_bytes_static_range
+                    .get_or_insert((len - 1, len))
+                    .1 = len;
+            } else {
+                self.flush_static_range()?;
+            }
+        }
+
+        Ok(())
     }
 
     // Push a new match criteria with error checking
     fn push_pattern(&mut self, pattern: Pattern) -> Result<(), BodySigParseError> {
-        if pattern.is_wildcard() {
-            // Body signatures must begin with a sized pattern
-            if self.patterns.is_empty() {
-                return Err(BodySigParseError::LeadingWildcard { pattern });
+        match &pattern {
+            Pattern::String(..) => {
+                self.flush_static_range()?;
+                if self.match_bytes_static_ranges.is_empty() {
+                    // This occurs when the string contained no static bytes at all
+                    return Err(BodySigParseError::MinStaticBytes {
+                        start_pos: self.match_bytes_start.into(),
+                    });
+                } else {
+                    // Just flush these for now, but they might be worth attaching to the string later
+                    self.match_bytes_static_range = None;
+                    self.match_bytes_static_ranges.clear();
+                }
             }
-        } else if !self.min_static_string_found {
-            // Non-wildcard patterns can satisfy this requirement
-            if let Some(len) = pattern.subpat_len() {
-                self.min_static_string_found = len >= 2;
+            // No additional error checking required for AnchoredByte
+            Pattern::AnchoredByte { .. } => (),
+            Pattern::AlternativeStrings(altstr) => {
+                match altstr {
+                    // No additional checking required
+                    AlternativeStrings::FixedWidth { .. } => (),
+                    AlternativeStrings::Generic { .. } => {
+                        if self.negated {
+                            return Err(BodySigParseError::NegatedGenericAltStr {
+                                start_pos: self.left_paren_pos.into(),
+                            });
+                        }
+                    }
+                }
+            }
+            Pattern::ByteRange(_) | Pattern::Wildcard => {
+                // Body signatures must begin with a sized pattern
+                if self.patterns.is_empty() {
+                    return Err(BodySigParseError::LeadingWildcard { pattern });
+                }
             }
         }
 
@@ -595,14 +664,19 @@ impl TryFrom<&[u8]> for BodySig {
                     match byte {
                         b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => {
                             if pc.paren_cxt.is_some() {
-                                // This byte completes the low nybble of a new byte.  If we were inside a parenthetical expression, any bytes need to be flushed to the prior match first.
-                                pc.flush_match_bytes()?;
+                                // This byte completes the low nybble of a new byte.
+                                // If we were inside a parenthetical expression, any
+                                // bytes need to be flushed to the prior match first.
+
+                                // This never fails in parenthetical context
+                                pc.flush_match_bytes().unwrap();
                             }
                             pc.cur_byte |= hex_nyble(byte, false);
                         }
                         b'?' => {
                             if pc.paren_cxt.is_some() {
-                                pc.flush_match_bytes()?;
+                                // This never fails in parenthetical context
+                                pc.flush_match_bytes().unwrap();
                             }
                             pc.mask = if let MatchMask::High = pc.mask {
                                 // ??
@@ -630,13 +704,15 @@ impl TryFrom<&[u8]> for BodySig {
                             MatchMask::Low => MatchByte::HighNyble(pc.cur_byte),
                             MatchMask::Full => MatchByte::Any,
                         },
-                        pos,
-                    );
+                        pos - 1,
+                    )
+                    // There are no failures currently possible here, so
+                    // `.unwrap()` to make code coverage happy.
+                    .unwrap();
                     state = State::HighNyble;
                 }
                 State::CurlyBraceLower => match byte {
                     b'0'..=b'9' => {
-                        // TODO: handle overflows
                         pc.update_dec_value(byte, pos)?;
                     }
                     b'-' => {
@@ -644,23 +720,20 @@ impl TryFrom<&[u8]> for BodySig {
                         state = State::CurlyBraceUpper;
                     }
                     CURLY_RIGHT => {
-                        // TODO: error if dec_value == 0?
-                        if pc.cur_range.is_none() {
-                            if let Some(dec_value) = pc.dec_value.take() {
-                                pc.cur_range = Some(Range::Exact(dec_value))
-                            } else {
-                                return Err(BodySigParseError::EmptyBraces {
-                                    start_pos: pc.left_brace_pos.into(),
-                                });
-                            }
+                        if let Some(dec_value) = pc.dec_value.take() {
+                            pc.cur_range = Some(Range::Exact(dec_value))
+                        } else {
+                            return Err(BodySigParseError::EmptyBraces {
+                                start_pos: pc.left_brace_pos.into(),
+                            });
                         }
                         match pc.cur_range.take().unwrap() {
                             Range::Exact(size) if size <= 128 => pc.push_matchbyte(
                                 MatchByte::WildcardMany {
                                     size: (size).try_into().unwrap(),
                                 },
-                                pos,
-                            ),
+                                pc.left_brace_pos,
+                            )?,
                             range => {
                                 pc.flush_match_bytes()?;
                                 pc.push_pattern(Pattern::ByteRange(range))?;
@@ -902,20 +975,16 @@ impl TryFrom<&[u8]> for BodySig {
             return Err(BodySigParseError::CharClassNothingAdjacent { pos: Position::End });
         }
 
-        match pc.patterns.pop() {
+        match pc.patterns.last() {
             // The signature shouldn't be empty
             None => return Err(BodySigParseError::Empty),
             // The signature shouldn't end with a wildcard or other unsized pattern
             Some(pattern) if pattern.is_wildcard() => {
-                return Err(BodySigParseError::TrailingUnsizedPattern { pattern })
+                return Err(BodySigParseError::TrailingUnsizedPattern {
+                    pattern: pc.patterns.pop().unwrap(),
+                })
             }
-            // All good -- put it back
-            Some(pattern) => pc.push_pattern(pattern)?,
-        }
-
-        // Make sure there's a pattern that can contribute to the matcher
-        if !pc.min_static_string_found {
-            return Err(BodySigParseError::MinPatternLen);
+            Some(_) => (),
         }
 
         Ok(BodySig {

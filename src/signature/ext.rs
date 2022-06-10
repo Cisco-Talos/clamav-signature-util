@@ -392,9 +392,9 @@ mod tests {
     use super::*;
 
     const SAMPLE_SIG: &str =
-        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1{9-}7e{-5}!(0f|f1|ce)(B)(L)a??b";
+        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd";
     const SAMPLE_SIG_WITH_FLEVEL: &str =
-        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1{9-}7e{-5}!(0f|f1|ce)(B)(L)a??b:99:101";
+        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd:99:101";
 
     #[test]
     fn export() {
@@ -406,7 +406,10 @@ mod tests {
 
     #[test]
     fn parse_flevels() {
-        let (sig, sigmeta) = ExtendedSig::from_sigbytes(&SAMPLE_SIG_WITH_FLEVEL.into()).unwrap();
+        let (sig, sigmeta) = match ExtendedSig::from_sigbytes(&SAMPLE_SIG_WITH_FLEVEL.into()) {
+            Ok(sig_and_sigmeta) => sig_and_sigmeta,
+            Err(e) => panic!("{}", e),
+        };
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG, &exported);
         assert_eq!(
