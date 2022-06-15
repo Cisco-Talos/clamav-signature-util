@@ -81,8 +81,8 @@ pub enum BodySigParseError {
     BracketRangeMissingLowerBound { start_pos: Position },
 
     /// Anchored-byte bracket expressions must contain both bounds
-    #[error("bracket range opened {start_pos} missing upper bound")]
-    BracketRangeMissingUpperBound { start_pos: Position },
+    #[error("bracket range opened {start_pos} missing bound(s)")]
+    BracketRangeEmpty { start_pos: Position },
 
     /// Anchored-byte bracket expressions may contain only decimal bounds and an
     /// intermediate hyphen
@@ -297,6 +297,48 @@ impl ParseContext {
         }
     }
 
+    fn handle_anchored_byte_range(&mut self, pos: usize) -> Result<State, BodySigParseError> {
+        if let Some(Range::From(std::ops::RangeFrom { start })) = self.cur_range.take() {
+            let end = self.dec_value.take().unwrap_or(start);
+
+            if !(1..=ANCHORED_BYTE_RANGE_MAX).contains(&end) || end < start {
+                return Err(BodySigParseError::AnchoredByteInvalidUpperBound {
+                    bracket_pos: self.left_bracket_pos.into(),
+                    found: end,
+                    lower: start,
+                });
+            }
+            let range = (start as u8)..=(end as u8);
+            // Now, determine if the current match_bytes contains one element
+            // If it does, move it into this bracket-match structure as the anchor byte. The next series of bytes will
+            // If it contains more than one
+            match self.match_bytes.len() {
+                0 => return Err(BodySigParseError::AnchoredByteNoLeftBytes { pos: pos.into() }),
+                1 => {
+                    // This is the anchor byte
+                    self.pending_anchored_byte = Some(PendingAnchoredByte::HaveByte {
+                        start_pos: self.left_bracket_pos - 2,
+                        byte: self.match_bytes.pop().unwrap(),
+                        range,
+                    });
+                }
+                len => {
+                    self.pending_anchored_byte = Some(PendingAnchoredByte::HaveString {
+                        start_pos: self.left_bracket_pos - len * 2,
+                        string: self.match_bytes.to_vec().into(),
+                        range,
+                    });
+                    self.match_bytes.clear();
+                }
+            }
+            Ok(State::HighNyble)
+        } else {
+            Err(BodySigParseError::BracketRangeEmpty {
+                start_pos: self.left_bracket_pos.into(),
+            })
+        }
+    }
+
     // Handle the closure of a character class
     #[inline]
     fn handle_cc_close(&mut self) -> State {
@@ -471,16 +513,14 @@ impl ParseContext {
             if !matches!(mb, MatchByte::Full(_)) {
                 paren_cxt.is_generic = true;
             }
+        } else if matches!(mb, MatchByte::Full(_)) {
+            let len = self.match_bytes.len();
+            // Set a default, or replace the second value with the new bound
+            self.match_bytes_static_range
+                .get_or_insert((len - 1, len))
+                .1 = len;
         } else {
-            if matches!(mb, MatchByte::Full(_)) {
-                let len = self.match_bytes.len();
-                // Set a default, or replace the second value with the new bound
-                self.match_bytes_static_range
-                    .get_or_insert((len - 1, len))
-                    .1 = len;
-            } else {
-                self.flush_static_range();
-            }
+            self.flush_static_range();
         }
 
         Ok(())
@@ -804,8 +844,8 @@ impl TryFrom<&[u8]> for BodySig {
                         b'0'..=b'9' => {
                             pc.update_dec_value(byte, pos)?;
                         }
-                        // Note: bracket ranges *always* have an upper bound, so `]` is not expected in this state
-                        MINUS_SIGN => {
+                        MINUS_SIGN | BRACKET_RIGHT => {
+                            // FIXME: logic is screwy here.  Notice the repetition below
                             if let Some(dec_value) = pc.dec_value.take() {
                                 if dec_value > ANCHORED_BYTE_RANGE_MAX {
                                     return Err(BodySigParseError::AnchoredByteInvalidLowerBound {
@@ -815,17 +855,18 @@ impl TryFrom<&[u8]> for BodySig {
                                 }
                                 pc.cur_range = Some((dec_value..).into());
                                 state = State::BracketUpper;
-                            } else {
+                            } else if byte == MINUS_SIGN {
                                 return Err(BodySigParseError::BracketRangeMissingLowerBound {
                                     start_pos: pc.left_bracket_pos.into(),
                                 });
+                            } else {
+                                // Found closing bracket
+                                state = pc.handle_anchored_byte_range(pos)?;
                             }
-                        }
-                        BRACKET_RIGHT => {
-                            // This just provides a better error for this particular mistake
-                            return Err(BodySigParseError::BracketRangeMissingUpperBound {
-                                start_pos: pc.left_bracket_pos.into(),
-                            });
+                            if byte == BRACKET_RIGHT {
+                                // No upper bound specified, which is apparently OK
+                                state = pc.handle_anchored_byte_range(pos)?;
+                            }
                         }
                         other => {
                             return Err(BodySigParseError::BracketRangeUnexpectedChar {
@@ -835,74 +876,18 @@ impl TryFrom<&[u8]> for BodySig {
                         }
                     }
                 }
-                State::BracketUpper => {
-                    match byte {
-                        b'0'..=b'9' => {
-                            pc.update_dec_value(byte, pos)?;
-                        }
-                        BRACKET_RIGHT => {
-                            if let Range::From(std::ops::RangeFrom { start }) =
-                                pc.cur_range.take().unwrap()
-                            {
-                                if let Some(dec_value) = pc.dec_value.take() {
-                                    if !(1..=ANCHORED_BYTE_RANGE_MAX).contains(&dec_value)
-                                        || dec_value < start
-                                    {
-                                        return Err(
-                                            BodySigParseError::AnchoredByteInvalidUpperBound {
-                                                bracket_pos: pc.left_bracket_pos.into(),
-                                                found: dec_value,
-                                                lower: start,
-                                            },
-                                        );
-                                    }
-                                    let range = (start as u8)..=(dec_value as u8);
-                                    // Now, determine if the current match_bytes contains one element
-                                    // If it does, move it into this bracket-match structure as the anchor byte. The next series of bytes will
-                                    // If it contains more than one
-                                    match pc.match_bytes.len() {
-                                        0 => {
-                                            return Err(
-                                                BodySigParseError::AnchoredByteNoLeftBytes {
-                                                    pos: pos.into(),
-                                                },
-                                            )
-                                        }
-                                        1 => {
-                                            // This is the anchor byte
-                                            pc.pending_anchored_byte =
-                                                Some(PendingAnchoredByte::HaveByte {
-                                                    start_pos: pc.left_bracket_pos - 2,
-                                                    byte: pc.match_bytes.pop().unwrap(),
-                                                    range,
-                                                });
-                                        }
-                                        len => {
-                                            pc.pending_anchored_byte =
-                                                Some(PendingAnchoredByte::HaveString {
-                                                    start_pos: pc.left_bracket_pos - len * 2,
-                                                    string: pc.match_bytes.to_vec().into(),
-                                                    range,
-                                                });
-                                            pc.match_bytes.clear();
-                                        }
-                                    }
-                                } else {
-                                    return Err(BodySigParseError::BracketRangeMissingUpperBound {
-                                        start_pos: pc.left_bracket_pos.into(),
-                                    });
-                                }
-                            }
-                            state = State::HighNyble;
-                        }
-                        other => {
-                            return Err(BodySigParseError::BracketRangeUnexpectedChar {
-                                pos: pos.into(),
-                                found: other.into(),
-                            })
-                        }
+                State::BracketUpper => match byte {
+                    b'0'..=b'9' => {
+                        pc.update_dec_value(byte, pos)?;
                     }
-                }
+                    BRACKET_RIGHT => state = pc.handle_anchored_byte_range(pos)?,
+                    other => {
+                        return Err(BodySigParseError::BracketRangeUnexpectedChar {
+                            pos: pos.into(),
+                            found: other.into(),
+                        })
+                    }
+                },
                 State::Negate => match byte {
                     PAREN_LEFT => {
                         pc.left_paren_pos = pos;
