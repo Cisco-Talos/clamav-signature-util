@@ -23,13 +23,20 @@ const ANCHORED_BYTE_MATCH_STRING_MIN_BYTES: usize = 2;
 // The maximum value of either bound in an anchored-byte match wildcard range
 const ANCHORED_BYTE_RANGE_MAX: usize = 32;
 
-// These are defined here to prevent IDEs from getting confused on open/close braces
+// These are defined here to prevent IDEs from getting confused on open/close
+// braces in match expressions (lookin' at you: VSCode), but also define the
+// entire special character set.
+const ASTERISK: u8 = b'*';
+const BANG: u8 = b'!';
 const BRACKET_LEFT: u8 = b'[';
 const BRACKET_RIGHT: u8 = b']';
 const CURLY_LEFT: u8 = b'{';
 const CURLY_RIGHT: u8 = b'}';
+const MINUS_SIGN: u8 = b'-';
 const PAREN_LEFT: u8 = b'(';
 const PAREN_RIGHT: u8 = b')';
+const PIPE: u8 = b'|';
+const QUESTION_MARK: u8 = b'?';
 
 #[derive(Debug, Error, PartialEq)]
 pub enum BodySigParseError {
@@ -263,7 +270,7 @@ struct ParseContext {
 }
 
 impl ParseContext {
-    // Append the current accumulation of matc bytes into the pattern set
+    // Append the current accumulation of match bytes into the pattern set
     fn flush_match_bytes(&mut self) -> Result<(), BodySigParseError> {
         if let Some(pa) = &mut self.paren_cxt {
             if pa.flushed {
@@ -308,7 +315,7 @@ impl ParseContext {
             // byte value associated with it will be discarded
             // when the state transitions back to HighNyble.
 
-            // Assign this character class and the current negation to the correct side
+            // Assign this character class and the current negation to the correct side.
             // The assumption is left if match_bytes is empty.
             self.pattern_modifier |=
                 character_class.pattern_modifier(self.match_bytes.is_empty(), self.negated);
@@ -318,7 +325,7 @@ impl ParseContext {
     }
 
     // This function is called whenever the state is about to transition
-    // from the default state due to finding a non-hex or nyble-wildcard
+    // from the default state due to finding a non-hex or non-nyble-wildcard
     // ('?') character
     fn handle_non_matchbyte(
         &mut self,
@@ -382,7 +389,7 @@ impl ParseContext {
         if let Some((pos, byte)) = pos_and_byte {
             // Any other character changes state
             match byte {
-                b'*' => {
+                ASTERISK => {
                     // TODO: return error if wildcard begins signature
                     self.flush_match_bytes()?;
                     self.push_pattern(Pattern::Wildcard)?;
@@ -406,8 +413,8 @@ impl ParseContext {
                     });
                     Ok(State::HighNyble)
                 }
-                b'!' => Ok(State::Negate),
-                b'|' => {
+                BANG => Ok(State::Negate),
+                PIPE => {
                     if let Some(pa) = &mut self.paren_cxt {
                         pa.push_alternative_string(&mut self.match_bytes, false)?;
                         Ok(State::HighNyble)
@@ -652,7 +659,7 @@ impl TryFrom<&[u8]> for BodySig {
                             }
                         }
                         // byte-level wildcard.  May cover an entire byte or just one nyble
-                        b'?' => {
+                        QUESTION_MARK => {
                             pc.cur_byte = 0;
                             pc.mask = MatchMask::High;
                             state = State::LowNyble;
@@ -673,7 +680,7 @@ impl TryFrom<&[u8]> for BodySig {
                             }
                             pc.cur_byte |= hex_nyble(byte, false);
                         }
-                        b'?' => {
+                        QUESTION_MARK => {
                             if pc.paren_cxt.is_some() {
                                 // This never fails in parenthetical context
                                 pc.flush_match_bytes().unwrap();
@@ -715,7 +722,7 @@ impl TryFrom<&[u8]> for BodySig {
                     b'0'..=b'9' => {
                         pc.update_dec_value(byte, pos)?;
                     }
-                    b'-' => {
+                    MINUS_SIGN => {
                         pc.cur_range = pc.dec_value.take().map(|dec_value| (dec_value..).into());
                         state = State::CurlyBraceUpper;
                     }
@@ -810,7 +817,7 @@ impl TryFrom<&[u8]> for BodySig {
                             pc.update_dec_value(byte, pos)?;
                         }
                         // Note: bracket ranges *always* have an upper bound, so `]` is not expected in this state
-                        b'-' => {
+                        MINUS_SIGN => {
                             if let Some(dec_value) = pc.dec_value.take() {
                                 if dec_value > ANCHORED_BYTE_RANGE_MAX {
                                     return Err(BodySigParseError::AnchoredByteInvalidLowerBound {

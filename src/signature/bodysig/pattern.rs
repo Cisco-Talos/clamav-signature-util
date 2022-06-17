@@ -194,9 +194,7 @@ impl std::fmt::Debug for Pattern {
                 .field("string", string)
                 .finish(),
             Self::ByteRange(arg0) => f.debug_tuple("Range").field(arg0).finish(),
-            Self::AlternativeStrings(arg0) => {
-                f.debug_tuple("AlternateStrings").field(arg0).finish()
-            }
+            Self::AlternativeStrings(arg0) => f.debug_tuple("AltStrs").field(arg0).finish(),
         }
     }
 }

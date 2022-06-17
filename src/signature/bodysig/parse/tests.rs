@@ -426,12 +426,30 @@ fn empty_parens() {
 }
 
 #[test]
-fn empty_altenative_string() {
+fn empty_alternative_string() {
     assert_eq!(
         Err(BodySigParseError::EmptyAlternativeString {
             start_pos: 0.into()
         }),
         BodySig::try_from(b"(|12|34)".as_slice()),
+    )
+}
+
+#[test]
+fn single_alternative_string() {
+    assert_eq!(
+        Ok(BodySig {
+            patterns: vec![
+                Pattern::String(hex!("aaaa").into(), PatternModifier::empty()),
+                Pattern::AlternativeStrings(AlternativeStrings::FixedWidth {
+                    negated: true,
+                    width: 1,
+                    data: hex!("12").into()
+                }),
+                Pattern::String(hex!("bbbb").into(), PatternModifier::empty()),
+            ],
+        }),
+        BodySig::try_from(b"aaaa!(12)bbbb".as_slice()),
     )
 }
 
