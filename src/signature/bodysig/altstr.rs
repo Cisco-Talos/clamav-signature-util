@@ -8,7 +8,7 @@ pub enum AlternativeStrings {
         data: MatchBytes,
     },
     Generic {
-        ranges: Vec<std::ops::RangeInclusive<usize>>,
+        ranges: Vec<std::ops::Range<usize>>,
         data: MatchBytes,
     },
 }

@@ -135,7 +135,7 @@ fn process_file(path: &Path, opt: &Opt) -> Result<()> {
 
     let extension = path
         .extension()
-        .ok_or(anyhow!("missing file extension"))?
+        .ok_or_else(|| anyhow!("missing file extension"))?
         .to_str()
         .unwrap();
     if let Some(sig_type) = SigType::from_file_extension(extension) {

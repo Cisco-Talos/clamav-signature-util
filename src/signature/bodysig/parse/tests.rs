@@ -383,9 +383,8 @@ fn astrs_generic_wildcard() {
         Ok(BodySig {
             patterns: vec![
                 Pattern::String(hex!("aaaa").into(), PatternModifier::empty()),
-                Pattern::AlternativeStrings(AlternativeStrings::FixedWidth {
-                    negated: false,
-                    width: 1,
+                Pattern::AlternativeStrings(AlternativeStrings::Generic {
+                    ranges: vec![0..1, 1..2, 2..3],
                     data: vec![
                         MatchByte::HighNyble(0x00),
                         MatchByte::Full(0x02),
@@ -407,7 +406,7 @@ fn astrs_generic_variable() {
             patterns: vec![
                 Pattern::String(hex!("aaaa").into(), PatternModifier::empty()),
                 Pattern::AlternativeStrings(AlternativeStrings::Generic {
-                    ranges: vec![0..=1, 2..=2],
+                    ranges: vec![0..2, 2..3],
                     data: hex!("010203").into(),
                 }),
                 Pattern::String(hex!("bbbb").into(), PatternModifier::empty()),
@@ -428,8 +427,11 @@ fn empty_parens() {
 #[test]
 fn empty_alternative_string() {
     assert_eq!(
-        Err(BodySigParseError::EmptyAlternativeString {
-            start_pos: 0.into()
+        Ok(BodySig {
+            patterns: vec![Pattern::AlternativeStrings(AlternativeStrings::Generic {
+                ranges: vec![0..0, 0..1, 1..2],
+                data: hex!("1234").into()
+            })]
         }),
         BodySig::try_from(b"(|12|34)".as_slice()),
     )
@@ -794,10 +796,20 @@ fn decimal_overflow() {
         Err(BodySigParseError::DecimalOverflow { pos: 27.into() }),
         BodySig::try_from(b"0123{4-184467440737095516150}".as_slice())
     );
+    // Within brackets
+    assert_eq!(
+        Err(BodySigParseError::DecimalOverflow { pos: 27.into() }),
+        BodySig::try_from(b"0123[4-184467440737095516150]".as_slice())
+    );
     // Test in left position
     assert_eq!(
         Err(BodySigParseError::DecimalOverflow { pos: 25.into() }),
         BodySig::try_from(b"0123{184467440737095516150-1}".as_slice())
+    );
+    // Within brackets
+    assert_eq!(
+        Err(BodySigParseError::DecimalOverflow { pos: 25.into() }),
+        BodySig::try_from(b"0123[184467440737095516150-1]".as_slice())
     );
 }
 
@@ -897,10 +909,83 @@ fn no_static_bytes_within_string_leading_wildcard() {
 
 #[test]
 fn negated_generic_altstr() {
+    // Generic due to differing sizes
     assert_eq!(
         Err(BodySigParseError::NegatedGenericAltStr {
             start_pos: 7.into()
         }),
         BodySig::try_from(b"012345!(aa|bbbb|cc)".as_slice())
     );
+    // Generic due to nyble wildcard
+    assert_eq!(
+        Err(BodySigParseError::NegatedGenericAltStr {
+            start_pos: 5.into()
+        }),
+        BodySig::try_from(b"00aa!(1a?5)abab".as_slice()),
+    )
+}
+
+#[test]
+fn insufficient_static_bytes_ahead_of_gen_altstr() {
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"00(a?)ffff".as_slice())
+    );
+}
+
+#[test]
+fn insufficient_static_bytes_ahead_of_fixed_altstr() {
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"00(ffaa)ffff".as_slice())
+    );
+}
+
+#[test]
+fn insufficient_static_bytes_ahead_of_empty_altstr() {
+    if let Err(e) = BodySig::try_from(b"00()aba?".as_slice()) {
+        eprintln!("{e}")
+    }
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"00()aba?".as_slice())
+    );
+}
+
+#[test]
+fn insufficient_static_bytes_ahead_of_large_range() {
+    if let Err(e) = BodySig::try_from(b"00()aba?".as_slice()) {
+        eprintln!("{e}")
+    }
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"00{500}aba?".as_slice())
+    );
+}
+
+#[test]
+fn legal_static_bytes_with_small_fixed_range() {
+    assert_eq!(
+        Ok(BodySig {
+            patterns: vec![Pattern::String(
+                vec![
+                    MatchByte::Full(0x00),
+                    MatchByte::WildcardMany { size: 2 },
+                    MatchByte::Full(0xab),
+                    MatchByte::Full(0xab),
+                ]
+                .into(),
+                PatternModifier::empty()
+            )]
+        }),
+        BodySig::try_from(b"00{2}abab".as_slice()),
+    )
 }

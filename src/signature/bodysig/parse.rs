@@ -118,10 +118,6 @@ pub enum BodySigParseError {
     #[error("nothing specified within parentheses opened {pos}")]
     EmptyParens { pos: Position },
 
-    /// An empty element was found within a set of alternative strings.
-    #[error("empty string in alternative strings opened {start_pos}")]
-    EmptyAlternativeString { start_pos: Position },
-
     /// An empty brace expression (wildcard byte range) was found
     #[error("empty brace expression opened {start_pos}")]
     EmptyBraces { start_pos: Position },
@@ -293,17 +289,12 @@ impl ParseContext {
         Ok(())
     }
 
-    fn flush_static_range(&mut self) -> Result<(), BodySigParseError> {
+    fn flush_static_range(&mut self) {
         if let Some((start, end)) = self.match_bytes_static_range.take() {
-            if end - start < 2 {
-                return Err(BodySigParseError::MinStaticBytes {
-                    start_pos: self.match_bytes_start.into(),
-                });
-            } else {
+            if end - start >= 2 {
                 self.match_bytes_static_ranges.push((start, end));
             }
         }
-        Ok(())
     }
 
     // Handle the closure of a character class
@@ -391,7 +382,7 @@ impl ParseContext {
             match byte {
                 ASTERISK => {
                     // TODO: return error if wildcard begins signature
-                    self.flush_match_bytes()?;
+                    self.flush_match_bytes().unwrap();
                     self.push_pattern(Pattern::Wildcard)?;
                     Ok(State::HighNyble)
                 }
@@ -406,6 +397,7 @@ impl ParseContext {
                     Ok(State::BracketLower)
                 }
                 PAREN_LEFT => {
+                    self.flush_match_bytes()?;
                     self.left_paren_pos = pos;
                     self.paren_cxt = Some(ParentheticalContext {
                         start_pos: pos,
@@ -427,7 +419,6 @@ impl ParseContext {
                         pa.push_alternative_string(&mut self.match_bytes, true)?;
                         let first_range = pa.ranges.first().unwrap();
                         if pa.is_generic {
-                            // TODO: error out if negated
                             self.push_pattern(Pattern::AlternativeStrings(
                                 AlternativeStrings::Generic {
                                     data: pa.astr_data.to_vec().into(),
@@ -437,7 +428,7 @@ impl ParseContext {
                         } else {
                             // + 1 here to account for the fact that
                             // inclusive ranges reference the upper *index*
-                            let width = first_range.end() + 1;
+                            let width = first_range.end;
                             self.push_pattern(Pattern::AlternativeStrings(
                                 AlternativeStrings::FixedWidth {
                                     negated: self.negated,
@@ -476,7 +467,11 @@ impl ParseContext {
             self.match_bytes_start = start_pos;
         }
         self.match_bytes.push(mb);
-        if self.paren_cxt.is_none() {
+        if let Some(paren_cxt) = &mut self.paren_cxt {
+            if !matches!(mb, MatchByte::Full(_)) {
+                paren_cxt.is_generic = true;
+            }
+        } else {
             if matches!(mb, MatchByte::Full(_)) {
                 let len = self.match_bytes.len();
                 // Set a default, or replace the second value with the new bound
@@ -484,7 +479,7 @@ impl ParseContext {
                     .get_or_insert((len - 1, len))
                     .1 = len;
             } else {
-                self.flush_static_range()?;
+                self.flush_static_range();
             }
         }
 
@@ -495,7 +490,7 @@ impl ParseContext {
     fn push_pattern(&mut self, pattern: Pattern) -> Result<(), BodySigParseError> {
         match &pattern {
             Pattern::String(..) => {
-                self.flush_static_range()?;
+                self.flush_static_range();
                 if self.match_bytes_static_ranges.is_empty() {
                     // This occurs when the string contained no static bytes at all
                     return Err(BodySigParseError::MinStaticBytes {
@@ -579,7 +574,7 @@ struct ParentheticalContext {
     // Alternative string data.  This is kept all together, with a set of
     // ranges to track heterogenous segments
     astr_data: Vec<MatchByte>,
-    ranges: Vec<RangeInclusive<usize>>,
+    ranges: Vec<std::ops::Range<usize>>,
 
     // Whether an alternative string has already been determined to be
     // generic due to differing range sizes or nyble wildcards
@@ -603,25 +598,23 @@ impl ParentheticalContext {
                     pos: self.start_pos.into(),
                 });
             } else {
-                return Err(BodySigParseError::EmptyAlternativeString {
-                    start_pos: self.start_pos.into(),
-                });
+                // Presence of an empty alternative string automatically implies
+                // the set is generic.
+                self.is_generic = true;
             }
         }
         let this_range_start = self.astr_data.len();
         self.astr_data.extend_from_slice(match_bytes);
-        let this_range_end = self.astr_data.len() - 1;
+        let this_range_end = self.astr_data.len();
         if !self.is_generic {
-            // TODO: investigate whether `?` forces a Generic alternatives, since
-            // the documentation is contradictory of the engine behavior.
             if let Some(first_range) = self.ranges.first() {
                 // See if ranges differ at all
-                if first_range.end() - first_range.start() != this_range_end - this_range_start {
+                if first_range.end - first_range.start != this_range_end - this_range_start {
                     self.is_generic = true
                 }
             }
         }
-        self.ranges.push(this_range_start..=this_range_end);
+        self.ranges.push(this_range_start..this_range_end);
         match_bytes.clear();
         Ok(())
     }
@@ -762,41 +755,36 @@ impl TryFrom<&[u8]> for BodySig {
                 {
                     match byte {
                         b'0'..=b'9' => {
-                            // TODO: handle overflows
                             pc.update_dec_value(byte, pos)?;
                         }
                         CURLY_RIGHT => {
-                            let range = match pc.cur_range.take() {
-                                // No lower bound was specified
-                                None => {
-                                    if let Some(dec_value) = pc.dec_value.take() {
-                                        (..=dec_value).into()
-                                    } else {
-                                        return Err(BodySigParseError::NoBraceBounds {
+                            let range = if let Some(Range::From(range_from)) = pc.cur_range.take() {
+                                // Lower bound was specified
+                                if let Some(dec_value) = pc.dec_value.take() {
+                                    // Upper bound was specified
+                                    if dec_value < range_from.start {
+                                        return Err(BodySigParseError::RangeBoundsInverted {
                                             start_pos: pc.left_brace_pos.into(),
+                                            start: range_from.start,
+                                            end: dec_value,
                                         });
                                     }
+                                    (range_from.start..=dec_value).into()
+                                } else {
+                                    // Only lower bound was specified
+                                    range_from.into()
                                 }
-                                // Lower bound was specified
-                                Some(Range::From(range_from)) => {
-                                    if let Some(dec_value) = pc.dec_value.take() {
-                                        // Upper bound was specified
-                                        if dec_value < range_from.start {
-                                            return Err(BodySigParseError::RangeBoundsInverted {
-                                                start_pos: pc.left_brace_pos.into(),
-                                                start: range_from.start,
-                                                end: dec_value,
-                                            });
-                                        }
-                                        (range_from.start..=dec_value).into()
-                                    } else {
-                                        // Only lower bound was specified
-                                        range_from.into()
-                                    }
+                            } else {
+                                // No lower bound was specified
+                                if let Some(dec_value) = pc.dec_value.take() {
+                                    (..=dec_value).into()
+                                } else {
+                                    return Err(BodySigParseError::NoBraceBounds {
+                                        start_pos: pc.left_brace_pos.into(),
+                                    });
                                 }
-                                _ => unreachable!(),
                             };
-                            pc.flush_match_bytes()?;
+                            pc.flush_match_bytes().unwrap();
                             pc.push_pattern(Pattern::ByteRange(range))?;
                             state = State::HighNyble;
                         }
@@ -853,8 +841,8 @@ impl TryFrom<&[u8]> for BodySig {
                             pc.update_dec_value(byte, pos)?;
                         }
                         BRACKET_RIGHT => {
-                            if let Some(Range::From(std::ops::RangeFrom { start })) =
-                                pc.cur_range.take()
+                            if let Range::From(std::ops::RangeFrom { start }) =
+                                pc.cur_range.take().unwrap()
                             {
                                 if let Some(dec_value) = pc.dec_value.take() {
                                     if !(1..=ANCHORED_BYTE_RANGE_MAX).contains(&dec_value)
@@ -904,8 +892,6 @@ impl TryFrom<&[u8]> for BodySig {
                                         start_pos: pc.left_bracket_pos.into(),
                                     });
                                 }
-                            } else {
-                                unreachable!();
                             }
                             state = State::HighNyble;
                         }
