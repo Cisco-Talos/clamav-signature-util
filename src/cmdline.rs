@@ -68,12 +68,14 @@ pub fn main() -> Result<()> {
             }
         }
     } else {
-        opt.paths
-            .iter()
-            .map(PathBuf::as_path)
-            .map(|path| process_path(path, &opt))
-            .filter(Result::is_err)
-            .count()
+        let mut err_count = 0;
+        for path in opt.paths.iter().map(PathBuf::as_path) {
+            if let Err(e) = process_path(path, &opt) {
+                eprintln!("processing {path:?}: {e}");
+                err_count += 1;
+            }
+        }
+        err_count
     };
 
     if err_count > 0 {
