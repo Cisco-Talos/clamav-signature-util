@@ -471,16 +471,14 @@ impl ParseContext {
             if !matches!(mb, MatchByte::Full(_)) {
                 paren_cxt.is_generic = true;
             }
+        } else if matches!(mb, MatchByte::Full(_)) {
+            let len = self.match_bytes.len();
+            // Set a default, or replace the second value with the new bound
+            self.match_bytes_static_range
+                .get_or_insert((len - 1, len))
+                .1 = len;
         } else {
-            if matches!(mb, MatchByte::Full(_)) {
-                let len = self.match_bytes.len();
-                // Set a default, or replace the second value with the new bound
-                self.match_bytes_static_range
-                    .get_or_insert((len - 1, len))
-                    .1 = len;
-            } else {
-                self.flush_static_range();
-            }
+            self.flush_static_range();
         }
 
         Ok(())
