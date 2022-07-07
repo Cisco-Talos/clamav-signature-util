@@ -1,5 +1,5 @@
 use super::{
-    bodysig::BodySigParseError,
+    bodysig::parse::BodySigParseError,
     ext::{Offset, OffsetParseError},
     FromSigBytesParseError, SigMeta,
 };

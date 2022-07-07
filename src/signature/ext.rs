@@ -1,8 +1,9 @@
+use super::bodysig::parse::BodySigParseError;
 use crate::{
     feature::{EngineReq, FeatureSet},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     signature::{
-        bodysig::{BodySig, BodySigParseError},
+        bodysig::BodySig,
         logical::{
             subsig::{SubSig, SubSigModifier},
             targetdesc::TargetDescParseError,
@@ -57,9 +58,6 @@ pub enum ExtendedSigParseError {
     #[error("Parsing max_flevel: {0}")]
     ParseMaxFlevel(ParseNumberError<u32>),
 }
-
-#[derive(Debug, Error, PartialEq)]
-pub enum ExtendedSigValidationError {}
 
 impl FromSigBytes for ExtendedSig {
     fn from_sigbytes<'a, SB: Into<&'a SigBytes>>(
@@ -304,6 +302,52 @@ impl Signature for ExtendedSig {
             "anonymous"
         }
     }
+
+    fn validate(&self, sigmeta: &SigMeta) -> Result<(), super::SigValidationError> {
+        self.validate_subelements(sigmeta)?;
+        self.validate_flevel(sigmeta)?;
+        Ok(())
+    }
+
+    fn validate_flevel(&self, sigmeta: &SigMeta) -> Result<(), super::SigValidationError> {
+        // Check the specified vs. the computed feature level
+        if let Some(computed_flevel) = self.computed_feature_level() {
+            if let Some(computed_min_flevel) = computed_flevel.start() {
+                // Some features within this signature have a minimum feature level.
+                // Confirm that the signature specifies it (or a higher level)
+                match &sigmeta.f_level {
+                    Some(f_level) => match f_level.start() {
+                        Some(spec_min_flevel) => {
+                            if spec_min_flevel < computed_min_flevel {
+                                return Err(super::SigValidationError::SpecifiedMinFLevelTooLow {
+                                    spec_min_flevel,
+                                    computed_min_flevel,
+                                    feature_set: self.features().into(),
+                                });
+                            }
+                        }
+                        None => {
+                            // This is the [unlikely] case where a *maximum* FLevel
+                            // was specified without a minimum, but a minimum is required.
+                            return Err(super::SigValidationError::MinFLevelNotSpecified {
+                                computed_min_flevel,
+                                feature_set: self.features().into(),
+                            });
+                        }
+                    },
+                    None => {
+                        return Err(super::SigValidationError::MinFLevelNotSpecified {
+                            computed_min_flevel,
+                            feature_set: self.features().into(),
+                        });
+                    }
+                }
+            }
+            // TODO: check maximum, as well (but maximums are not presently computed)
+        }
+
+        Ok(())
+    }
 }
 
 impl EngineReq for ExtendedSig {
@@ -348,9 +392,9 @@ mod tests {
     use super::*;
 
     const SAMPLE_SIG: &str =
-        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1{9-}7e{-5}!(0f|f1|ce)(B)(L)a??b";
+        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd";
     const SAMPLE_SIG_WITH_FLEVEL: &str =
-        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1{9-}7e{-5}!(0f|f1|ce)(B)(L)a??b:99:101";
+        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd:99:101";
 
     #[test]
     fn export() {
@@ -362,7 +406,10 @@ mod tests {
 
     #[test]
     fn parse_flevels() {
-        let (sig, sigmeta) = ExtendedSig::from_sigbytes(&SAMPLE_SIG_WITH_FLEVEL.into()).unwrap();
+        let (sig, sigmeta) = match ExtendedSig::from_sigbytes(&SAMPLE_SIG_WITH_FLEVEL.into()) {
+            Ok(sig_and_sigmeta) => sig_and_sigmeta,
+            Err(e) => panic!("{}", e),
+        };
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG, &exported);
         assert_eq!(

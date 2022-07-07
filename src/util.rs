@@ -1,6 +1,6 @@
 use crate::sigbytes::{AppendSigBytes, SigBytes};
 use itertools::Itertools;
-use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
+use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive, Shl};
 use std::str;
 use thiserror::Error;
 
@@ -131,6 +131,19 @@ where
 
     #[error("unable to parse bound: {0}")]
     BoundParse(#[from] ParseNumberError<T>),
+}
+
+/// Take a u8 hex character, and whether the hex character represents the high or
+/// low nyble in a byte, and return its value aligned within a byte.
+#[inline]
+pub(crate) fn hex_nyble(hex: u8, high: bool) -> u8 {
+    match hex {
+        b'0'..=b'9' => hex - b'0',
+        b'a'..=b'f' => hex - b'a' + 0x0a,
+        b'A'..=b'F' => hex - b'A' + 0x0a,
+        _ => panic!("invalid hex byte"),
+    }
+    .shl(if high { 4 } else { 0 })
 }
 
 /// Parse a decimal number from &[u8]
@@ -379,6 +392,15 @@ impl std::fmt::Display for Position {
 impl From<usize> for Position {
     fn from(pos: usize) -> Self {
         Position::Absolute(pos)
+    }
+}
+
+impl From<Option<usize>> for Position {
+    fn from(arg: Option<usize>) -> Self {
+        match arg {
+            Some(n) => n.into(),
+            None => Position::End,
+        }
     }
 }
 

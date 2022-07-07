@@ -10,7 +10,7 @@ use crate::{
     feature::EngineReq,
     sigbytes::AppendSigBytes,
     signature::{
-        bodysig::{BodySig, BodySigParseError},
+        bodysig::{parse::BodySigParseError, BodySig},
         ext::{ExtendedSig, ExtendedSigParseError, Offset, OffsetParseError},
         targettype::TargetType,
     },

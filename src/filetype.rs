@@ -24,7 +24,7 @@ pub enum FileTypeParseError {
     Unknown(#[from] strum::ParseError),
 }
 
-impl<'a> TryFrom<&[u8]> for FileType {
+impl TryFrom<&[u8]> for FileType {
     type Error = FileTypeParseError;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {

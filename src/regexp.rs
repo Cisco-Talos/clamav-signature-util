@@ -1,13 +1,19 @@
-use crate::sigbytes::AppendSigBytes;
+use crate::sigbytes::{AppendSigBytes, SigBytes};
 use std::{fmt::Write, str};
 use thiserror::Error;
 
 /// A wrapper for a regular expression that retains its source
-#[derive(Debug)]
 pub struct RegexpMatch {
     /// The regular expression source
     pub raw: Vec<u8>,
     // TODO: add compiled form
+}
+
+impl std::fmt::Debug for RegexpMatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let raw = SigBytes::from(self.raw.clone());
+        f.debug_struct("RegexpMatch").field("raw", &raw).finish()
+    }
 }
 
 #[derive(Debug, Error, PartialEq)]
