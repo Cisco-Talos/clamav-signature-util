@@ -276,12 +276,12 @@ impl ParseContext {
             }
         }
         if !self.match_bytes.is_empty() {
-            self.push_pattern(Pattern::String(
-                MatchBytes {
+            self.push_pattern(Pattern::String {
+                match_bytes: MatchBytes {
                     bytes: self.match_bytes.to_vec(),
                 },
-                self.pattern_modifier,
-            ))?;
+                pattern_modifier: self.pattern_modifier,
+            })?;
             self.match_bytes.clear();
             self.pattern_modifier = Default::default();
         }
@@ -291,9 +291,12 @@ impl ParseContext {
 
     fn flush_static_range(&mut self) {
         if let Some((start, end)) = self.match_bytes_static_range.take() {
+            dbg!(start, end);
             if end - start >= 2 {
                 self.match_bytes_static_ranges.push((start, end));
             }
+        } else {
+            dbg!();
         }
     }
 
@@ -529,7 +532,7 @@ impl ParseContext {
     // Push a new match criteria with error checking
     fn push_pattern(&mut self, pattern: Pattern) -> Result<(), BodySigParseError> {
         match &pattern {
-            Pattern::String(..) => {
+            Pattern::String { .. } => {
                 self.flush_static_range();
                 if self.match_bytes_static_ranges.is_empty() {
                     // This occurs when the string contained no static bytes at all

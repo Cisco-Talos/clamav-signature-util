@@ -4,7 +4,7 @@ use crate::{
     sigbytes::{AppendSigBytes, SigBytes},
     util::Range,
 };
-use enumflags2::BitFlags;
+use enumflags2::{BitFlag, BitFlags};
 use std::{fmt::Write, ops::RangeInclusive};
 
 #[derive(Debug, PartialEq)]
@@ -18,7 +18,10 @@ pub enum Pattern {
     /// A series of bytes, possible containing fixed-size wildcards. Represented
     /// as `xx`, `x?`, `?x` or `??`, where `x` is a hexadecimal digit, and `?` is
     /// a nyble that will be ignored.
-    String(MatchBytes, BitFlags<PatternModifier>),
+    String {
+        match_bytes: MatchBytes,
+        pattern_modifier: BitFlags<PatternModifier>,
+    },
 
     /// An "anchored byte" expression (represented as `BY[n-m]HEXSIG` or `HEXSIG[n-m]BY`)
     AnchoredByte {
@@ -39,6 +42,33 @@ pub enum Pattern {
 
     /// An unbounded range of bytes (represented as `*`)
     Wildcard,
+}
+
+impl From<&[u8]> for Pattern {
+    fn from(bytes: &[u8]) -> Self {
+        Pattern::String {
+            match_bytes: bytes.into(),
+            pattern_modifier: PatternModifier::empty(),
+        }
+    }
+}
+
+impl<const N: usize> From<[u8; N]> for Pattern {
+    fn from(bytes: [u8; N]) -> Self {
+        Pattern::String {
+            match_bytes: bytes.as_slice().into(),
+            pattern_modifier: PatternModifier::empty(),
+        }
+    }
+}
+
+impl From<Vec<MatchByte>> for Pattern {
+    fn from(bytes: Vec<MatchByte>) -> Self {
+        Pattern::String {
+            match_bytes: bytes.into(),
+            pattern_modifier: PatternModifier::empty(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -172,11 +202,14 @@ impl Pattern {
 impl std::fmt::Debug for Pattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::String(mbs, pmod) => {
+            Self::String {
+                match_bytes,
+                pattern_modifier,
+            } => {
                 let mut tfmt = f.debug_tuple("String");
-                tfmt.field(mbs);
-                if !pmod.is_empty() {
-                    tfmt.field(pmod);
+                tfmt.field(match_bytes);
+                if !pattern_modifier.is_empty() {
+                    tfmt.field(pattern_modifier);
                 };
                 tfmt.finish()
             }
@@ -202,11 +235,14 @@ impl std::fmt::Debug for Pattern {
 impl AppendSigBytes for Pattern {
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         match self {
-            Pattern::String(s, pmod) => {
-                for pm in PatternModifier::left_flags().intersection_c(*pmod) {
+            Pattern::String {
+                match_bytes,
+                pattern_modifier,
+            } => {
+                for pm in PatternModifier::left_flags().intersection_c(*pattern_modifier) {
                     pm.append_sigbytes(sb)?;
                 }
-                s.append_sigbytes(sb)?;
+                match_bytes.append_sigbytes(sb)?;
             }
             Pattern::Wildcard => sb.write_char('*')?,
             Pattern::AnchoredByte {
