@@ -528,18 +528,34 @@ fn bracket_lower_missing() {
 }
 
 #[test]
-fn bracket_upper_missing() {
+fn brackets_only_one_bound() {
     assert_eq!(
-        Err(BodySigParseError::BracketRangeMissingUpperBound {
-            start_pos: 2.into()
+        Ok(BodySig {
+            patterns: vec![Pattern::AnchoredByte {
+                anchor_side: ByteAnchorSide::Left,
+                byte: MatchByte::Full(0x01),
+                range: 5..=5,
+                string: hex!("abcd").into()
+            }]
         }),
-        BodySig::try_from(b"01[1]abcd".as_slice())
+        BodySig::try_from(b"01[5]abcd".as_slice())
     );
     assert_eq!(
-        Err(BodySigParseError::BracketRangeMissingUpperBound {
+        Err(BodySigParseError::AnchoredByteInvalidLowerBound {
+            bracket_pos: 2.into(),
+            found: 50,
+        }),
+        BodySig::try_from(b"01[50]abcd".as_slice())
+    );
+}
+
+#[test]
+fn brackets_empty() {
+    assert_eq!(
+        Err(BodySigParseError::BracketRangeEmpty {
             start_pos: 2.into()
         }),
-        BodySig::try_from(b"01[1-]abcd".as_slice())
+        BodySig::try_from(b"01[]abcd".as_slice())
     );
 }
 
