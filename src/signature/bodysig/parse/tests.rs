@@ -540,6 +540,13 @@ fn brackets_only_one_bound() {
         }),
         BodySig::try_from(b"01[5]abcd".as_slice())
     );
+    assert_eq!(
+        Err(BodySigParseError::AnchoredByteInvalidLowerBound {
+            bracket_pos: 2.into(),
+            found: 50,
+        }),
+        BodySig::try_from(b"01[50]abcd".as_slice())
+    );
 }
 
 #[test]
