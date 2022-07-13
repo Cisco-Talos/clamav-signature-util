@@ -873,6 +873,7 @@ fn trailing_wildcard() {
     );
 }
 
+#[cfg(feature = "broken_min_static_bytes")]
 #[test]
 fn short_match_bytes() {
     assert_eq!(
@@ -901,6 +902,7 @@ fn legal_two_byte_with_fixed_wildcard() {
     );
 }
 
+#[cfg(feature = "broken_min_static_bytes")]
 #[test]
 fn no_static_bytes_within_string() {
     assert_eq!(
@@ -911,6 +913,7 @@ fn no_static_bytes_within_string() {
     );
 }
 
+#[cfg(feature = "broken_min_static_bytes")]
 #[test]
 fn no_static_bytes_within_string_leading_wildcard() {
     // This tests that the reported position is correct when the string includes
@@ -941,6 +944,7 @@ fn negated_generic_altstr() {
     )
 }
 
+#[cfg(feature = "broken_min_static_bytes")]
 #[test]
 fn insufficient_static_bytes_ahead_of_gen_altstr() {
     assert_eq!(
@@ -951,6 +955,7 @@ fn insufficient_static_bytes_ahead_of_gen_altstr() {
     );
 }
 
+#[cfg(feature = "broken_min_static_bytes")]
 #[test]
 fn insufficient_static_bytes_ahead_of_fixed_altstr() {
     assert_eq!(
@@ -961,6 +966,7 @@ fn insufficient_static_bytes_ahead_of_fixed_altstr() {
     );
 }
 
+#[cfg(feature = "broken_min_static_bytes")]
 #[test]
 fn insufficient_static_bytes_ahead_of_empty_altstr() {
     if let Err(e) = BodySig::try_from(b"00()aba?".as_slice()) {
@@ -974,6 +980,7 @@ fn insufficient_static_bytes_ahead_of_empty_altstr() {
     );
 }
 
+#[cfg(feature = "broken_min_static_bytes")]
 #[test]
 fn insufficient_static_bytes_ahead_of_large_range() {
     if let Err(e) = BodySig::try_from(b"00()aba?".as_slice()) {

@@ -4,6 +4,8 @@ name = "clam-sigutil"
 version = "0.1.0"
 
 [features]
+# Temporary "feature" for interim release 1.1
+broken_min_static_bytes = []
 default = []
 validate_regex = ["regex"]
 

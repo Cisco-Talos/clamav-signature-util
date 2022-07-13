@@ -136,6 +136,7 @@ pub enum BodySigParseError {
     LeadingWildcard { pattern: Pattern },
 
     /// There must be at least static byte pattern of length 2 or more
+    #[cfg(feature = "broken_min_static_bytes")]
     #[error(
         "string starting {start_pos} does not contain static byte pattern of length 2 or greater"
     )]
@@ -533,6 +534,7 @@ impl ParseContext {
                 self.flush_static_range();
                 if self.match_bytes_static_ranges.is_empty() {
                     // This occurs when the string contained no static bytes at all
+                    #[cfg(feature = "broken_min_static_bytes")]
                     return Err(BodySigParseError::MinStaticBytes {
                         start_pos: self.match_bytes_start.into(),
                     });
