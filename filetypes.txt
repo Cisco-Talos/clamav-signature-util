@@ -1,5 +1,7 @@
 # F-Level  File Type(s) Introduced
 # -------  -----------------------
+  200      CL_TYPE_ONENOTE
+  190      CL_TYPE_UDF
   130      CL_TYPE_JPEG CL_TYPE_TIFF
   120      CL_TYPE_GIF CL_TYPE_PNG
   110      CL_TYPE_EGG CL_TYPE_EGGSFX
