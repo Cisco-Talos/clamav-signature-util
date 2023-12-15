@@ -98,6 +98,10 @@ pub enum ContainerType {
     CL_TYPE_LNK,
     CL_TYPE_UDF,
     CL_TYPE_ONENOTE,
+    CL_TYPE_PYTHON_COMPILED,
+    CL_TYPE_JAVASCRIPT,
+    CL_TYPE_PYTHON_SCRIPT,
+    CL_TYPE_VBA,
 
     CL_TYPE_OTHER,   /* on-the-fly, used for target 14 (OTHER) */
     CL_TYPE_IGNORED, /* please don't add anything below */
