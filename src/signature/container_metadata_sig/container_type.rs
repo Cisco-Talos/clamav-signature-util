@@ -104,7 +104,7 @@ pub enum ContainerType {
 }
 
 #[derive(Debug, Error, PartialEq)]
-pub enum ContainerTypeParseError {
+pub enum ParseError {
     #[error("not valid unicode: {0}")]
     NotUnicode(#[from] str::Utf8Error),
 
@@ -113,11 +113,10 @@ pub enum ContainerTypeParseError {
 }
 
 impl TryFrom<&[u8]> for ContainerType {
-    type Error = ContainerTypeParseError;
+    type Error = ParseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        ContainerType::from_str(str::from_utf8(value)?)
-            .map_err(|_| ContainerTypeParseError::Unknown)
+        ContainerType::from_str(str::from_utf8(value)?).map_err(|_| ParseError::Unknown)
     }
 }
 
@@ -147,7 +146,7 @@ mod tests {
     fn not_unicode() {
         assert!(matches!(
             ContainerType::try_from(&[0x80u8][..]),
-            Err(ContainerTypeParseError::NotUnicode(_))
+            Err(ParseError::NotUnicode(_))
         ));
     }
 
@@ -155,7 +154,7 @@ mod tests {
     fn unknown() {
         assert!(matches!(
             ContainerType::try_from("CL_TYPE_XYZZY".as_bytes()),
-            Err(ContainerTypeParseError::Unknown)
+            Err(ParseError::Unknown)
         ));
     }
 }

@@ -11,8 +11,8 @@ pub use features::Feature;
 /// signature element.
 pub trait EngineReq {
     /// Engine features required to utilize a particular element
-    fn features(&self) -> FeatureSet {
-        FeatureSet::default()
+    fn features(&self) -> Set {
+        Set::default()
     }
 
     /// The range of feature levels for which this signature is supported (as
@@ -29,33 +29,33 @@ pub trait EngineReq {
 /// A wrapper around a set of features identifiers, which may be known at compile
 /// time or computed after examining signature content.
 #[derive(PartialEq)]
-pub enum FeatureSet {
+pub enum Set {
     Empty,
     Static(&'static [Feature]),
     Built(Vec<Feature>),
 }
 
-impl Default for FeatureSet {
+impl Default for Set {
     fn default() -> Self {
         Self::Empty
     }
 }
 
-impl IntoIterator for FeatureSet {
+impl IntoIterator for Set {
     type Item = Feature;
 
     type IntoIter = Box<dyn Iterator<Item = Feature>>;
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
-            FeatureSet::Empty => Box::new(std::iter::empty()),
-            FeatureSet::Static(features) => Box::new(features.iter().copied()),
-            FeatureSet::Built(features) => Box::new(features.into_iter()),
+            Set::Empty => Box::new(std::iter::empty()),
+            Set::Static(features) => Box::new(features.iter().copied()),
+            Set::Built(features) => Box::new(features.into_iter()),
         }
     }
 }
 
-impl<I> From<I> for FeatureSet
+impl<I> From<I> for Set
 where
     I: Iterator<Item = Feature>,
 {
@@ -64,7 +64,7 @@ where
     }
 }
 
-impl FeatureSet {
+impl Set {
     /// Create an empty FeatureSet
     #[must_use]
     pub fn empty() -> Self {
@@ -78,7 +78,7 @@ impl FeatureSet {
     }
 }
 
-impl std::fmt::Debug for FeatureSet {
+impl std::fmt::Debug for Set {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Empty => write!(f, "None"),
@@ -98,9 +98,9 @@ impl std::fmt::Display for Feature {
 
 /// A wrapper type for a Feature that includes the minimum feature FLEVEL in
 /// debug formatting
-pub struct FeatureWithMinFlevel(Feature);
+struct WithMinFlevel(Feature);
 
-impl std::fmt::Debug for FeatureWithMinFlevel {
+impl std::fmt::Debug for WithMinFlevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let feature = &self.0;
         let min_flevel = self.0.min_flevel();
@@ -111,25 +111,25 @@ impl std::fmt::Debug for FeatureWithMinFlevel {
 /// A wrapper type for a FeatureSet that includes the minimum feature FLEVEL in
 /// debug formatting
 #[derive(PartialEq)]
-pub struct FeatureSetWithMinFlevel(FeatureSet);
+pub struct SetWithMinFlevel(Set);
 
-impl From<FeatureSet> for FeatureSetWithMinFlevel {
-    fn from(fs: FeatureSet) -> Self {
-        FeatureSetWithMinFlevel(fs)
+impl From<Set> for SetWithMinFlevel {
+    fn from(fs: Set) -> Self {
+        SetWithMinFlevel(fs)
     }
 }
 
-impl std::fmt::Debug for FeatureSetWithMinFlevel {
+impl std::fmt::Debug for SetWithMinFlevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
-            FeatureSet::Empty => f.debug_list().finish(),
-            FeatureSet::Static(features) => f
+            Set::Empty => f.debug_list().finish(),
+            Set::Static(features) => f
                 .debug_list()
-                .entries(features.iter().copied().map(FeatureWithMinFlevel))
+                .entries(features.iter().copied().map(WithMinFlevel))
                 .finish(),
-            FeatureSet::Built(features) => f
+            Set::Built(features) => f
                 .debug_list()
-                .entries(features.iter().copied().map(FeatureWithMinFlevel))
+                .entries(features.iter().copied().map(WithMinFlevel))
                 .finish(),
         }
     }

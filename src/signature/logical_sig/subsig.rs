@@ -11,7 +11,7 @@ use crate::{
     sigbytes::AppendSigBytes,
     signature::{
         bodysig::{parse::BodySigParseError, BodySig},
-        ext::{ExtendedSig, ExtendedSigParseError, Offset, OffsetParseError},
+        ext_sig::{self, ExtendedSig, ExtendedSigParseError, Offset},
         targettype::TargetType,
     },
 };
@@ -89,7 +89,7 @@ pub enum SubSigParseError {
     ExtendedSigParse(#[from] ExtendedSigParseError),
 
     #[error("parsing subsig offset: {0}")]
-    OffsetParse(#[from] OffsetParseError),
+    OffsetParse(#[from] ext_sig::OffsetParseError),
 
     #[error("parsing body subsig: {0}")]
     BodySigParse(#[from] BodySigParseError),

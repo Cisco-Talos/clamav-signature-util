@@ -6,7 +6,7 @@ use thiserror::Error;
 pub enum SigType {
     /// [Extended signature](crate::signature::ext::ExtendedSig)
     Extended,
-    /// [Logical signature](crate::signature::logical::LogicalSig)
+    /// [Logical signature](crate::signature::logical_sig::LogicalSig)
     Logical,
     /// [Container Metadata signature](crate::signature::container_metadata::ContainerMetadataSig)
     ContainerMetadata,

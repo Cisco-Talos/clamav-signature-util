@@ -1,5 +1,5 @@
 use crate::{
-    feature::{EngineReq, FeatureSet},
+    feature::{EngineReq, Set},
     sigbytes::{AppendSigBytes, SigBytes},
     util::{parse_number_dec, ParseNumberError},
     Feature,
@@ -56,12 +56,12 @@ impl TryFrom<&[u8]> for TargetType {
 }
 
 impl EngineReq for TargetType {
-    fn features(&self) -> FeatureSet {
-        FeatureSet::from_static(match self {
+    fn features(&self) -> Set {
+        Set::from_static(match self {
             TargetType::PDF => &[Feature::TargetTypePdf],
             TargetType::Flash => &[Feature::TargetTypeFlash],
             TargetType::Java => &[Feature::TargetTypeJava],
-            _ => return FeatureSet::default(),
+            _ => return Set::default(),
         })
     }
 }

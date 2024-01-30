@@ -3,7 +3,6 @@ pub mod subsig;
 pub mod targetdesc;
 
 use self::{
-    expression::LogExprParseError,
     subsig::{SubSigModifier, SubSigParseError},
     targetdesc::{TargetDescAttr, TargetDescParseError, TargetDescValidationError},
 };
@@ -11,7 +10,9 @@ use super::bodysig::parse::BodySigParseError;
 use crate::{
     feature::EngineReq,
     sigbytes::{AppendSigBytes, FromSigBytes},
-    signature::{ext::ExtendedSig, FromSigBytesParseError, SigMeta, SigValidationError, Signature},
+    signature::{
+        ext_sig::ExtendedSig, FromSigBytesParseError, SigMeta, SigValidationError, Signature,
+    },
     util::Range,
 };
 use std::{fmt::Write, str};
@@ -31,7 +32,7 @@ pub struct LogicalSig {
 }
 
 #[derive(Debug, Error, PartialEq)]
-pub enum LogicalSigParseError {
+pub enum ParseError {
     #[error("parsing body signature index {0}: {1}")]
     BodySigParse(usize, BodySigParseError),
 
@@ -42,7 +43,7 @@ pub enum LogicalSigParseError {
     MissingExpression,
 
     #[error("invalid logical expression: {0}")]
-    LogExprParse(#[from] LogExprParseError),
+    LogExprParse(#[from] expression::LogExprParseError),
 
     #[error("missing TargetDesc field")]
     MissingTargetDesc,
@@ -55,7 +56,7 @@ pub enum LogicalSigParseError {
 }
 
 #[derive(Debug, Error, PartialEq)]
-pub enum LogicalSigValidationError {
+pub enum ValidationError {
     #[error("validating TargetDesc: {0}")]
     TargetDesc(#[from] TargetDescValidationError),
 
@@ -74,12 +75,12 @@ impl Signature for LogicalSig {
     fn validate_subelements(&self, sigmeta: &SigMeta) -> Result<(), SigValidationError> {
         self.target_desc
             .validate()
-            .map_err(LogicalSigValidationError::TargetDesc)?;
+            .map_err(ValidationError::TargetDesc)?;
         for (idx, sub_sig) in self.sub_sigs.iter().enumerate() {
             if let Some(extsig) = sub_sig.downcast_ref::<ExtendedSig>() {
                 extsig
                     .validate(sigmeta)
-                    .map_err(|err| LogicalSigValidationError::SubSig {
+                    .map_err(|err| ValidationError::SubSig {
                         idx,
                         err: Box::new(err),
                     })?;
@@ -102,20 +103,20 @@ impl FromSigBytes for LogicalSig {
             .into();
         let target_desc: TargetDesc = fields
             .next()
-            .ok_or(LogicalSigParseError::MissingTargetDesc)?
+            .ok_or(ParseError::MissingTargetDesc)?
             .try_into()
-            .map_err(LogicalSigParseError::TargetDesc)?;
+            .map_err(ParseError::TargetDesc)?;
         let expression = fields
             .next()
-            .ok_or(LogicalSigParseError::MissingExpression)?
+            .ok_or(ParseError::MissingExpression)?
             .try_into()
-            .map_err(LogicalSigParseError::LogExprParse)?;
+            .map_err(ParseError::LogExprParse)?;
         let mut sub_sigs = vec![];
         for (subsig_no, subsig_bytes) in fields.enumerate() {
             let (modifier, subsig_bytes) = find_modifier(subsig_bytes);
             sub_sigs.push(
                 subsig::parse_bytes(subsig_bytes, modifier)
-                    .map_err(|e| LogicalSigParseError::SubSigParse(subsig_no, e))?,
+                    .map_err(|e| ParseError::SubSigParse(subsig_no, e))?,
             );
         }
 
@@ -138,7 +139,7 @@ impl FromSigBytes for LogicalSig {
 }
 
 impl EngineReq for LogicalSig {
-    fn features(&self) -> crate::feature::FeatureSet {
+    fn features(&self) -> crate::feature::Set {
         // Collect all the features required by the various subsigs
         self.sub_sigs
             .iter()
@@ -234,20 +235,20 @@ impl TryFrom<&[u8]> for LogicalSig {
             .into();
         let target_desc = fields
             .next()
-            .ok_or(LogicalSigParseError::MissingTargetDesc)?
+            .ok_or(ParseError::MissingTargetDesc)?
             .try_into()
-            .map_err(LogicalSigParseError::TargetDesc)?;
+            .map_err(ParseError::TargetDesc)?;
         let expression = fields
             .next()
-            .ok_or(LogicalSigParseError::MissingExpression)?
+            .ok_or(ParseError::MissingExpression)?
             .try_into()
-            .map_err(LogicalSigParseError::LogExprParse)?;
+            .map_err(ParseError::LogExprParse)?;
         let mut sub_sigs = vec![];
         for (subsig_no, subsig_bytes) in fields.enumerate() {
             let (modifier, subsig_bytes) = find_modifier(subsig_bytes);
             sub_sigs.push(
                 subsig::parse_bytes(subsig_bytes, modifier)
-                    .map_err(|e| LogicalSigParseError::SubSigParse(subsig_no, e))?,
+                    .map_err(|e| ParseError::SubSigParse(subsig_no, e))?,
             );
         }
 

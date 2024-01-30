@@ -1,6 +1,6 @@
 use super::super::targettype::TargetType;
 use crate::{
-    feature::{EngineReq, FeatureSet},
+    feature::{EngineReq, Set},
     filetype::{FileType, FileTypeParseError},
     sigbytes::{AppendSigBytes, SigBytes},
     signature::ToSigBytesError,
@@ -224,8 +224,8 @@ impl TryFrom<&[u8]> for TargetDesc {
 }
 
 impl EngineReq for TargetDesc {
-    fn features(&self) -> FeatureSet {
-        FeatureSet::from(
+    fn features(&self) -> Set {
+        Set::from(
             self.attrs
                 .iter()
                 .filter_map(|attr| match attr {

@@ -1,8 +1,8 @@
 use super::{SubSig, SubSigType};
 use crate::{
-    feature::{EngineReq, Feature, FeatureSet},
+    feature::{EngineReq, Feature, Set},
     sigbytes::AppendSigBytes,
-    signature::logical::SubSigModifier,
+    signature::logical_sig::SubSigModifier,
     util::{parse_number_dec, ParseNumberError},
 };
 use thiserror::Error;
@@ -12,7 +12,7 @@ pub use compset::{ComparisonSet, ComparisonSetParseError};
 pub mod byteopts;
 pub use byteopts::{ByteOptions, ByteOptionsParseError};
 pub mod offset;
-pub use offset::{Offset, OffsetParseError};
+pub use offset::Offset;
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -66,7 +66,7 @@ pub enum ByteCmpSubSigParseError {
     ComparisonSetParse(#[from] ComparisonSetParseError),
 
     #[error("parsing offset: {0}")]
-    OffsetParse(#[from] OffsetParseError),
+    OffsetParse(#[from] offset::ParseError),
 }
 
 impl super::SubSigError for ByteCmpSubSigParseError {
@@ -104,8 +104,8 @@ impl SubSig for ByteCmpSubSig {
 }
 
 impl EngineReq for ByteCmpSubSig {
-    fn features(&self) -> FeatureSet {
-        FeatureSet::from_static(&[Feature::ByteCompareMin])
+    fn features(&self) -> Set {
+        Set::from_static(&[Feature::ByteCompareMin])
     }
 }
 

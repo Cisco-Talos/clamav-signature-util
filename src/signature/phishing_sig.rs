@@ -1,6 +1,6 @@
 use crate::{
     feature::EngineReq,
-    regexp::{RegexpMatch, RegexpMatchParseError},
+    regexp,
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     signature::{SigMeta, ToSigBytesError},
     util::{
@@ -42,8 +42,8 @@ pub enum WDBMatch {
 /// as found in HTML).
 #[derive(Debug)]
 pub struct UrlRegexpPair {
-    real: RegexpMatch,
-    displayed: RegexpMatch,
+    real: regexp::Match,
+    displayed: regexp::Match,
 }
 
 /// A Google Safe Browsing match type
@@ -70,7 +70,7 @@ pub enum GSBPred {
 }
 
 #[derive(Debug, Error, PartialEq)]
-pub enum PhishingSigParseError {
+pub enum ParseError {
     #[error("Missing preamble (first) field")]
     MissingPreamble,
 
@@ -90,13 +90,13 @@ pub enum PhishingSigParseError {
     MissingRealUrl,
 
     #[error("Parsing RealURL field: {0}")]
-    RealUrlRegexpParse(RegexpMatchParseError),
+    RealUrlRegexpParse(regexp::ParseError),
 
     #[error("Missing DisplayedURL field")]
     MissingDisplayedUrl,
 
     #[error("Parsing DisplayedURL field: {0}")]
-    DisplayedUrlRegexpParse(RegexpMatchParseError),
+    DisplayedUrlRegexpParse(regexp::ParseError),
 
     #[error("Google Safe Browsing signature missing predicate type field")]
     MissingGSBPredType,
@@ -126,9 +126,6 @@ pub enum PhishingSigParseError {
     FLevelMin(ParseNumberError<u32>),
 }
 
-#[derive(Debug, Error, PartialEq)]
-pub enum PhishingSigValidationError {}
-
 #[derive(Debug)]
 pub enum PhishingSig {
     PDB(PDBMatch),
@@ -154,9 +151,9 @@ impl Signature for PhishingSig {
 }
 
 impl EngineReq for PhishingSig {
-    fn features(&self) -> crate::feature::FeatureSet {
+    fn features(&self) -> crate::feature::Set {
         // TODO: Figure out when Phishing signatures appeared
-        crate::feature::FeatureSet::default()
+        crate::feature::Set::default()
     }
 }
 
@@ -219,9 +216,7 @@ impl FromSigBytes for PhishingSig {
         let mut sigmeta = SigMeta::default();
         let mut fields = sb.into().as_bytes().split(unescaped_element(b'\\', b':'));
 
-        let prefix = fields
-            .next()
-            .ok_or(PhishingSigParseError::MissingPreamble)?;
+        let prefix = fields.next().ok_or(ParseError::MissingPreamble)?;
 
         // `R` and `H` may include a filter which is (per specification) ignored
         let sig = if prefix.starts_with(&[b'R']) {
@@ -241,25 +236,20 @@ impl FromSigBytes for PhishingSig {
                         b"S2" => GSBMatchType::PhishingBlock2,
                         _ => unreachable!(),
                     };
-                    let pred_type = fields
-                        .next()
-                        .ok_or(PhishingSigParseError::MissingGSBPredType)?;
-                    let pred_str = fields
-                        .next()
-                        .ok_or(PhishingSigParseError::MissingGSBPredicate)?;
+                    let pred_type = fields.next().ok_or(ParseError::MissingGSBPredType)?;
+                    let pred_str = fields.next().ok_or(ParseError::MissingGSBPredicate)?;
                     let pred = match pred_type {
                         b"P" => {
                             let mut bytes = [0; 4];
                             hex::decode_to_slice(pred_str, &mut bytes)
-                                .map_err(PhishingSigParseError::InvalidGSBHostPrefix)?;
+                                .map_err(ParseError::InvalidGSBHostPrefix)?;
                             GSBPred::HostPrefixHash(bytes)
                         }
                         // These both contain the same hash field type
                         b"F" | b"W" => {
-                            let hash = parse_hash(pred_str)
-                                .map_err(PhishingSigParseError::InvalidGSBHash)?;
+                            let hash = parse_hash(pred_str).map_err(ParseError::InvalidGSBHash)?;
                             if !matches!(hash, Hash::Sha2_256(_)) {
-                                return Err(PhishingSigParseError::InvalidGSBHashType.into());
+                                return Err(ParseError::InvalidGSBHashType.into());
                             }
                             // Special handling for allow type
                             if pred_type == b"W" {
@@ -268,13 +258,13 @@ impl FromSigBytes for PhishingSig {
                                     match_type = GSBMatchType::Allow;
                                 } else {
                                     // 'W' ("allow") only allowed for "S" sigs, not S1/S2
-                                    return Err(PhishingSigParseError::AllowNotAllowed.into());
+                                    return Err(ParseError::AllowNotAllowed.into());
                                 }
                             }
                             GSBPred::Hash(hash)
                         }
                         _ => {
-                            return Err(PhishingSigParseError::InvalidPredicateType {
+                            return Err(ParseError::InvalidPredicateType {
                                 pred_type: pred_type.into(),
                             }
                             .into())
@@ -286,7 +276,7 @@ impl FromSigBytes for PhishingSig {
                     &mut fields,
                 )?))),
                 b"M" => make_wdbmatch_hostname(&mut fields),
-                bytes => Err(PhishingSigParseError::UnknownPrefix(bytes.into())),
+                bytes => Err(ParseError::UnknownPrefix(bytes.into())),
             }
         }?;
 
@@ -296,10 +286,10 @@ impl FromSigBytes for PhishingSig {
         // and as either a minimum value (n), or an inclusive range (n-m).
         if let Some(s) = fields.next() {
             if s.contains(&b'-') {
-                let range = parse_range_inclusive(s).map_err(PhishingSigParseError::FLevelRange)?;
+                let range = parse_range_inclusive(s).map_err(ParseError::FLevelRange)?;
                 sigmeta.f_level = Some(range.into());
             } else {
-                let min_flevel = parse_number_dec(s).map_err(PhishingSigParseError::FLevelMin)?;
+                let min_flevel = parse_number_dec(s).map_err(ParseError::FLevelMin)?;
                 sigmeta.f_level = Some((min_flevel..).into());
             }
         }
@@ -310,48 +300,48 @@ impl FromSigBytes for PhishingSig {
 
 fn make_url_regexp_pair<'a, I: Iterator<Item = &'a [u8]>>(
     fields: &mut I,
-) -> Result<UrlRegexpPair, PhishingSigParseError> {
+) -> Result<UrlRegexpPair, ParseError> {
     let real = parse_field!(
         fields,
-        RegexpMatch::try_from,
-        PhishingSigParseError::MissingRealUrl,
-        PhishingSigParseError::RealUrlRegexpParse
+        regexp::Match::try_from,
+        ParseError::MissingRealUrl,
+        ParseError::RealUrlRegexpParse
     )?;
     let displayed = parse_field!(
         fields,
-        RegexpMatch::try_from,
-        PhishingSigParseError::MissingDisplayedUrl,
-        PhishingSigParseError::DisplayedUrlRegexpParse
+        regexp::Match::try_from,
+        ParseError::MissingDisplayedUrl,
+        ParseError::DisplayedUrlRegexpParse
     )?;
     Ok(UrlRegexpPair { real, displayed })
 }
 
 fn make_pdbmatch_hostname<'a, I: Iterator<Item = &'a [u8]>>(
     fields: &mut I,
-) -> Result<PhishingSig, PhishingSigParseError> {
+) -> Result<PhishingSig, ParseError> {
     let hostname = parse_field!(
         fields,
         string_from_bytes,
-        PhishingSigParseError::MissingDisplayedHostname,
-        PhishingSigParseError::DisplayedHostnameNotUnicode
+        ParseError::MissingDisplayedHostname,
+        ParseError::DisplayedHostnameNotUnicode
     )?;
     Ok(PhishingSig::PDB(PDBMatch::DisplayedHostname(hostname)))
 }
 
 fn make_wdbmatch_hostname<'a, I: Iterator<Item = &'a [u8]>>(
     fields: &mut I,
-) -> Result<PhishingSig, PhishingSigParseError> {
+) -> Result<PhishingSig, ParseError> {
     let real = parse_field!(
         fields,
         string_from_bytes,
-        PhishingSigParseError::MissingRealHostname,
-        PhishingSigParseError::DisplayedHostnameNotUnicode
+        ParseError::MissingRealHostname,
+        ParseError::DisplayedHostnameNotUnicode
     )?;
     let displayed = parse_field!(
         fields,
         string_from_bytes,
-        PhishingSigParseError::MissingDisplayedHostname,
-        PhishingSigParseError::DisplayedHostnameNotUnicode
+        ParseError::MissingDisplayedHostname,
+        ParseError::DisplayedHostnameNotUnicode
     )?;
     Ok(PhishingSig::WDB(WDBMatch::MatchHostname {
         real,
@@ -398,7 +388,7 @@ mod tests {
         assert!(matches!(
             result,
             Err(FromSigBytesParseError::PhishingSig(
-                PhishingSigParseError::MissingRealUrl
+                ParseError::MissingRealUrl
             ))
         ));
     }
@@ -410,7 +400,7 @@ mod tests {
         assert!(matches!(
             result,
             Err(FromSigBytesParseError::PhishingSig(
-                PhishingSigParseError::MissingDisplayedUrl
+                ParseError::MissingDisplayedUrl
             ))
         ));
     }
@@ -493,7 +483,7 @@ mod tests {
         assert!(matches!(
             result,
             Err(FromSigBytesParseError::PhishingSig(
-                PhishingSigParseError::UnknownPrefix(_)
+                ParseError::UnknownPrefix(_)
             ))
         ));
     }
@@ -506,7 +496,7 @@ mod tests {
         assert!(matches!(
             result,
             Err(FromSigBytesParseError::PhishingSig(
-                PhishingSigParseError::AllowNotAllowed
+                ParseError::AllowNotAllowed
             ))
         ));
     }
@@ -518,7 +508,7 @@ mod tests {
         assert!(matches!(
             result,
             Err(FromSigBytesParseError::PhishingSig(
-                PhishingSigParseError::InvalidGSBHashType
+                ParseError::InvalidGSBHashType
             ))
         ));
     }
@@ -531,7 +521,7 @@ mod tests {
         assert!(matches!(
             result,
             Err(FromSigBytesParseError::PhishingSig(
-                PhishingSigParseError::InvalidPredicateType { .. }
+                ParseError::InvalidPredicateType { .. }
             ))
         ));
     }

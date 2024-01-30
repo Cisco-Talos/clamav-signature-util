@@ -1,10 +1,10 @@
 use super::bodysig::parse::BodySigParseError;
 use crate::{
-    feature::{EngineReq, FeatureSet},
+    feature::{EngineReq, Set},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     signature::{
         bodysig::BodySig,
-        logical::{
+        logical_sig::{
             subsig::{SubSig, SubSigModifier},
             targetdesc::TargetDescParseError,
         },
@@ -352,7 +352,7 @@ impl Signature for ExtendedSig {
 }
 
 impl EngineReq for ExtendedSig {
-    fn features(&self) -> FeatureSet {
+    fn features(&self) -> Set {
         self.body_sig
             .as_ref()
             .map(BodySig::features)
@@ -383,8 +383,8 @@ impl AppendSigBytes for ExtendedSig {
 }
 
 impl SubSig for ExtendedSig {
-    fn subsig_type(&self) -> super::logical::subsig::SubSigType {
-        super::logical::subsig::SubSigType::Extended
+    fn subsig_type(&self) -> super::logical_sig::subsig::SubSigType {
+        super::logical_sig::subsig::SubSigType::Extended
     }
 }
 

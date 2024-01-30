@@ -2,7 +2,7 @@ use super::{SubSig, SubSigType};
 use crate::{
     feature::EngineReq,
     sigbytes::AppendSigBytes,
-    signature::logical::SubSigModifier,
+    signature::logical_sig::SubSigModifier,
     util::{parse_number_dec, ParseNumberError},
 };
 use thiserror::Error;

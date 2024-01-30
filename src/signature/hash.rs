@@ -1,9 +1,8 @@
 use crate::util::ParseNumberError;
-use thiserror::Error;
 
 /// Errors common to hash-based signatures
-#[derive(Debug, Error, PartialEq)]
-pub enum HashSigParseError {
+#[derive(Debug, thiserror::Error, PartialEq)]
+pub enum ParseError {
     #[error("missing FileSize field")]
     MissingFileSize,
 
@@ -23,5 +22,5 @@ pub enum HashSigParseError {
     ParseHash(#[from] crate::util::ParseHashError),
 }
 
-#[derive(Debug, Error, PartialEq)]
-pub enum HashSigValidationError {}
+#[derive(Debug, thiserror::Error, PartialEq)]
+pub enum ValidationError {}
