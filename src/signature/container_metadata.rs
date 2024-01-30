@@ -104,6 +104,7 @@ pub enum ContainerMetadataSigParseError {
 pub enum ContainerMetadataSigValidationError {}
 
 impl FromSigBytes for ContainerMetadataSig {
+    #[allow(clippy::too_many_lines)]
     fn from_sigbytes<'a, SB: Into<&'a crate::sigbytes::SigBytes>>(
         sb: SB,
     ) -> Result<(Box<dyn Signature>, super::SigMeta), FromSigBytesParseError> {
@@ -331,10 +332,10 @@ mod tests {
     use crate::sigbytes::SigBytes;
 
     const SAMPLE_SIG: &[u8] =
-        br#"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:99:101"#;
+        br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:99:101";
 
     const SAMPLE_SIG_WITHOUT_FLEVEL: &[u8] =
-        br#"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:"#;
+        br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:";
 
     #[test]
     fn full_sig() {
@@ -363,7 +364,7 @@ mod tests {
             0x2a, 0x3a, 0x31, 0x3a, 0x2a, 0x3a, 0x2a, 0x0a,
         ]);
         if let Err(e) = ContainerMetadataSig::from_sigbytes(&bytes) {
-            eprintln!("{}", e)
+            eprintln!("{e}");
         }
     }
 

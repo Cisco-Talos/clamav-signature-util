@@ -192,12 +192,12 @@ impl AppendSigBytes for LogicalSig {
 /// If any unknown modifiers are found or the delimiter is missing, returns None
 /// and the original slice.
 fn find_modifier(haystack: &[u8]) -> (Option<SubSigModifier>, &[u8]) {
-    let mut modifier = SubSigModifier::default();
-
     enum State {
         ReadModifier,
         ReadDelimiter,
     }
+
+    let mut modifier = SubSigModifier::default();
 
     let mut state = State::ReadModifier;
     for (pos, c) in haystack.iter().copied().enumerate().rev() {
@@ -384,7 +384,7 @@ mod tests {
     fn validate_min_flevel() {
         // This signature contains a PCRE subsig, which should force a minimum
         // feature level of 81 per the `feature-level.txt` file.
-        let raw_sig = br#"TestSig;Engine:80-255;0;/foobar/"#.into();
+        let raw_sig = br"TestSig;Engine:80-255;0;/foobar/".into();
         let (sig, sigmeta) = LogicalSig::from_sigbytes(&raw_sig).unwrap();
         assert_eq!(
             sig.validate(&sigmeta),

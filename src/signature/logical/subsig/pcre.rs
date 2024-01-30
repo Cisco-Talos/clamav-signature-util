@@ -172,8 +172,8 @@ impl PCRESubSig {
             trigger_expr,
             regexp,
             flags,
-            modifier,
             offset,
+            modifier,
         })
     }
 }

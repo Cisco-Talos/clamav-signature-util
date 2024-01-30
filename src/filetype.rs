@@ -37,7 +37,7 @@ impl AppendSigBytes for FileType {
         &self,
         sb: &mut crate::sigbytes::SigBytes,
     ) -> Result<(), crate::signature::ToSigBytesError> {
-        Ok(write!(sb, "{}", self)?)
+        Ok(write!(sb, "{self}")?)
     }
 }
 

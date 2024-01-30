@@ -271,9 +271,8 @@ impl ParseContext {
         if let Some(pa) = &mut self.paren_cxt {
             if pa.flushed {
                 return Ok(());
-            } else {
-                pa.flushed = true;
             }
+            pa.flushed = true;
         }
         if !self.match_bytes.is_empty() {
             self.push_pattern(Pattern::String(
@@ -283,7 +282,7 @@ impl ParseContext {
                 self.pattern_modifier,
             ))?;
             self.match_bytes.clear();
-            self.pattern_modifier = Default::default();
+            self.pattern_modifier = BitFlags::default();
         }
 
         Ok(())
@@ -308,7 +307,8 @@ impl ParseContext {
                     lower: start,
                 });
             }
-            let range = (start as u8)..=(end as u8);
+            // These are validated above, but don't leave this to chance.
+            let range = u8::try_from(start).unwrap()..=u8::try_from(end).unwrap();
             // Now, determine if the current match_bytes contains one element
             // If it does, move it into this bracket-match structure as the anchor byte. The next series of bytes will
             // If it contains more than one
@@ -360,6 +360,7 @@ impl ParseContext {
     // This function is called whenever the state is about to transition
     // from the default state due to finding a non-hex or non-nyble-wildcard
     // ('?') character
+    #[allow(clippy::too_many_lines)]
     fn handle_non_matchbyte(
         &mut self,
         pos_and_byte: Option<(usize, u8)>,
@@ -463,8 +464,8 @@ impl ParseContext {
                         if pa.is_generic {
                             self.push_pattern(Pattern::AlternativeStrings(
                                 AlternativeStrings::Generic {
-                                    data: pa.astr_data.to_vec().into(),
-                                    ranges: pa.ranges.to_vec(),
+                                    data: pa.astr_data.clone().into(),
+                                    ranges: pa.ranges.clone(),
                                 },
                             ))?;
                         } else {
@@ -475,7 +476,7 @@ impl ParseContext {
                                 AlternativeStrings::FixedWidth {
                                     negated: self.negated,
                                     width,
-                                    data: pa.astr_data.to_vec().into(),
+                                    data: pa.astr_data.clone().into(),
                                 },
                             ))
                             // There are no failures currently possible here, so
@@ -504,7 +505,7 @@ impl ParseContext {
     // Note that `start_pos` should be set to the location of the *high* nyble or the
     // opening curly brace (for small multi-byte wildcards) so that error reporting
     // is correct.
-    fn push_matchbyte(&mut self, mb: MatchByte, start_pos: usize) -> Result<(), BodySigParseError> {
+    fn push_matchbyte(&mut self, mb: MatchByte, start_pos: usize) {
         if self.paren_cxt.is_none() && self.match_bytes.is_empty() {
             self.match_bytes_start = start_pos;
         }
@@ -522,8 +523,6 @@ impl ParseContext {
         } else {
             self.flush_static_range();
         }
-
-        Ok(())
     }
 
     // Push a new match criteria with error checking
@@ -536,11 +535,10 @@ impl ParseContext {
                     return Err(BodySigParseError::MinStaticBytes {
                         start_pos: self.match_bytes_start.into(),
                     });
-                } else {
-                    // Just flush these for now, but they might be worth attaching to the string later
-                    self.match_bytes_static_range = None;
-                    self.match_bytes_static_ranges.clear();
                 }
+                // Just flush these for now, but they might be worth attaching to the string later
+                self.match_bytes_static_range = None;
+                self.match_bytes_static_ranges.clear();
             }
             // No additional error checking required for AnchoredByte
             Pattern::AnchoredByte { .. } => (),
@@ -637,11 +635,10 @@ impl ParentheticalContext {
                 return Err(BodySigParseError::EmptyParens {
                     pos: self.start_pos.into(),
                 });
-            } else {
-                // Presence of an empty alternative string automatically implies
-                // the set is generic.
-                self.is_generic = true;
             }
+            // Presence of an empty alternative string automatically implies
+            // the set is generic.
+            self.is_generic = true;
         }
         let this_range_start = self.astr_data.len();
         self.astr_data.extend_from_slice(match_bytes);
@@ -650,7 +647,7 @@ impl ParentheticalContext {
             if let Some(first_range) = self.ranges.first() {
                 // See if ranges differ at all
                 if first_range.end - first_range.start != this_range_end - this_range_start {
-                    self.is_generic = true
+                    self.is_generic = true;
                 }
             }
         }
@@ -663,6 +660,7 @@ impl ParentheticalContext {
 impl TryFrom<&[u8]> for BodySig {
     type Error = BodySigParseError;
 
+    #[allow(clippy::too_many_lines)]
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut pc = ParseContext::default();
 
@@ -745,10 +743,7 @@ impl TryFrom<&[u8]> for BodySig {
                             MatchMask::Full => MatchByte::Any,
                         },
                         pos - 1,
-                    )
-                    // There are no failures currently possible here, so
-                    // `.unwrap()` to make code coverage happy.
-                    .unwrap();
+                    );
                     state = State::HighNyble;
                 }
                 State::CurlyBraceLower => match byte {
@@ -761,7 +756,7 @@ impl TryFrom<&[u8]> for BodySig {
                     }
                     CURLY_RIGHT => {
                         if let Some(dec_value) = pc.dec_value.take() {
-                            pc.cur_range = Some(Range::Exact(dec_value))
+                            pc.cur_range = Some(Range::Exact(dec_value));
                         } else {
                             return Err(BodySigParseError::EmptyBraces {
                                 start_pos: pc.left_brace_pos.into(),
@@ -773,7 +768,7 @@ impl TryFrom<&[u8]> for BodySig {
                                     size: (size).try_into().unwrap(),
                                 },
                                 pc.left_brace_pos,
-                            )?,
+                            ),
                             range => {
                                 pc.flush_match_bytes()?;
                                 pc.push_pattern(Pattern::ByteRange(range))?;

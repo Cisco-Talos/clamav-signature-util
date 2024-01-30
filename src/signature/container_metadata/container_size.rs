@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn try_exact() {
-        let bytes = r#"12345"#.as_bytes();
+        let bytes = r"12345".as_bytes();
         assert!(matches!(bytes.try_into(), Ok(ContainerSize::Exact(12345))));
     }
 }

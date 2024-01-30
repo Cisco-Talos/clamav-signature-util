@@ -18,6 +18,7 @@ pub enum Hash {
 
 impl Hash {
     /// Return the size of the hash (in its binary form)
+    #[must_use]
     pub fn size(&self) -> usize {
         // FYI, this method is called `size()` rathern than `len()` because its
         // size is not variable within its subtype.  Naming a method `len()`
@@ -237,6 +238,7 @@ pub fn unescaped_element<T: PartialEq + Copy>(
 
 /// Detect whether the a field has a wildcard (`*`) value, returning None if it
 /// does, or Some(orig_field_value) if it doesn't.
+#[must_use]
 pub fn opt_field_value(bytes: &[u8]) -> Option<&[u8]> {
     if bytes == b"*" {
         None
@@ -423,11 +425,11 @@ mod tests {
 
     #[test]
     fn split_on_escaped_delimiter() {
-        let bytes = r#"abc:def\:ghi:hij\:\::klm"#.as_bytes();
+        let bytes = r"abc:def\:ghi:hij\:\::klm".as_bytes();
         let mut fields = bytes.split(unescaped_element(b'\\', b':'));
-        assert_eq!(fields.next(), Some(r#"abc"#.as_bytes()));
-        assert_eq!(fields.next(), Some(r#"def\:ghi"#.as_bytes()));
-        assert_eq!(fields.next(), Some(r#"hij\:\:"#.as_bytes()));
-        assert_eq!(fields.next(), Some(r#"klm"#.as_bytes()));
+        assert_eq!(fields.next(), Some(r"abc".as_bytes()));
+        assert_eq!(fields.next(), Some(r"def\:ghi".as_bytes()));
+        assert_eq!(fields.next(), Some(r"hij\:\:".as_bytes()));
+        assert_eq!(fields.next(), Some(r"klm".as_bytes()));
     }
 }

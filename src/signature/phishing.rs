@@ -187,9 +187,9 @@ impl AppendSigBytes for PhishingSig {
                     }
                     GSBPred::Hash(hash) => {
                         if let GSBMatchType::Allow = match_type {
-                            sb.write_str("W:")?
+                            sb.write_str("W:")?;
                         } else {
-                            sb.write_str("F:")?
+                            sb.write_str("F:")?;
                         }
                         hash.append_sigbytes(sb)?;
                     }

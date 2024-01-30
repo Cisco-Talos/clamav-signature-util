@@ -66,11 +66,13 @@ where
 
 impl FeatureSet {
     /// Create an empty FeatureSet
+    #[must_use]
     pub fn empty() -> Self {
         Self::Empty
     }
 
     /// Obtain a FeatureSet from a static slice
+    #[must_use]
     pub fn from_static(features: &'static [Feature]) -> Self {
         Self::Static(features)
     }
@@ -80,8 +82,8 @@ impl std::fmt::Debug for FeatureSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Empty => write!(f, "None"),
-            Self::Static(features) => write!(f, "{:?}", features),
-            Self::Built(features) => write!(f, "{:?}", features),
+            Self::Static(features) => write!(f, "{features:?}"),
+            Self::Built(features) => write!(f, "{features:?}"),
         }
     }
 }
@@ -123,11 +125,11 @@ impl std::fmt::Debug for FeatureSetWithMinFlevel {
             FeatureSet::Empty => f.debug_list().finish(),
             FeatureSet::Static(features) => f
                 .debug_list()
-                .entries(features.iter().cloned().map(FeatureWithMinFlevel))
+                .entries(features.iter().copied().map(FeatureWithMinFlevel))
                 .finish(),
             FeatureSet::Built(features) => f
                 .debug_list()
-                .entries(features.iter().cloned().map(FeatureWithMinFlevel))
+                .entries(features.iter().copied().map(FeatureWithMinFlevel))
                 .finish(),
         }
     }

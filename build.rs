@@ -28,7 +28,7 @@ pub fn main() -> Result<(), std::io::Error> {
             .lines()
             .take_while(Result::is_ok)
             .map(Result::unwrap)
-            .for_each(|expr| write!(out_fh, "    b\"{}\",", expr).unwrap());
+            .for_each(|expr| write!(out_fh, "    b\"{expr}\",").unwrap());
         writeln!(out_fh, "];").unwrap();
     }
 
@@ -38,14 +38,14 @@ pub fn main() -> Result<(), std::io::Error> {
 // Build the feature level (FLEVEL) translations
 pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), std::io::Error> {
     println!("cargo:rerun-if-changed=feature-level.txt");
-    let ifh = BufReader::new(File::open(manifest_dir.join("feature-level.txt"))?);
+    let fl_input = BufReader::new(File::open(manifest_dir.join("feature-level.txt"))?);
 
     let mut flevel_versions = BTreeMap::new();
     let mut feature_flevel = BTreeMap::new();
 
     let filetype_features = load_filetypes(manifest_dir, output_dir)?;
 
-    for line in ifh.lines().map(Result::unwrap) {
+    for line in fl_input.lines().map(Result::unwrap) {
         let line = line.trim();
         // Skip comments
         if line.starts_with('#') {
@@ -59,7 +59,7 @@ pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), 
             if let Some(version) = element.strip_prefix('v') {
                 versions.push(version.to_owned());
             } else if let Ok(n) = element.parse() {
-                flevel = Some(n)
+                flevel = Some(n);
             } else if element.starts_with('?') {
                 // Anything we're trying to figure out
                 continue;
@@ -69,57 +69,47 @@ pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), 
         }
 
         if let Some(flevel) = flevel {
-            versions.into_iter().for_each(|version| {
+            for version in versions {
                 flevel_versions
                     .entry(flevel)
                     .or_insert_with(Vec::new)
-                    .push(version)
-            });
-            features.into_iter().for_each(|feature| {
-                match feature_flevel.entry(feature.to_owned()) {
+                    .push(version);
+            }
+            for feature in features {
+                match feature_flevel.entry(feature.clone()) {
                     Entry::Occupied(_) => {
-                        panic!("Multiple f_levels specified for feature {}", feature)
+                        panic!("Multiple f_levels specified for feature {feature}");
                     }
                     Entry::Vacant(entry) => entry.insert(flevel),
                 };
-            })
+            }
         }
     }
 
-    let mut ofh = BufWriter::new(File::create(output_dir.join("features.rs"))?);
-    writeln!(ofh, "/// An identifier of an engine feature required for parsing and/or matching a particular signature or signature element.")?;
-    writeln!(ofh, "#[derive(Clone, Debug, Copy, PartialEq)]")?;
-    writeln!(ofh, "pub enum Feature {{")?;
+    let mut features_rs = BufWriter::new(File::create(output_dir.join("features.rs"))?);
+    writeln!(features_rs, "/// An identifier of an engine feature required for parsing and/or matching a particular signature or signature element.")?;
+    writeln!(features_rs, "#[derive(Clone, Debug, Copy, PartialEq)]")?;
+    writeln!(features_rs, "pub enum Feature {{")?;
     feature_flevel
         .iter()
-        .for_each(|(feature, _)| writeln!(ofh, "    {},", feature).unwrap());
+        .for_each(|(feature, _)| writeln!(features_rs, "    {feature},").unwrap());
     filetype_features
         .iter()
-        .for_each(|(feature, _)| writeln!(ofh, "    {},", feature).unwrap());
-    writeln!(ofh, "}}")?;
-    writeln!(ofh, "impl Feature {{")?;
-    writeln!(ofh, "    pub fn min_flevel(&self) -> u32 {{")?;
-    writeln!(ofh, "        match self {{")?;
-    ofh.write_all(
-        feature_flevel
-            .iter()
-            .map(|(feature, flevel)| format!("        Feature::{} => {},\n", feature, flevel))
-            .collect::<Vec<String>>()
-            .join("")
-            .as_bytes(),
-    )?;
-    ofh.write_all(
-        filetype_features
-            .iter()
-            .filter(|(_, &flevel)| flevel > 0)
-            .map(|(feature, flevel)| format!("        Feature::{} => {},\n", feature, flevel))
-            .collect::<Vec<String>>()
-            .join("")
-            .as_bytes(),
-    )?;
-    writeln!(ofh, "        }}")?;
-    writeln!(ofh, "    }}")?;
-    writeln!(ofh, "}}")?;
+        .for_each(|(feature, _)| writeln!(features_rs, "    {feature},").unwrap());
+    writeln!(features_rs, "}}")?;
+    writeln!(features_rs, "impl Feature {{")?;
+    writeln!(features_rs, "    pub fn min_flevel(&self) -> u32 {{")?;
+    writeln!(features_rs, "        #[allow(clippy::match_same_arms)]")?;
+    writeln!(features_rs, "        match self {{")?;
+    for (feature, flevel) in feature_flevel {
+        writeln!(features_rs, "        Feature::{feature} => {flevel},")?;
+    }
+    for (feature, flevel) in filetype_features.iter().filter(|(_, &flevel)| flevel > 0) {
+        writeln!(features_rs, "        Feature::{feature} => {flevel},")?;
+    }
+    writeln!(features_rs, "        }}")?;
+    writeln!(features_rs, "    }}")?;
+    writeln!(features_rs, "}}")?;
 
     Ok(())
 }
@@ -148,7 +138,7 @@ pub fn load_filetypes(
         for element in line.split_ascii_whitespace() {
             dbg!(&element);
             if let Ok(n) = element.parse() {
-                flevel = Some(n)
+                flevel = Some(n);
             } else if element.starts_with("CL_TYPE_") {
                 these_filetypes.push(element.to_owned());
             }
@@ -158,7 +148,7 @@ pub fn load_filetypes(
         // This should be present on every line
         let flevel = flevel.expect("flevel");
 
-        these_filetypes.into_iter().for_each(|ft| {
+        for ft in these_filetypes {
             let feature_tag = format!(
                 "FileType{}",
                 change_case::pascal_case(ft.strip_prefix("CL_TYPE_").unwrap())
@@ -167,38 +157,43 @@ pub fn load_filetypes(
                 filetype_min_flevel.insert(feature_tag.clone(), flevel);
             }
             filetype_feature_tag.insert(ft, feature_tag);
-        });
+        }
     }
 
     // Write out the C-style constants
     {
-        let mut ofh = BufWriter::new(File::create(output_dir.join("filetypes-c_const"))?);
-        writeln!(ofh, "#[allow(non_camel_case_types)]")?;
+        let mut filetypes_c_input =
+            BufWriter::new(File::create(output_dir.join("filetypes-c_const"))?);
+        writeln!(filetypes_c_input, "#[allow(non_camel_case_types)]")?;
         writeln!(
-            ofh,
+            filetypes_c_input,
             "#[derive(Clone, Debug, PartialEq, Display, EnumString, FromPrimitive, ToPrimitive)]"
         )?;
-        writeln!(ofh, "pub enum FileType {{")?;
-        filetype_feature_tag.iter().for_each(|(filetype, _)| {
-            writeln!(ofh, "{filetype},").unwrap();
-        });
-        writeln!(ofh, "}}")?;
+        writeln!(filetypes_c_input, "pub enum FileType {{")?;
+        for filetype in filetype_feature_tag.keys() {
+            writeln!(filetypes_c_input, "{filetype},").unwrap();
+        }
+        writeln!(filetypes_c_input, "}}")?;
     }
 
     // Write out string-constant-to-CamelCase match arms
     {
-        let mut ofh = BufWriter::new(File::create(
+        let mut feature_tag_rs = BufWriter::new(File::create(
             output_dir.join("filetypes-match-filetype-to-feature_tag.rs"),
         )?);
-        writeln!(ofh, "match self {{")?;
+        writeln!(feature_tag_rs, "match self {{")?;
         filetype_feature_tag
             .iter()
             .filter(|(_, feature_tag)| filetype_min_flevel.get(feature_tag.as_str()).is_some())
             .for_each(|(filetype, feature_tag)| {
-                writeln!(ofh, "FileType::{filetype} => Some(Feature::{feature_tag}),").unwrap();
+                writeln!(
+                    feature_tag_rs,
+                    "FileType::{filetype} => Some(Feature::{feature_tag}),"
+                )
+                .unwrap();
             });
-        writeln!(ofh, "_ => None,")?;
-        writeln!(ofh, "}}")?;
+        writeln!(feature_tag_rs, "_ => None,")?;
+        writeln!(feature_tag_rs, "}}")?;
     }
 
     // These will be folded into the feature-tag/feature-level table

@@ -83,10 +83,10 @@ impl RegexpMatch {
                         // Is this an escaped semicolon?
                         if &value == b";" {
                             // Then just retain the semicolon
-                            raw.push(b';')
+                            raw.push(b';');
                         } else {
                             // Otherwise, preserve the original encoded expression
-                            raw.extend_from_slice(br#"\x"#);
+                            raw.extend_from_slice(br"\x");
                             raw.extend_from_slice(bytes);
                         }
                         hexbytes = None;
@@ -111,10 +111,10 @@ impl RegexpMatch {
         &self,
         sb: &mut crate::sigbytes::SigBytes,
     ) -> Result<(), crate::signature::ToSigBytesError> {
-        for byte in self.raw.iter() {
+        for byte in &self.raw {
             match byte {
-                b';' => sb.write_str(r#"\x3B"#)?,
-                &b => sb.write_char(char::from_u32(b as u32).unwrap())?,
+                b';' => sb.write_str(r"\x3B")?,
+                &b => sb.write_char(char::from_u32(u32::from(b)).unwrap())?,
             }
         }
         Ok(())
@@ -126,9 +126,9 @@ impl AppendSigBytes for RegexpMatch {
         &self,
         sb: &mut crate::sigbytes::SigBytes,
     ) -> Result<(), crate::signature::ToSigBytesError> {
-        for byte in self.raw.iter() {
+        for byte in &self.raw {
             match byte {
-                &b => sb.write_char(char::from_u32(b as u32).unwrap())?,
+                &b => sb.write_char(char::from_u32(u32::from(b)).unwrap())?,
             }
         }
         Ok(())
@@ -152,37 +152,37 @@ mod tests {
 
     #[test]
     fn unescape_pcre_subsig() {
-        let input = br#"How\/now\x3bbrown\x20cow\x3b"#;
+        let input = br"How\/now\x3bbrown\x20cow\x3b";
         let regexp = RegexpMatch::from_pcre_subsig(input).unwrap();
-        assert_eq!(&regexp.raw, &br#"How/now;brown\x20cow;"#);
+        assert_eq!(&regexp.raw, &br"How/now;brown\x20cow;");
     }
 
     #[test]
     fn unterm_escape() {
-        let input = br#"How\/now\x3bbrown\x20cow\x3b\"#;
+        let input = br"How\/now\x3bbrown\x20cow\x3b\";
         let result = RegexpMatch::from_pcre_subsig(input);
         assert!(matches!(result, Err(RegexpMatchParseError::MidEscape)));
     }
 
     #[test]
     fn unterm_hexescape() {
-        let input = br#"How\/now\x3bbrown\x20cow\x3b\x"#;
+        let input = br"How\/now\x3bbrown\x20cow\x3b\x";
         let result = RegexpMatch::from_pcre_subsig(input);
         assert!(matches!(result, Err(RegexpMatchParseError::MidHexEscape)));
 
-        let input = br#"How\/now\x3bbrown\x20cow\x3b\x5"#;
+        let input = br"How\/now\x3bbrown\x20cow\x3b\x5";
         let result = RegexpMatch::from_pcre_subsig(input);
         assert!(matches!(result, Err(RegexpMatchParseError::MidHexEscape)));
     }
 
     #[test]
     fn invalid_hex() {
-        let input = br#"How\/now\x3bbrown\x20cow\x3b\x5q"#;
+        let input = br"How\/now\x3bbrown\x20cow\x3b\x5q";
         let result = RegexpMatch::from_pcre_subsig(input);
         assert!(matches!(result, Err(RegexpMatchParseError::FromHex(..))));
 
         // Hex decoding doesn't occur until both characters are received
-        let input = br#"How\/now\x3bbrown\x20cow\x3b\xq5"#;
+        let input = br"How\/now\x3bbrown\x20cow\x3b\xq5";
         let result = RegexpMatch::from_pcre_subsig(input);
         assert!(matches!(result, Err(RegexpMatchParseError::FromHex(..))));
     }

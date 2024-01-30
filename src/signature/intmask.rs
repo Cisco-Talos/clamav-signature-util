@@ -32,9 +32,9 @@ where
                     .shr(cur_shift)
                     .bitand(low_nyble_mask);
                 if uppercase {
-                    write!(f, "{:X}", nyble)?;
+                    write!(f, "{nyble:X}")?;
                 } else {
-                    write!(f, "{:x}", nyble)?;
+                    write!(f, "{nyble:x}")?;
                 }
             } else {
                 panic!(
@@ -57,7 +57,7 @@ where
         &self,
         sb: &mut crate::sigbytes::SigBytes,
     ) -> Result<(), crate::signature::ToSigBytesError> {
-        write!(sb, "{:x}", self)?;
+        write!(sb, "{self:x}")?;
         Ok(())
     }
 }
@@ -67,7 +67,7 @@ where
     T: Unsigned + PrimInt + std::fmt::Debug + std::fmt::LowerHex + std::fmt::UpperHex,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:x}", self)?;
+        write!(f, "{self:x}")?;
         Ok(())
     }
 }
@@ -91,19 +91,19 @@ mod tests {
             value: 0x63u8,
             mask: 0x0f,
         };
-        assert_eq!("6?", &format!("{:x}", im));
+        assert_eq!("6?", &format!("{im:x}"));
 
         let im = IntWithMask {
             value: 0x63u8,
             mask: 0xf0,
         };
-        assert_eq!("?3", &format!("{:x}", im));
+        assert_eq!("?3", &format!("{im:x}"));
 
         // Tricky...
         let im = IntWithMask {
             value: 0x63u8,
             mask: 0xff,
         };
-        assert_eq!("??", &format!("{:x}", im));
+        assert_eq!("??", &format!("{im:x}"));
     }
 }

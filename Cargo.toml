@@ -33,3 +33,12 @@ path = "src/cmdline.rs"
 
 [build-dependencies]
 change-case = "0.2"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+
+missing_panics_doc = "allow"
+missing_errors_doc = "allow"
+doc_markdown = "allow"
+module_name_repetitions = "allow"

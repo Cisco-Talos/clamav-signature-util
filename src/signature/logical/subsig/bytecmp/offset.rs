@@ -3,7 +3,7 @@ use crate::util::{parse_number_dec, ParseNumberError};
 use thiserror::Error;
 
 #[derive(Debug)]
-#[allow(dead_code)]
+#[allow(dead_code, clippy::struct_field_names)]
 pub struct Offset {
     modifier: OffsetModifier,
     offset: isize,

@@ -39,9 +39,9 @@ impl AppendSigBytes for FileHashSig {
         sb.try_reserve_exact(size_hint)?;
         write!(sb, "{}:", self.hash)?;
         if let Some(size) = self.file_size {
-            write!(sb, "{}:", size)?
+            write!(sb, "{size}:")?;
         } else {
-            sb.write_char('*')?
+            sb.write_char('*')?;
         }
         write!(sb, "{}", self.name)?;
         Ok(())

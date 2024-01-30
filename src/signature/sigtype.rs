@@ -45,6 +45,7 @@ impl SigType {
 
     /// Return the signature type implied by the provided file extension, or None
     /// if the extension is not recognized.
+    #[must_use]
     pub fn from_file_extension(ext: &str) -> Option<Self> {
         Some(match ext {
             //

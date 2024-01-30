@@ -38,9 +38,9 @@ impl AppendSigBytes for PESectionHashSig {
         sb.try_reserve_exact(size_hint)?;
 
         if let Some(size) = self.size {
-            write!(sb, "{}", size)?
+            write!(sb, "{size}")?;
         } else {
-            sb.write_char('*')?
+            sb.write_char('*')?;
         }
 
         write!(sb, ":{}:{}", self.hash, self.name)?;
@@ -81,7 +81,7 @@ impl FromSigBytes for PESectionHashSig {
             }
         }
 
-        Ok((Box::new(Self { name, hash, size }), sigmeta))
+        Ok((Box::new(Self { name, size, hash }), sigmeta))
     }
 }
 

@@ -27,16 +27,19 @@ pub enum PatternModifier {
 
 impl PatternModifier {
     /// Return a mask containing all left-side pattern modifiers
+    #[must_use]
     pub const fn left_flags() -> BitFlags<PatternModifier> {
         make_bitflags!(PatternModifier::{ BoundaryLeft | BoundaryLeftNegative | LineMarkerLeft |LineMarkerLeftNegative | WordMarkerLeft | WordMarkerLeftNegative})
     }
 
     /// Return a mask containing all right-side pattern modifiers
+    #[must_use]
     pub const fn right_flags() -> BitFlags<PatternModifier> {
         make_bitflags!(PatternModifier::{ BoundaryRight | BoundaryRightNegative | LineMarkerRight |LineMarkerRightNegative | WordMarkerRight | WordMarkerRightNegative})
     }
 
     /// Return a mask containing all negated pattern modifiers
+    #[must_use]
     pub const fn negative_flags() -> BitFlags<PatternModifier> {
         make_bitflags!(PatternModifier::{
          BoundaryLeftNegative | LineMarkerLeftNegative | WordMarkerLeftNegative |

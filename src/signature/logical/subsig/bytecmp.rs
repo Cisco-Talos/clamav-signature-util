@@ -8,11 +8,11 @@ use crate::{
 use thiserror::Error;
 
 pub mod compset;
-pub use compset::{ComparisonOp, ComparisonSet, ComparisonSetParseError};
+pub use compset::{ComparisonSet, ComparisonSetParseError};
 pub mod byteopts;
 pub use byteopts::{ByteOptions, ByteOptionsParseError};
 pub mod offset;
-pub use offset::{Offset, OffsetModifier, OffsetParseError};
+pub use offset::{Offset, OffsetParseError};
 
 #[derive(Debug)]
 #[allow(dead_code)]

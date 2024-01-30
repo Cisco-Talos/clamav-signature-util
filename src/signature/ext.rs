@@ -140,6 +140,7 @@ impl Offset {
     /// Return the offset value if the offset is a normal (non-floating)
     /// offset, and is of OffsetPos::Absolute.  Returns None if the offset is
     /// of any other type.
+    #[must_use]
     pub fn absolute(&self) -> Option<usize> {
         if let Offset::Normal(OffsetPos::Absolute(value)) = self {
             Some(*value)
@@ -165,14 +166,14 @@ impl AppendSigBytes for Offset {
                 OffsetPos::FromEOF(n) => write!(s, "EOF-{n}")?,
                 OffsetPos::EP(n) => write!(s, "EP{n:+}")?,
                 OffsetPos::StartOfSection { section_no, offset } => {
-                    write!(s, "S{section_no}+{offset}")?
+                    write!(s, "S{section_no}+{offset}")?;
                 }
                 OffsetPos::EntireSection(section_no) => write!(s, "SE{section_no}")?,
                 OffsetPos::StartOfLastSection(n) => write!(s, "SL+{n}")?,
                 OffsetPos::PEVersionInfo => write!(s, "VI")?,
             }
             if let Some(maxshift) = maxshift {
-                write!(s, ",{maxshift}").unwrap()
+                write!(s, ",{maxshift}").unwrap();
             }
         }
         Ok(())
@@ -370,7 +371,7 @@ impl AppendSigBytes for ExtendedSig {
         if let Some(offset) = &self.offset {
             offset.append_sigbytes(sb)?;
         } else {
-            debug_assert!(&self.offset.is_none())
+            debug_assert!(&self.offset.is_none());
         }
         if let Some(body_sig) = &self.body_sig {
             sb.write_char(':')?;

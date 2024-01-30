@@ -14,10 +14,12 @@ pub const BYTE_DISP_SUFFIX: &str = "|>";
 pub struct SigBytes(Vec<u8>);
 
 impl SigBytes {
+    #[must_use]
     pub fn new() -> Self {
         SigBytes::default()
     }
 
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         SigBytes(Vec::with_capacity(capacity))
     }
@@ -26,6 +28,7 @@ impl SigBytes {
         self.0.try_reserve(additional)
     }
 
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
@@ -34,7 +37,7 @@ impl SigBytes {
 impl std::fmt::Debug for SigBytes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let raw = format!("{}", &self);
-        write!(f, "{:?}", raw)
+        write!(f, "{raw:?}")
     }
 }
 
@@ -58,8 +61,8 @@ pub trait AppendSigBytes {
 impl AppendSigBytes for &[u8] {
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         use std::fmt::Write;
-        for byte in self.iter() {
-            write!(sb, "{:02x}", byte)?;
+        for byte in *self {
+            write!(sb, "{byte:02x}")?;
         }
         Ok(())
     }
@@ -91,7 +94,7 @@ impl std::fmt::Display for SigBytes {
                             f.write_str(BYTE_DISP_PREFIX)?;
                             after_valid[0..len]
                                 .iter()
-                                .try_for_each(|&b| write!(f, "{:02x}", b))?;
+                                .try_for_each(|&b| write!(f, "{b:02x}"))?;
                             f.write_str(BYTE_DISP_SUFFIX)?;
                             bytes = &after_valid[len..];
                         }
@@ -150,7 +153,7 @@ pub struct SigChar(pub u8);
 impl std::fmt::Display for SigChar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match str::from_utf8(&[self.0]) {
-            Ok(s) => write!(f, "'{}'", s),
+            Ok(s) => write!(f, "'{s}'"),
             Err(_) => write!(f, "{}{:x}{}", BYTE_DISP_PREFIX, self.0, BYTE_DISP_SUFFIX),
         }
     }
@@ -159,45 +162,6 @@ impl std::fmt::Display for SigChar {
 impl From<u8> for SigChar {
     fn from(c: u8) -> Self {
         Self(c)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sigchar_display() {
-        assert_eq!(format!("{}", SigChar(b'x')), "'x'");
-        assert_eq!(format!("{}", SigChar(b'\x80')), "<|80|>");
-    }
-
-    #[test]
-    fn sigbytes_valid() {
-        const INPUT: &[u8] = b"how now brown cow";
-        let bytes: SigBytes = INPUT.into();
-        assert_eq!(
-            format!("{}", bytes),
-            String::from_utf8(INPUT.to_owned()).unwrap()
-        );
-    }
-
-    #[test]
-    fn sigbytes_invalid_short_end() {
-        let bytes: SigBytes = b"how now brown cow\x80".into();
-        assert_eq!(format!("{}", bytes), "how now brown cow<|80|>");
-    }
-
-    #[test]
-    fn sigbytes_invalid_long_end() {
-        let bytes: SigBytes = b"how now brown cow\xa0\xa1".into();
-        assert_eq!(format!("{}", bytes), "how now brown cow<|a0|><|a1|>");
-    }
-
-    #[test]
-    fn sigbytes_invalid_long_intermediate() {
-        let bytes: SigBytes = b"how now\xa0\xa1brown cow".into();
-        assert_eq!(format!("{}", bytes), "how now<|a0|><|a1|>brown cow");
     }
 }
 
@@ -218,5 +182,44 @@ impl std::fmt::Write for SigBytes {
             .write(s.as_bytes())
             .map(|_| ())
             .map_err(|_| std::fmt::Error)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sigchar_display() {
+        assert_eq!(format!("{}", SigChar(b'x')), "'x'");
+        assert_eq!(format!("{}", SigChar(b'\x80')), "<|80|>");
+    }
+
+    #[test]
+    fn sigbytes_valid() {
+        const INPUT: &[u8] = b"how now brown cow";
+        let bytes: SigBytes = INPUT.into();
+        assert_eq!(
+            bytes.to_string(),
+            String::from_utf8(INPUT.to_owned()).unwrap()
+        );
+    }
+
+    #[test]
+    fn sigbytes_invalid_short_end() {
+        let bytes: SigBytes = b"how now brown cow\x80".into();
+        assert_eq!(bytes.to_string(), "how now brown cow<|80|>");
+    }
+
+    #[test]
+    fn sigbytes_invalid_long_end() {
+        let bytes: SigBytes = b"how now brown cow\xa0\xa1".into();
+        assert_eq!(bytes.to_string(), "how now brown cow<|a0|><|a1|>");
+    }
+
+    #[test]
+    fn sigbytes_invalid_long_intermediate() {
+        let bytes: SigBytes = b"how now\xa0\xa1brown cow".into();
+        assert_eq!(bytes.to_string(), "how now<|a0|><|a1|>brown cow");
     }
 }

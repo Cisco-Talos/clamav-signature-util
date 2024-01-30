@@ -139,10 +139,10 @@ impl FromSigBytes for FTMagicSig {
 
         // Parse optional min/max flevel
         if let Some(min_flevel) = fields.next() {
-            let min_flevel = if !min_flevel.is_empty() {
-                Some(parse_number_dec(min_flevel).map_err(FTMagicParseError::ParseMinFlevel)?)
-            } else {
+            let min_flevel = if min_flevel.is_empty() {
                 None
+            } else {
+                Some(parse_number_dec(min_flevel).map_err(FTMagicParseError::ParseMinFlevel)?)
             };
 
             let max_flevel = if let Some(max_flevel) = fields.next() {
@@ -187,9 +187,9 @@ impl FromSigBytes for FTMagicSig {
         Ok((
             Box::new(FTMagicSig {
                 name,
-                magic_bytes,
                 rtype,
                 file_type,
+                magic_bytes,
             }) as Box<dyn Signature>,
             sigmeta,
         ))
@@ -239,7 +239,7 @@ impl EngineReq for FTMagicSig {
             self.rtype
                 .features()
                 .into_iter()
-                .chain(self.file_type.features().into_iter()),
+                .chain(self.file_type.features()),
         )
     }
 }
