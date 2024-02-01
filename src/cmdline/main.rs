@@ -1,6 +1,8 @@
+mod opt;
+
 use anyhow::{anyhow, Result};
 use clam_sigutil::SigType;
-use clap::Parser;
+use opt::Opt;
 use std::{
     fs::File,
     io::{BufRead, BufReader, Read},
@@ -8,46 +10,6 @@ use std::{
     str,
     time::{Duration, Instant},
 };
-
-#[derive(Parser)]
-#[allow(clippy::struct_excessive_bools)]
-struct Opt {
-    /// Files or directory containing files to process
-    #[arg(name = "FILE_OR_DIR")]
-    paths: Vec<PathBuf>,
-
-    /// Report on each file read
-    #[arg(long, short)]
-    verbose: bool,
-
-    /// Perform additional validation on signatures
-    #[arg(long)]
-    validate: bool,
-
-    /// Print original signatures as they're read
-    #[arg(long)]
-    print_orig: bool,
-
-    /// Dump signatures in debug format
-    #[arg(long)]
-    dump_debug: bool,
-
-    /// Dump signatures in long debug format
-    #[arg(long)]
-    dump_debug_long: bool,
-
-    /// Report required features
-    #[arg(long)]
-    print_features: bool,
-
-    /// Signature type for stdin, specified as file extension
-    #[arg(alias = "sigtype", long)]
-    sig_type: Option<SigType>,
-
-    /// Re-export signatures after parsing and verify
-    #[arg(long)]
-    check_export: bool,
-}
 
 pub fn main() -> Result<()> {
     let opt = Opt::parse();
