@@ -40,6 +40,11 @@ pub(crate) struct Opt {
     /// Re-export signatures after parsing and verify
     #[arg(long)]
     pub(crate) check_export: bool,
+
+    /// Run as a RESTful server
+    #[cfg(feature = "rest")]
+    #[arg(long)]
+    pub(crate) listen: Option<std::net::SocketAddr>,
 }
 
 impl Opt {

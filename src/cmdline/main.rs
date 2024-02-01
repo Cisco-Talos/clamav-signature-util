@@ -1,5 +1,8 @@
 mod opt;
 
+#[cfg(feature = "rest")]
+mod rest;
+
 use anyhow::{anyhow, Result};
 use clam_sigutil::SigType;
 use opt::Opt;
@@ -11,8 +14,14 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub fn main() -> Result<()> {
+#[tokio::main]
+pub async fn main() -> Result<()> {
     let opt = Opt::parse();
+
+    #[cfg(feature = "rest")]
+    if let Some(addr) = opt.listen {
+        return rest::run_server(opt, addr).await;
+    }
 
     let err_count = if opt.paths.is_empty() {
         match opt.sig_type {
@@ -42,7 +51,7 @@ pub fn main() -> Result<()> {
     };
 
     if err_count > 0 {
-        Err(anyhow!("{} errors encountered", err_count))
+        Err(anyhow!("{err_count} errors encountered",))
     } else {
         Ok(())
     }
