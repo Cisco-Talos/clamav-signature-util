@@ -98,6 +98,7 @@ pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), 
         .for_each(|(feature, _)| writeln!(features_rs, "    {feature},").unwrap());
     writeln!(features_rs, "}}")?;
     writeln!(features_rs, "impl Feature {{")?;
+    writeln!(features_rs, "    #[must_use]")?;
     writeln!(features_rs, "    pub fn min_flevel(&self) -> u32 {{")?;
     writeln!(features_rs, "        #[allow(clippy::match_same_arms)]")?;
     writeln!(features_rs, "        match self {{")?;
