@@ -4,8 +4,9 @@ name = "clam-sigutil"
 version = "1.1.0"
 
 [features]
-default = []
+default = ["rest"]
 validate_regex = ["regex"]
+rest = ["axum", "serde", "tower"]
 
 [dependencies]
 anyhow = "1"
@@ -23,9 +24,13 @@ strum_macros = "0.26"
 thiserror = "1"
 tinyvec = "1.6"
 url = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs"] }
 
 # Optional crates
 regex = { version = "1", optional = true }
+axum = { version = "0.7", optional = true }
+serde = { version = "1", optional = true, features = ["derive"] }
+tower = { version = "0.4", optional = true }
 
 [[bin]]
 name = "clam-sigutil"
