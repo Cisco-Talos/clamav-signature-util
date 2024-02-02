@@ -1,3 +1,5 @@
+use std::num::TryFromIntError;
+
 use super::Encoding;
 use crate::util::{parse_number_dec, parse_number_hex, ParseNumberError};
 use thiserror::Error;
@@ -7,7 +9,7 @@ use thiserror::Error;
 pub struct ComparisonSet {
     // this is more of an operator, but the docs call it a symbol
     symbol: ComparisonOp,
-    value: isize,
+    value: i64,
     /// The original encoding of this number in the signature
     encoding: Encoding,
 }
@@ -28,6 +30,9 @@ pub enum ComparisonSetParseError {
 
     #[error("parsing value: {0}")]
     ParseHexValue(ParseNumberError<u64>),
+
+    #[error("parsing value: too large for i64")]
+    TooLarge(#[from] TryFromIntError),
 }
 
 impl TryFrom<&[u8]> for ComparisonSet {
@@ -37,9 +42,7 @@ impl TryFrom<&[u8]> for ComparisonSet {
         let (&sym_byte, remainder) = value.split_first().ok_or(ComparisonSetParseError::Empty)?;
         // Be friendly in returning this error.  If the operator doesn't parse because it's a number, just report that the operator was apparently missing.
         let symbol = sym_byte.try_into().map_err(|e| {
-            if matches!(e, ComparisonSetParseError::UnknownOperator)
-                && matches!(sym_byte, b'0'..=b'9')
-            {
+            if matches!(e, ComparisonSetParseError::UnknownOperator) && sym_byte.is_ascii_digit() {
                 ComparisonSetParseError::MissingOperator
             } else {
                 e
@@ -48,14 +51,16 @@ impl TryFrom<&[u8]> for ComparisonSet {
         let (encoding, value) = if let Some(hex_value_bytes) = remainder.strip_prefix(b"0x") {
             (
                 Encoding::Hex,
-                parse_number_hex(hex_value_bytes).map_err(ComparisonSetParseError::ParseHexValue)?
-                    as isize,
+                i64::try_from(
+                    parse_number_hex(hex_value_bytes)
+                        .map_err(ComparisonSetParseError::ParseHexValue)?,
+                )?,
             )
         } else {
             (
                 Encoding::Decimal,
                 parse_number_dec::<i64>(remainder).map_err(ComparisonSetParseError::ParseValue)?
-                    as isize,
+                    as i64,
             )
         };
 

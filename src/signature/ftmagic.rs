@@ -1,10 +1,10 @@
 use super::{
     bodysig::parse::BodySigParseError,
-    ext::{Offset, OffsetParseError},
+    ext_sig::{self, Offset},
     FromSigBytesParseError, SigMeta,
 };
 use crate::{
-    feature::{EngineReq, FeatureSet},
+    feature::{EngineReq, Set},
     filetype::{FileType, FileTypeParseError},
     sigbytes::{AppendSigBytes, FromSigBytes},
     signature::bodysig::BodySig,
@@ -50,7 +50,7 @@ pub enum FTMagicParseError {
     ExactOffsetParse(ParseNumberError<usize>),
 
     #[error("parsing bodysig offset: {0}")]
-    OffsetParse(OffsetParseError),
+    OffsetParse(ext_sig::OffsetParseError),
 
     #[error("missing magicbytes")]
     MagicBytesMissing,
@@ -139,10 +139,10 @@ impl FromSigBytes for FTMagicSig {
 
         // Parse optional min/max flevel
         if let Some(min_flevel) = fields.next() {
-            let min_flevel = if !min_flevel.is_empty() {
-                Some(parse_number_dec(min_flevel).map_err(FTMagicParseError::ParseMinFlevel)?)
-            } else {
+            let min_flevel = if min_flevel.is_empty() {
                 None
+            } else {
+                Some(parse_number_dec(min_flevel).map_err(FTMagicParseError::ParseMinFlevel)?)
             };
 
             let max_flevel = if let Some(max_flevel) = fields.next() {
@@ -187,9 +187,9 @@ impl FromSigBytes for FTMagicSig {
         Ok((
             Box::new(FTMagicSig {
                 name,
-                magic_bytes,
                 rtype,
                 file_type,
+                magic_bytes,
             }) as Box<dyn Signature>,
             sigmeta,
         ))
@@ -234,12 +234,12 @@ impl AppendSigBytes for FTMagicSig {
 }
 
 impl EngineReq for FTMagicSig {
-    fn features(&self) -> crate::feature::FeatureSet {
-        FeatureSet::from(
+    fn features(&self) -> crate::feature::Set {
+        Set::from(
             self.rtype
                 .features()
                 .into_iter()
-                .chain(self.file_type.features().into_iter()),
+                .chain(self.file_type.features()),
         )
     }
 }
@@ -248,7 +248,7 @@ impl EngineReq for FTMagicSig {
 mod tests {
     use super::*;
     use crate::sigbytes::SigBytes;
-    use crate::signature::ext::{Offset, OffsetPos};
+    use crate::signature::ext_sig::{Offset, OffsetPos};
 
     #[test]
     fn good_ftm_dm_sig() {

@@ -10,6 +10,7 @@ use std::{
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
+#[allow(clippy::struct_excessive_bools)]
 struct Opt {
     /// Files or directory containing files to process
     #[structopt(name = "FILE_OR_DIR")]
@@ -62,7 +63,7 @@ pub fn main() -> Result<()> {
                     eprint!("<stdin>:");
                 }
                 match process_sigs(&opt, sig_type, &mut std::io::stdin()) {
-                    Ok(_) => 0,
+                    Ok(()) => 0,
                     Err(_) => 1,
                 }
             }
@@ -86,7 +87,7 @@ pub fn main() -> Result<()> {
 }
 
 fn process_path(path: &Path, opt: &Opt) -> Result<()> {
-    if std::fs::metadata(&path)?.is_dir() {
+    if std::fs::metadata(path)?.is_dir() {
         process_dir(path, opt)
     } else {
         process_file(path, opt)
@@ -117,7 +118,7 @@ fn process_dir(path: &Path, opt: &Opt) -> Result<()> {
                 }
             }
             Err(e) => {
-                eprintln!("Error reading directory {:?}: {}", path, e);
+                eprintln!("Error reading directory {path:?}: {e}");
                 err_count += 1;
             }
         }
@@ -132,7 +133,7 @@ fn process_dir(path: &Path, opt: &Opt) -> Result<()> {
 
 fn process_file(path: &Path, opt: &Opt) -> Result<()> {
     if opt.verbose {
-        eprint!("{:?}:", path);
+        eprint!("{path:?}:");
     }
 
     let extension = path
@@ -201,8 +202,7 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
                 if opt.validate {
                     if let Err(e) = sig.validate(&sigmeta) {
                         eprintln!(
-                            "Signature on line {} failed validation:\n  {}\n  Error: {}\n",
-                            line_no, sigbuf, e
+                            "Signature on line {line_no} failed validation:\n  {sigbuf}\n  Error: {e}\n"
                         );
                         err_count += 1;
                     }
@@ -217,7 +217,7 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
                         != str::from_utf8(sigbuf.as_bytes()).unwrap().to_lowercase()
                     {
                         eprintln!("Export mismatch:");
-                        eprintln!(" < {}", sigbuf);
+                        eprintln!(" < {sigbuf}");
                         eprintln!(" > {exported}");
                     }
                 }
@@ -227,10 +227,7 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
                     e,
                     clam_sigutil::signature::FromSigBytesParseError::UnsupportedSigType
                 ) {
-                    eprintln!(
-                        "Unable to process line {}:\n  {}\n  Error: {}\n",
-                        line_no, sigbuf, e
-                    );
+                    eprintln!("Unable to process line {line_no}:\n  {sigbuf}\n  Error: {e}\n");
                     err_count += 1;
                 }
             }

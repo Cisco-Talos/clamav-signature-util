@@ -13,7 +13,7 @@ pub enum Position {
 }
 
 #[derive(Debug, Error, PartialEq)]
-pub enum LogExprParseError {
+pub enum Parse {
     #[error("invalid character at {0}: {1}")]
     InvalidCharacter(Position, SigChar),
 

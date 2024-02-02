@@ -1,8 +1,8 @@
 use crate::{
-    feature::{EngineReq, FeatureSet},
-    regexp::{RegexpMatch, RegexpMatchParseError},
+    feature::{EngineReq, Set},
+    regexp::{Match, ParseError},
     sigbytes::AppendSigBytes,
-    signature::logical::{expression, SubSigModifier},
+    signature::logical_sig::{expression, SubSigModifier},
     Feature,
 };
 use std::{fmt::Write, str};
@@ -14,10 +14,10 @@ use super::{SubSig, SubSigType};
 #[derive(Debug)]
 pub struct PCRESubSig {
     trigger_expr: Box<dyn expression::Element>,
-    regexp: RegexpMatch,
+    regexp: Match,
     // TODO: find a more-compact representation
     flags: Vec<Flag>,
-    offset: Option<crate::signature::ext::Offset>,
+    offset: Option<crate::signature::ext_sig::Offset>,
     modifier: Option<SubSigModifier>,
 }
 
@@ -28,8 +28,8 @@ impl SubSig for PCRESubSig {
 }
 
 impl EngineReq for PCRESubSig {
-    fn features(&self) -> crate::feature::FeatureSet {
-        FeatureSet::from_static(&[Feature::SubSigPcre])
+    fn features(&self) -> crate::feature::Set {
+        Set::from_static(&[Feature::SubSigPcre])
     }
 }
 
@@ -95,7 +95,7 @@ pub enum PCRESubSigParseError {
     ParseLogExpr(#[from] expression::LogExprParseError),
 
     #[error("loading pattern: {0}")]
-    RegexpMatch(#[from] RegexpMatchParseError),
+    RegexpMatch(#[from] ParseError),
 
     #[cfg(validate_regex)]
     #[error("compiling regular expression: {0}")]
@@ -117,7 +117,7 @@ impl PCRESubSig {
     pub fn from_bytes(
         bytes: &[u8],
         modifier: Option<SubSigModifier>,
-        offset: Option<crate::signature::ext::Offset>,
+        offset: Option<crate::signature::ext_sig::Offset>,
     ) -> Result<PCRESubSig, PCRESubSigParseError> {
         // Due to escaping of slashes, we can't simply split on them
         let mut parts = bytes.splitn(2, |&b| b == b'/');
@@ -137,7 +137,7 @@ impl PCRESubSig {
             .collect::<Result<Vec<Flag>, _>>()?;
 
         let regexp =
-            RegexpMatch::from_pcre_subsig(parts.next().ok_or(PCRESubSigParseError::EmptyPattern)?)?;
+            Match::from_pcre_subsig(parts.next().ok_or(PCRESubSigParseError::EmptyPattern)?)?;
 
         #[cfg(validate_regex)]
         {
@@ -172,8 +172,8 @@ impl PCRESubSig {
             trigger_expr,
             regexp,
             flags,
-            modifier,
             offset,
+            modifier,
         })
     }
 }

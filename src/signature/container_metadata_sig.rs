@@ -2,8 +2,8 @@ mod container_size;
 mod container_type;
 
 use crate::{
-    feature::{EngineReq, FeatureSet},
-    regexp::{RegexpMatch, RegexpMatchParseError},
+    feature::{EngineReq, Set},
+    regexp::Match,
     sigbytes::{AppendSigBytes, FromSigBytes},
     signature::{FromSigBytesParseError, SigMeta, Signature},
     util::{
@@ -12,8 +12,8 @@ use crate::{
     },
     Feature,
 };
-use container_size::{parse_container_size, ContainerSize, ContainerSizeParseError};
-use container_type::{ContainerType, ContainerTypeParseError};
+use container_size::{parse, ContainerSize};
+use container_type::ContainerType;
 use std::{fmt::Write, str};
 use thiserror::Error;
 
@@ -23,7 +23,7 @@ pub struct ContainerMetadataSig {
     name: String,
     container_type: Option<ContainerType>,
     container_size: Option<ContainerSize>,
-    filename_regexp: Option<RegexpMatch>,
+    filename_regexp: Option<Match>,
     file_size_in_container: Option<Range<usize>>,
     file_size_real: Option<Range<usize>>,
     is_encrypted: Option<bool>,
@@ -32,24 +32,24 @@ pub struct ContainerMetadataSig {
 }
 
 #[derive(Debug, Error, PartialEq)]
-pub enum ContainerMetadataSigParseError {
+pub enum ParseError {
     #[error("missing ContainerType field")]
     MissingContainerType,
 
     #[error("parsing ContainerType: {0}")]
-    ContainerType(#[from] ContainerTypeParseError),
+    ContainerType(#[from] container_type::ParseError),
 
     #[error("missing ContainerSize field")]
     MissingContainerSize,
 
     #[error("parsing ContainerType: {0}")]
-    ContainerSize(#[from] ContainerSizeParseError),
+    ContainerSize(#[from] container_size::ParseError),
 
     #[error("missing FileNameREGEX field")]
     MissingFilenameRegexp,
 
     #[error("FileNameREGEX not unicode: {0}")]
-    FilenameRegexp(RegexpMatchParseError),
+    FilenameRegexp(crate::regexp::ParseError),
 
     #[error("missing FileSizeInContainer field")]
     MissingFSIC,
@@ -101,9 +101,10 @@ pub enum ContainerMetadataSigParseError {
 }
 
 #[derive(Debug, Error, PartialEq)]
-pub enum ContainerMetadataSigValidationError {}
+pub enum ValidationError {}
 
 impl FromSigBytes for ContainerMetadataSig {
+    #[allow(clippy::too_many_lines)]
     fn from_sigbytes<'a, SB: Into<&'a crate::sigbytes::SigBytes>>(
         sb: SB,
     ) -> Result<(Box<dyn Signature>, super::SigMeta), FromSigBytesParseError> {
@@ -122,26 +123,26 @@ impl FromSigBytes for ContainerMetadataSig {
             OPTIONAL
             fields,
             ContainerType::try_from,
-            ContainerMetadataSigParseError::MissingContainerType,
-            ContainerMetadataSigParseError::from
+            ParseError::MissingContainerType,
+            ParseError::from
         )?;
 
         // Field 3
         let container_size = parse_field!(
             OPTIONAL
             fields,
-            parse_container_size,
-            ContainerMetadataSigParseError::MissingContainerSize,
-            ContainerMetadataSigParseError::from
+            parse,
+            ParseError::MissingContainerSize,
+            ParseError::from
         )?;
 
         // Field 4
         let filename_regexp = parse_field!(
             OPTIONAL
             fields,
-            RegexpMatch::try_from,
-            ContainerMetadataSigParseError::MissingFilenameRegexp,
-            ContainerMetadataSigParseError::FilenameRegexp
+            Match::try_from,
+            ParseError::MissingFilenameRegexp,
+            ParseError::FilenameRegexp
         )?;
 
         // Field 5
@@ -149,15 +150,15 @@ impl FromSigBytes for ContainerMetadataSig {
             OPTIONAL
             fields,
             Range::try_from,
-            ContainerMetadataSigParseError::MissingFSIC,
-            ContainerMetadataSigParseError::InvalidFSIC
+            ParseError::MissingFSIC,
+            ParseError::InvalidFSIC
         )?;
         if !matches!(
             file_size_in_container,
             None | Some(Range::Exact(_) | Range::Inclusive(_))
         ) {
             dbg!(file_size_in_container);
-            return Err(ContainerMetadataSigParseError::FSICRangeType.into());
+            return Err(ParseError::FSICRangeType.into());
         }
 
         // Field 6
@@ -165,15 +166,15 @@ impl FromSigBytes for ContainerMetadataSig {
             OPTIONAL
             fields,
             Range::try_from,
-            ContainerMetadataSigParseError::MissingFSReal,
-            ContainerMetadataSigParseError::InvalidFSReal
+            ParseError::MissingFSReal,
+            ParseError::InvalidFSReal
         )?;
         if !matches!(
             file_size_real,
             None | Some(Range::Exact(_) | Range::Inclusive(_))
         ) {
             dbg!(file_size_real);
-            return Err(ContainerMetadataSigParseError::FSRealRangeType.into());
+            return Err(ParseError::FSRealRangeType.into());
         }
 
         // Field 7
@@ -181,8 +182,8 @@ impl FromSigBytes for ContainerMetadataSig {
             OPTIONAL
             fields,
             parse_bool_from_int,
-            ContainerMetadataSigParseError::MissingIsEnc,
-            ContainerMetadataSigParseError::InvalidIsEnc
+            ParseError::MissingIsEnc,
+            ParseError::InvalidIsEnc
         )?;
 
         // Field 8
@@ -190,8 +191,8 @@ impl FromSigBytes for ContainerMetadataSig {
             OPTIONAL
             fields,
             parse_number_dec,
-            ContainerMetadataSigParseError::MissingFilePos,
-            ContainerMetadataSigParseError::InvalidFilePos
+            ParseError::MissingFilePos,
+            ParseError::InvalidFilePos
         )?;
 
         // Field 9
@@ -199,19 +200,19 @@ impl FromSigBytes for ContainerMetadataSig {
             OPTIONAL
             fields,
             parse_number_dec::<u32>,
-            ContainerMetadataSigParseError::MissingRes1,
-            ContainerMetadataSigParseError::InvalidRes1
+            ParseError::MissingRes1,
+            ParseError::InvalidRes1
         )?;
 
         // Parse optional min/max flevel
         if let Some(min_flevel) = fields.next() {
             if !min_flevel.is_empty() {
-                let min_flevel = parse_number_dec(min_flevel)
-                    .map_err(ContainerMetadataSigParseError::ParseMinFlevel)?;
+                let min_flevel =
+                    parse_number_dec(min_flevel).map_err(ParseError::ParseMinFlevel)?;
 
                 if let Some(max_flevel) = fields.next() {
-                    let max_flevel = parse_number_dec(max_flevel)
-                        .map_err(ContainerMetadataSigParseError::ParseMaxFlevel)?;
+                    let max_flevel =
+                        parse_number_dec(max_flevel).map_err(ParseError::ParseMaxFlevel)?;
                     sigmeta.f_level = Some((min_flevel..=max_flevel).into());
                 } else {
                     sigmeta.f_level = Some((min_flevel..).into());
@@ -243,8 +244,8 @@ impl Signature for ContainerMetadataSig {
 }
 
 impl EngineReq for ContainerMetadataSig {
-    fn features(&self) -> crate::feature::FeatureSet {
-        FeatureSet::from_static(&[Feature::ContentMetadataSig])
+    fn features(&self) -> crate::feature::Set {
+        Set::from_static(&[Feature::ContentMetadataSig])
     }
 }
 
@@ -331,10 +332,10 @@ mod tests {
     use crate::sigbytes::SigBytes;
 
     const SAMPLE_SIG: &[u8] =
-        br#"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:99:101"#;
+        br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:99:101";
 
     const SAMPLE_SIG_WITHOUT_FLEVEL: &[u8] =
-        br#"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:"#;
+        br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:";
 
     #[test]
     fn full_sig() {
@@ -363,7 +364,7 @@ mod tests {
             0x2a, 0x3a, 0x31, 0x3a, 0x2a, 0x3a, 0x2a, 0x0a,
         ]);
         if let Err(e) = ContainerMetadataSig::from_sigbytes(&bytes) {
-            eprintln!("{}", e)
+            eprintln!("{e}");
         }
     }
 

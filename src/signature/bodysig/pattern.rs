@@ -5,7 +5,10 @@ use crate::{
     util::Range,
 };
 use enumflags2::BitFlags;
-use std::{fmt::Write, ops::RangeInclusive};
+use std::{
+    fmt::{Debug, Write},
+    ops::RangeInclusive,
+};
 
 #[derive(Debug, PartialEq)]
 pub enum ByteAnchorSide {
@@ -41,7 +44,7 @@ pub enum Pattern {
     Wildcard,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Default)]
 pub enum MatchByte {
     // A match of the full byte value (e.g., "af")
     Full(u8),
@@ -53,6 +56,7 @@ pub enum MatchByte {
     HighNyble(u8),
 
     // A match that ignores the entire byte (e.g., "??")
+    #[default]
     Any,
 
     // A match that ignores a fixed, small set of bytes (represented as `{n}`)
@@ -60,7 +64,9 @@ pub enum MatchByte {
     // This is included as a MatchByte variation because, internally, these tend
     // to get expanded into a series of full-byte wildcards when given to matcher
     // (provided the size is <=128).
-    WildcardMany { size: u8 },
+    WildcardMany {
+        size: u8,
+    },
 }
 
 impl From<u8> for MatchByte {
@@ -77,7 +83,7 @@ pub struct MatchBytes {
 impl From<&[u8]> for MatchBytes {
     fn from(bytes: &[u8]) -> Self {
         MatchBytes {
-            bytes: bytes.iter().cloned().map(MatchByte::Full).collect(),
+            bytes: bytes.iter().copied().map(MatchByte::Full).collect(),
         }
     }
 }
@@ -85,7 +91,7 @@ impl From<&[u8]> for MatchBytes {
 impl<const N: usize> From<[u8; N]> for MatchBytes {
     fn from(bytes: [u8; N]) -> Self {
         MatchBytes {
-            bytes: bytes.iter().cloned().map(MatchByte::Full).collect(),
+            bytes: bytes.iter().copied().map(MatchByte::Full).collect(),
         }
     }
 }
@@ -106,28 +112,30 @@ impl std::ops::Deref for MatchBytes {
 
 impl std::fmt::Debug for MatchBytes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "MatchBytes(\"{}\")", self)
+        write!(f, "MatchBytes(\"{self}\")")
     }
 }
 
 impl AppendSigBytes for MatchBytes {
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         // Same as Display
-        write!(sb, "{}", self).map_err(crate::signature::ToSigBytesError::Fmt)
+        write!(sb, "{self}").map_err(crate::signature::ToSigBytesError::Fmt)
     }
 }
 
 impl std::fmt::Display for MatchBytes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for byte in self.iter() {
-            write!(f, "{:?}", byte)?;
+            write!(f, "{byte:?}")?;
         }
         Ok(())
     }
 }
 
+#[derive(Default)]
 pub enum MatchMask {
     // Match any value
+    #[default]
     None,
     // Match only the high nyble
     High,
@@ -137,22 +145,10 @@ pub enum MatchMask {
     Full,
 }
 
-impl Default for MatchMask {
-    fn default() -> Self {
-        MatchMask::None
-    }
-}
-
-impl Default for MatchByte {
-    fn default() -> Self {
-        MatchByte::Any
-    }
-}
-
 impl std::fmt::Debug for MatchByte {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Full(byte) => write!(f, "{:02x}", byte),
+            Self::Full(byte) => write!(f, "{byte:02x}"),
             Self::LowNyble(low) => write!(f, "?{:x}", low & 0x0f),
             Self::HighNyble(high) => write!(f, "{:x}?", high >> 4 & 0x0f),
             Self::Any => write!(f, "??"),
@@ -164,6 +160,7 @@ impl std::fmt::Debug for MatchByte {
 impl Pattern {
     /// Whether or not this pattern is a wildcard type (which can't appear at the
     /// beginning of a signature)
+    #[must_use]
     pub fn is_wildcard(&self) -> bool {
         matches!(self, Pattern::Wildcard | Pattern::ByteRange(..))
     }
@@ -216,10 +213,10 @@ impl AppendSigBytes for Pattern {
                 string,
             } => match anchor_side {
                 ByteAnchorSide::Left => {
-                    write!(sb, "{byte:?}[{}-{}]{string}", range.start(), range.end())?
+                    write!(sb, "{byte:?}[{}-{}]{string}", range.start(), range.end())?;
                 }
                 ByteAnchorSide::Right => {
-                    write!(sb, "{string}[{}-{}]{byte:?}", range.start(), range.end())?
+                    write!(sb, "{string}[{}-{}]{byte:?}", range.start(), range.end())?;
                 }
             },
             Pattern::ByteRange(range) => {
@@ -242,7 +239,7 @@ impl AppendSigBytes for Pattern {
                             sb.write_char('|')?;
                         }
                         for byte in bytes {
-                            write!(sb, "{:?}", byte)?;
+                            write!(sb, "{byte:?}")?;
                         }
                     }
                     sb.write_char(')')?;
@@ -254,7 +251,7 @@ impl AppendSigBytes for Pattern {
                             sb.write_char('|')?;
                         }
                         for byte in data.get(range.clone()).unwrap() {
-                            write!(sb, "{:?}", byte)?;
+                            write!(sb, "{byte:?}")?;
                         }
                     }
                     sb.write_char(')')?;

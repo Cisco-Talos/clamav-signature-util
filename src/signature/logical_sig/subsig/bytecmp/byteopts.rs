@@ -57,7 +57,7 @@ impl ByteOptions {
                 Some(Endianness::Little) => return Err(ByteOptionsParseError::IncompatibleOptions),
                 None => {
                     if encoding == Some(Encoding::Decimal) {
-                        endianness = Some(Endianness::Big)
+                        endianness = Some(Endianness::Big);
                     }
                 }
                 _ => (),

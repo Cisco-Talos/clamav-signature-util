@@ -1,9 +1,9 @@
 /// Body signatures, typically found in extended signatures
 pub mod bodysig;
 /// Container Metadata signature support
-pub mod container_metadata;
+pub mod container_metadata_sig;
 /// Extended signature support
-pub mod ext;
+pub mod ext_sig;
 /// File hash signature support
 pub mod filehash;
 /// Filetype Magic signatures
@@ -12,19 +12,18 @@ pub mod ftmagic;
 pub mod hash;
 pub mod intmask;
 /// Logical signature support
-pub mod logical;
+pub mod logical_sig;
 /// Hash-based signature support for Portable Executable files
 pub mod pehash;
 /// Phishing Signatures
-pub mod phishing;
+pub mod phishing_sig;
 /// Enumeration of signature types
 pub mod sigtype;
 /// Enumeration of target types (typically found in logical and extended signatures)
 pub mod targettype;
 
-use self::logical::LogicalSigValidationError;
 use crate::{
-    feature::{EngineReq, FeatureSetWithMinFlevel},
+    feature::{self, EngineReq},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     util::Range,
     SigType,
@@ -192,14 +191,14 @@ pub fn parse_from_cvd_with_meta(
     data: &SigBytes,
 ) -> Result<(Box<dyn Signature>, SigMeta), FromSigBytesParseError> {
     let (sig, sigmeta) = match sig_type {
-        SigType::Extended => ext::ExtendedSig::from_sigbytes(data)?,
-        SigType::Logical => logical::LogicalSig::from_sigbytes(data)?,
+        SigType::Extended => ext_sig::ExtendedSig::from_sigbytes(data)?,
+        SigType::Logical => logical_sig::LogicalSig::from_sigbytes(data)?,
         SigType::FileHash => filehash::FileHashSig::from_sigbytes(data)?,
         SigType::PESectionHash => pehash::PESectionHashSig::from_sigbytes(data)?,
         SigType::ContainerMetadata => {
-            container_metadata::ContainerMetadataSig::from_sigbytes(data)?
+            container_metadata_sig::ContainerMetadataSig::from_sigbytes(data)?
         }
-        SigType::PhishingURL => phishing::PhishingSig::from_sigbytes(data)?,
+        SigType::PhishingURL => phishing_sig::PhishingSig::from_sigbytes(data)?,
         SigType::FTMagic => ftmagic::FTMagicSig::from_sigbytes(data)?,
         _ => return Err(FromSigBytesParseError::UnsupportedSigType),
     };
@@ -220,19 +219,19 @@ pub enum FromSigBytesParseError {
     NameNotUnicode(std::str::Utf8Error),
 
     #[error("parsing hash-based signature: {0}")]
-    HashSig(#[from] hash::HashSigParseError),
+    HashSig(#[from] hash::ParseError),
 
     #[error("parsing extended signature: {0}")]
-    ExtendedSig(#[from] ext::ExtendedSigParseError),
+    ExtendedSig(#[from] ext_sig::ExtendedSigParseError),
 
     #[error("parsing logical signature: {0}")]
-    LogicalSig(#[from] logical::LogicalSigParseError),
+    LogicalSig(#[from] logical_sig::ParseError),
 
     #[error("parsing container metadata signature: {0}")]
-    ContainerMetaSig(#[from] container_metadata::ContainerMetadataSigParseError),
+    ContainerMetaSig(#[from] container_metadata_sig::ParseError),
 
     #[error("parsing phishing URL signature: {0}")]
-    PhishingSig(#[from] phishing::PhishingSigParseError),
+    PhishingSig(#[from] phishing_sig::ParseError),
 
     #[error("parsing file type magic signature: {0}")]
     FTMagicSig(#[from] ftmagic::FTMagicParseError),
@@ -241,24 +240,24 @@ pub enum FromSigBytesParseError {
 #[derive(Error, Debug, PartialEq)]
 pub enum SigValidationError {
     #[error("validating hash-based signature: {0}")]
-    HashSig(#[from] hash::HashSigValidationError),
+    HashSig(#[from] hash::ValidationError),
 
     #[error("validating logical signature: {0}")]
-    LogicalSig(#[from] LogicalSigValidationError),
+    LogicalSig(#[from] logical_sig::ValidationError),
 
     #[error("validating container metadata signature: {0}")]
-    ContainerMetaSig(#[from] container_metadata::ContainerMetadataSigValidationError),
+    ContainerMetaSig(#[from] container_metadata_sig::ValidationError),
 
     #[error("specified minimum feature level ({spec_min_flevel}) is lower than computed ({computed_min_flevel}), requires features {feature_set:?}")]
     SpecifiedMinFLevelTooLow {
         spec_min_flevel: u32,
         computed_min_flevel: u32,
-        feature_set: FeatureSetWithMinFlevel,
+        feature_set: feature::SetWithMinFlevel,
     },
 
     #[error("minimum feature level unspecified; must be at least ({computed_min_flevel}), requires features {feature_set:?}")]
     MinFLevelNotSpecified {
         computed_min_flevel: u32,
-        feature_set: FeatureSetWithMinFlevel,
+        feature_set: feature::SetWithMinFlevel,
     },
 }

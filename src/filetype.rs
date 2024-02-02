@@ -7,7 +7,7 @@ use strum_macros::{Display, EnumString};
 use thiserror::Error;
 
 use crate::{
-    feature::{EngineReq, Feature, FeatureSet},
+    feature::{EngineReq, Feature, Set},
     sigbytes::AppendSigBytes,
 };
 
@@ -37,20 +37,20 @@ impl AppendSigBytes for FileType {
         &self,
         sb: &mut crate::sigbytes::SigBytes,
     ) -> Result<(), crate::signature::ToSigBytesError> {
-        Ok(write!(sb, "{}", self)?)
+        Ok(write!(sb, "{self}")?)
     }
 }
 
 impl EngineReq for FileType {
-    fn features(&self) -> crate::feature::FeatureSet {
+    fn features(&self) -> crate::feature::Set {
         let feature_tag = include!(concat!(
             env!("OUT_DIR"),
             "/filetypes-match-filetype-to-feature_tag.rs"
         ));
         if let Some(feature_tag) = feature_tag {
-            FeatureSet::from(vec![feature_tag].into_iter())
+            Set::from(vec![feature_tag].into_iter())
         } else {
-            FeatureSet::Empty
+            Set::Empty
         }
     }
 }

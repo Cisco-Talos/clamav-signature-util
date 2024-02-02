@@ -1,7 +1,7 @@
 use std::fmt::{self, Write};
 
 pub mod error;
-pub use error::LogExprParseError;
+pub use error::Parse as LogExprParseError;
 
 /// Size of modifier match requirement and unique match requirement
 type ModifierValue = usize;
@@ -87,13 +87,13 @@ pub enum ModOp {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(op) = self.operation() {
-            write!(f, "{}", op)?;
+            write!(f, "{op}")?;
         }
         if self.depth > 0 {
             f.write_char('(')?;
         }
-        for element in self.elements.iter() {
-            write!(f, "{}", element)?;
+        for element in &self.elements {
+            write!(f, "{element}")?;
         }
         if self.depth > 0 {
             f.write_char(')')?;
@@ -101,7 +101,7 @@ impl fmt::Display for Expr {
         if let Some(modifier) = &self.modifier {
             write!(f, "{}{}", modifier.mod_op, modifier.match_req)?;
             if let Some(match_uniq) = modifier.match_uniq {
-                write!(f, ",{}", match_uniq)?;
+                write!(f, ",{match_uniq}")?;
             }
         }
         Ok(())
@@ -134,7 +134,7 @@ impl fmt::Display for Modifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.mod_op, self.match_req)?;
         if let Some(match_uniq) = self.match_uniq {
-            write!(f, ",{}", match_uniq)?;
+            write!(f, ",{match_uniq}")?;
         }
         Ok(())
     }
@@ -199,13 +199,13 @@ impl TryFrom<u8> for ModOp {
 impl fmt::Display for SigIndex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(op) = self.operation() {
-            write!(f, "{}", op)?;
+            write!(f, "{op}")?;
         }
         write!(f, "{}", self.sig_index)?;
         if let Some(modifier) = &self.modifier {
             write!(f, "{}{}", modifier.mod_op, modifier.match_req)?;
             if let Some(match_uniq) = modifier.match_uniq {
-                write!(f, ",{}", match_uniq)?;
+                write!(f, ",{match_uniq}")?;
             }
         }
         Ok(())
@@ -235,7 +235,7 @@ impl Element for SigIndex {
  *********************************************************************/
 
 impl TryFrom<&[u8]> for Box<dyn Element> {
-    type Error = LogExprParseError;
+    type Error = error::Parse;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut bytes = value.iter().copied().enumerate();
@@ -243,7 +243,8 @@ impl TryFrom<&[u8]> for Box<dyn Element> {
     }
 }
 
-fn parse_element<B>(byte_stream: &mut B, depth: u8) -> Result<Box<dyn Element>, LogExprParseError>
+#[allow(clippy::too_many_lines)]
+fn parse_element<B>(byte_stream: &mut B, depth: u8) -> Result<Box<dyn Element>, error::Parse>
 where
     B: Iterator<Item = (usize, u8)> + Clone,
 {
@@ -283,14 +284,13 @@ where
                     Some((_, b')')) => {
                         if depth > 0 {
                             break 'handle_stream;
-                        } else {
-                            // FIXME: panic?
-                            panic!("unmatched closing paren found");
                         }
+                        // FIXME: panic?
+                        panic!("unmatched closing paren found");
                     }
                     // next digit
-                    Some((_, b)) if matches!(b, b'0'..=b'9') => {
-                        sig_id = Some((b - b'0') + sig_id.unwrap_or_default() * 10)
+                    Some((_, b)) if b.is_ascii_digit() => {
+                        sig_id = Some((b - b'0') + sig_id.unwrap_or_default() * 10);
                     }
                     // everything else
                     Some((pos, op)) if b.is_some() => {
@@ -305,7 +305,7 @@ where
                         if let Ok(this_op) = Operation::try_from(op) {
                             // No double-character operators are supported
                             if operation.is_some() {
-                                return Err(LogExprParseError::UnexpectedOperator(pos.into()));
+                                return Err(error::Parse::UnexpectedOperator(pos.into()));
                             }
                             operation = Some(this_op);
                         } else if let Ok(this_modop) = ModOp::try_from(op) {
@@ -313,38 +313,37 @@ where
                             state = State::ModReq;
                             modval_pos = None;
                         } else {
-                            return Err(LogExprParseError::InvalidCharacter(pos.into(), op.into()));
+                            return Err(error::Parse::InvalidCharacter(pos.into(), op.into()));
                         }
                     }
                     None => break 'handle_stream,
                     _ => unreachable!(),
                 },
                 State::ModReq => match b {
-                    Some((pos, b)) if matches!(b, b'0'..=b'9') => {
-                        let start_pos = match modval_pos {
-                            Some(pos) => pos,
-                            None => {
-                                modval_pos = Some(pos);
-                                pos
-                            }
+                    Some((pos, b)) if b.is_ascii_digit() => {
+                        let start_pos = if let Some(pos) = modval_pos {
+                            pos
+                        } else {
+                            modval_pos = Some(pos);
+                            pos
                         };
                         match_req = Some(
                             ((b - b'0') as ModifierValue)
                                 .checked_add(
                                     match_req.unwrap_or_default().checked_mul(10).ok_or_else(
                                         || {
-                                            LogExprParseError::ModifierMatchValueOverflow(
+                                            error::Parse::ModifierMatchValueOverflow(
                                                 (start_pos..=pos).into(),
                                             )
                                         },
                                     )?,
                                 )
                                 .ok_or_else(|| {
-                                    LogExprParseError::ModifierMatchValueOverflow(
+                                    error::Parse::ModifierMatchValueOverflow(
                                         (start_pos..=pos).into(),
                                     )
                                 })?,
-                        )
+                        );
                     }
                     Some((_, b',')) => state = State::ModUniq,
                     _ => {
@@ -353,35 +352,34 @@ where
                     }
                 },
                 State::ModUniq => match b {
-                    Some((pos, b)) if matches!(b, b'0'..=b'9') => {
-                        let start_pos = match modval_pos {
-                            Some(pos) => pos,
-                            None => {
-                                modval_pos = Some(pos);
-                                pos
-                            }
+                    Some((pos, b)) if b.is_ascii_digit() => {
+                        let start_pos = if let Some(pos) = modval_pos {
+                            pos
+                        } else {
+                            modval_pos = Some(pos);
+                            pos
                         };
                         match_uniq = Some(
                             ((b - b'0') as ModifierValue)
                                 .checked_add(
                                     match_uniq.unwrap_or_default().checked_mul(10).ok_or_else(
                                         || {
-                                            LogExprParseError::ModifierMatchValueOverflow(
+                                            error::Parse::ModifierMatchValueOverflow(
                                                 (start_pos..=pos).into(),
                                             )
                                         },
                                     )?,
                                 )
                                 .ok_or_else(|| {
-                                    LogExprParseError::ModifierMatchValueOverflow(
+                                    error::Parse::ModifierMatchValueOverflow(
                                         (start_pos..=pos).into(),
                                     )
                                 })?,
-                        )
+                        );
                     }
                     pos_and_byte => {
                         if match_uniq.is_none() {
-                            return Err(LogExprParseError::ModifierMatchUniqMissing(
+                            return Err(error::Parse::ModifierMatchUniqMissing(
                                 pos_and_byte.into(),
                             ));
                         }
@@ -390,11 +388,9 @@ where
                     }
                 },
                 State::ApplyModifier => {
-                    if modifier.is_some() {
-                        panic!("Already had a modifier!");
-                    }
+                    assert!(modifier.is_none(), "Already had a modifier!");
                     if match_req.is_none() {
-                        return Err(LogExprParseError::ModifierMatchReqMissing(b.into()));
+                        return Err(error::Parse::ModifierMatchReqMissing(b.into()));
                     }
                     let this_modifier = Some(Modifier {
                         mod_op: mod_op.take().unwrap(),
@@ -456,16 +452,16 @@ mod tests {
         {
             let expr_s = expr_bytes.to_owned();
             let before = std::str::from_utf8(&expr_s).unwrap();
-            eprintln!("{}. before = {}", i, before);
+            eprintln!("{i}. before = {before}");
             let element: Result<Box<dyn super::Element>, _> = expr_bytes.try_into();
             match element {
                 Ok(element) => {
-                    eprintln!("{}.  after = {}", i, element);
-                    assert_eq!(before, format!("{}", element));
+                    eprintln!("{i}.  after = {element}");
+                    assert_eq!(before, element.to_string());
                 }
                 Err(e) => {
                     eprintln!("{}.  error = {}", i, &e);
-                    errs.push((before.to_owned(), e))
+                    errs.push((before.to_owned(), e));
                 }
             }
         }

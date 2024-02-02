@@ -1,6 +1,6 @@
 use super::super::targettype::TargetType;
 use crate::{
-    feature::{EngineReq, FeatureSet},
+    feature::{EngineReq, Set},
     filetype::{FileType, FileTypeParseError},
     sigbytes::{AppendSigBytes, SigBytes},
     signature::ToSigBytesError,
@@ -102,6 +102,7 @@ impl AppendSigBytes for TargetDesc {
 impl TryFrom<&[u8]> for TargetDesc {
     type Error = TargetDescParseError;
 
+    #[allow(clippy::too_many_lines)]
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut tdesc = TargetDesc::default();
         for attr in value.split(|&b| b == b',') {
@@ -223,14 +224,14 @@ impl TryFrom<&[u8]> for TargetDesc {
 }
 
 impl EngineReq for TargetDesc {
-    fn features(&self) -> FeatureSet {
-        FeatureSet::from(
+    fn features(&self) -> Set {
+        Set::from(
             self.attrs
                 .iter()
                 .filter_map(|attr| match attr {
                     TargetDescAttr::TargetType(target_type) => Some(target_type.features()),
-                    TargetDescAttr::Container(file_type) => Some(file_type.features()),
-                    TargetDescAttr::HandlerType(file_type) => Some(file_type.features()),
+                    TargetDescAttr::Container(file_type)
+                    | TargetDescAttr::HandlerType(file_type) => Some(file_type.features()),
                     _ => None,
                 })
                 .flatten()
@@ -301,7 +302,7 @@ impl TargetDesc {
         for attr in &self.attrs {
             match attr {
                 TargetDescAttr::TargetType(target_type) => {
-                    is_native_exec = target_type.is_native_executable()
+                    is_native_exec = target_type.is_native_executable();
                 }
                 TargetDescAttr::EntryPoint(_) => found_attr = Some("EntryPoint"),
                 TargetDescAttr::NumberOfSections(_) => found_attr = Some("NumberOfSections"),
@@ -374,7 +375,7 @@ impl AppendSigBytes for TargetDescAttr {
                 range.append_sigbytes(sb)?;
             }
             TargetDescAttr::TargetType(target_type) => {
-                write!(sb, "Target:{}", target_type.to_usize().unwrap())?
+                write!(sb, "Target:{}", target_type.to_usize().unwrap())?;
             }
             TargetDescAttr::FileSize(range) => {
                 write!(sb, "FileSize:")?;
@@ -396,14 +397,14 @@ impl AppendSigBytes for TargetDescAttr {
                     if i > 0 {
                         sb.write_char('>')?;
                     }
-                    write!(sb, "{}", file_type)?;
+                    write!(sb, "{file_type}")?;
                 }
             }
             TargetDescAttr::HandlerType(file_type) => {
                 write!(sb, "HandlerType:{file_type}")?;
             }
-            TargetDescAttr::IconGroup1(s) => write!(sb, "IconGroup1:{}", s)?,
-            TargetDescAttr::IconGroup2(s) => write!(sb, "IconGroup2:{}", s)?,
+            TargetDescAttr::IconGroup1(s) => write!(sb, "IconGroup1:{s}")?,
+            TargetDescAttr::IconGroup2(s) => write!(sb, "IconGroup2:{s}")?,
         }
         Ok(())
     }
@@ -426,7 +427,7 @@ mod tests {
                     FileType::CL_TYPE_GRAPHICS,
                 ])],
             }
-        )
+        );
     }
 
     #[test]
@@ -494,7 +495,7 @@ mod tests {
         assert_eq!(
             result,
             Err(TargetDescValidationError::AttrRequiresNativeExecTarget { attr: "EntryPoint" })
-        )
+        );
     }
 
     #[test]
@@ -508,7 +509,7 @@ mod tests {
             Err(TargetDescValidationError::AttrRequiresNativeExecTarget {
                 attr: "NumberOfSections"
             })
-        )
+        );
     }
 
     #[test]

@@ -6,7 +6,7 @@ use thiserror::Error;
 pub enum SigType {
     /// [Extended signature](crate::signature::ext::ExtendedSig)
     Extended,
-    /// [Logical signature](crate::signature::logical::LogicalSig)
+    /// [Logical signature](crate::signature::logical_sig::LogicalSig)
     Logical,
     /// [Container Metadata signature](crate::signature::container_metadata::ContainerMetadataSig)
     ContainerMetadata,
@@ -45,6 +45,7 @@ impl SigType {
 
     /// Return the signature type implied by the provided file extension, or None
     /// if the extension is not recognized.
+    #[must_use]
     pub fn from_file_extension(ext: &str) -> Option<Self> {
         Some(match ext {
             //

@@ -1,7 +1,7 @@
 use crate::{
-    feature::{EngineReq, Feature, FeatureSet},
+    feature::{EngineReq, Feature, Set},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
-    signature::{hash::HashSigParseError, FromSigBytesParseError, SigMeta, Signature},
+    signature::{hash::ParseError, FromSigBytesParseError, SigMeta, Signature},
     util::{self, parse_field, parse_number_dec, Hash},
 };
 use std::{fmt::Write, str};
@@ -21,13 +21,13 @@ impl Signature for PESectionHashSig {
 }
 
 impl EngineReq for PESectionHashSig {
-    fn features(&self) -> FeatureSet {
-        FeatureSet::from_static(match (self.size, &self.hash) {
+    fn features(&self) -> Set {
+        Set::from_static(match (self.size, &self.hash) {
             (None, Hash::Sha1(_)) => &[Feature::HashSizeUnknown, Feature::HashSha1],
             (None, Hash::Sha2_256(_)) => &[Feature::HashSizeUnknown, Feature::HashSha256],
             (Some(_), Hash::Sha1(_)) => &[Feature::HashSha1],
             (Some(_), Hash::Sha2_256(_)) => &[Feature::HashSha256],
-            _ => return FeatureSet::default(),
+            _ => return Set::default(),
         })
     }
 }
@@ -38,9 +38,9 @@ impl AppendSigBytes for PESectionHashSig {
         sb.try_reserve_exact(size_hint)?;
 
         if let Some(size) = self.size {
-            write!(sb, "{}", size)?
+            write!(sb, "{size}")?;
         } else {
-            sb.write_char('*')?
+            sb.write_char('*')?;
         }
 
         write!(sb, ":{}:{}", self.hash, self.name)?;
@@ -58,30 +58,29 @@ impl FromSigBytes for PESectionHashSig {
             OPTIONAL
             fields,
             parse_number_dec,
-            HashSigParseError::MissingFileSize,
-            HashSigParseError::ParseSize
+            ParseError::MissingFileSize,
+            ParseError::ParseSize
         )?;
-        let hash = util::parse_hash(fields.next().ok_or(HashSigParseError::MissingHashString)?)
-            .map_err(HashSigParseError::ParseHash)?;
+        let hash = util::parse_hash(fields.next().ok_or(ParseError::MissingHashString)?)
+            .map_err(ParseError::ParseHash)?;
         let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
             .map_err(FromSigBytesParseError::NameNotUnicode)?
             .to_owned();
 
         // Parse optional min/max flevel
         if let Some(min_flevel) = fields.next() {
-            let min_flevel =
-                parse_number_dec(min_flevel).map_err(HashSigParseError::ParseMinFlevel)?;
+            let min_flevel = parse_number_dec(min_flevel).map_err(ParseError::ParseMinFlevel)?;
 
             if let Some(max_flevel) = fields.next() {
                 let max_flevel =
-                    parse_number_dec(max_flevel).map_err(HashSigParseError::ParseMaxFlevel)?;
+                    parse_number_dec(max_flevel).map_err(ParseError::ParseMaxFlevel)?;
                 sigmeta.f_level = Some((min_flevel..=max_flevel).into());
             } else {
                 sigmeta.f_level = Some((min_flevel..).into());
             }
         }
 
-        Ok((Box::new(Self { name, hash, size }), sigmeta))
+        Ok((Box::new(Self { name, size, hash }), sigmeta))
     }
 }
 

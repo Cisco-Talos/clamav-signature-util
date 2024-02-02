@@ -5,7 +5,7 @@ pub mod pattern;
 pub mod pattern_modifier;
 
 use crate::{
-    feature::{EngineReq, FeatureSet},
+    feature::{EngineReq, Set},
     sigbytes::{AppendSigBytes, SigBytes},
 };
 pub use char_class::CharacterClass;
@@ -32,12 +32,12 @@ impl AppendSigBytes for BodySig {
 }
 
 impl EngineReq for BodySig {
-    fn features(&self) -> FeatureSet {
+    fn features(&self) -> Set {
         let x = self
             .patterns
             .iter()
             .map(Pattern::features)
-            .flat_map(FeatureSet::into_iter)
+            .flat_map(Set::into_iter)
             .into();
         x
     }

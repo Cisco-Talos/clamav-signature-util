@@ -11,7 +11,7 @@ use crate::{
     sigbytes::AppendSigBytes,
     signature::{
         bodysig::{parse::BodySigParseError, BodySig},
-        ext::{ExtendedSig, ExtendedSigParseError, Offset, OffsetParseError},
+        ext_sig::{self, ExtendedSig, ExtendedSigParseError, Offset},
         targettype::TargetType,
     },
 };
@@ -30,6 +30,7 @@ pub enum SubSigType {
 }
 
 #[derive(Debug, Default, PartialEq, Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct SubSigModifier {
     pub case_insensitive: bool,
     pub widechar: bool,
@@ -88,7 +89,7 @@ pub enum SubSigParseError {
     ExtendedSigParse(#[from] ExtendedSigParseError),
 
     #[error("parsing subsig offset: {0}")]
-    OffsetParse(#[from] OffsetParseError),
+    OffsetParse(#[from] ext_sig::OffsetParseError),
 
     #[error("parsing body subsig: {0}")]
     BodySigParse(#[from] BodySigParseError),
@@ -141,7 +142,7 @@ pub fn parse_bytes(
         Err(e) => {
             if e.identified() {
                 // This looked enough like a PCRE subsig to just stop here
-                eprintln!("Failed to parse PCRESubSig: {}", e);
+                eprintln!("Failed to parse PCRESubSig: {e}");
                 return Err(e.into());
             }
         }
@@ -174,8 +175,8 @@ mod tests {
         )
         .as_bytes();
         match parse_bytes(subsig_bytes, None) {
-            Ok(sig) => eprintln!("sig = {:?}", sig),
-            Err(e) => eprintln!("error: {}", e),
+            Ok(sig) => eprintln!("sig = {sig:?}"),
+            Err(e) => eprintln!("error: {e}"),
         }
     }
 
@@ -183,8 +184,8 @@ mod tests {
     fn test_bytecmp_ok() {
         let subsig_bytes = b"0(<<6#hb2#=0)";
         match parse_bytes(subsig_bytes, None) {
-            Ok(sig) => eprintln!("sig = {:#?}", sig),
-            Err(e) => eprintln!("error: {}", e),
+            Ok(sig) => eprintln!("sig = {sig:#?}"),
+            Err(e) => eprintln!("error: {e}"),
         }
     }
 
@@ -192,8 +193,8 @@ mod tests {
     fn test_bytecmp_invalid_num_bytes() {
         let subsig_bytes = b"0(<<6#hb3#=0)";
         match parse_bytes(subsig_bytes, None) {
-            Ok(sig) => eprintln!("sig = {:?}", sig),
-            Err(e) => eprintln!("error: {}", e),
+            Ok(sig) => eprintln!("sig = {sig:?}",),
+            Err(e) => eprintln!("error: {e}"),
         }
     }
 }

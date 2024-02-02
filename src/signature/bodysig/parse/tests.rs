@@ -16,7 +16,7 @@ fn empty_signature() {
     assert_eq!(
         Err(BodySigParseError::Empty),
         BodySig::try_from(b"".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -35,7 +35,7 @@ fn string() {
             ),],
         }),
         b"aa55aa55".as_slice().try_into()
-    )
+    );
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn string_with_wildcards() {
             )],
         }),
         b"aabb??ccdd?5eeff5?0011".as_slice().try_into()
-    )
+    );
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn string_with_ifinibyte_wildcard() {
             ],
         }),
         b"0011*2233".as_slice().try_into()
-    )
+    );
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn string_with_fixed_range_wildcard() {
             ),],
         }),
         b"aabb{63}ccdd".as_slice().try_into()
-    )
+    );
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn string_with_open_start_range_wildcard() {
             ],
         }),
         b"aabb{-630}ccdd".as_slice().try_into()
-    )
+    );
 }
 
 #[test]
@@ -137,7 +137,7 @@ fn string_with_open_end_range_wildcard() {
             ],
         }),
         b"aabb{630-}ccdd".as_slice().try_into()
-    )
+    );
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn anchored_byte_standalone_left() {
             }],
         }),
         b"aa[1-2]bbcc".as_slice().try_into()
-    )
+    );
 }
 
 #[test]
@@ -167,7 +167,7 @@ fn anchored_byte_standalone_right() {
             }],
         }),
         b"aabb[1-2]cc".as_slice().try_into()
-    )
+    );
 }
 
 #[test]
@@ -253,7 +253,7 @@ fn anchored_byte_left_string_too_small() {
             start_pos: 5.into(),
         }),
         BodySig::try_from(b"abcd*00[2-4]01*e0f0".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -263,7 +263,7 @@ fn anchored_byte_string_too_small() {
             start_pos: 5.into(),
         }),
         BodySig::try_from(b"abcd*00[2-4]01*e0f0".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -273,7 +273,7 @@ fn anchored_byte_missing_single_byte() {
             start_pos: 5.into(),
         }),
         BodySig::try_from(b"abcd*0001[2-4]0203*e0f0".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -421,7 +421,7 @@ fn empty_parens() {
     assert_eq!(
         Err(BodySigParseError::EmptyParens { pos: 0.into() }),
         BodySig::try_from(b"()".as_slice()),
-    )
+    );
 }
 
 #[test]
@@ -434,7 +434,7 @@ fn empty_alternative_string() {
             })]
         }),
         BodySig::try_from(b"(|12|34)".as_slice()),
-    )
+    );
 }
 
 #[test]
@@ -452,7 +452,7 @@ fn single_alternative_string() {
             ],
         }),
         BodySig::try_from(b"aaaa!(12)bbbb".as_slice()),
-    )
+    );
 }
 
 #[test]
@@ -460,7 +460,7 @@ fn unmatched_right_paren() {
     assert_eq!(
         Err(BodySigParseError::UnmatchedClosingParen { pos: 4.into() }),
         BodySig::try_from(b"0123)".as_slice()),
-    )
+    );
 }
 
 #[test]
@@ -472,7 +472,7 @@ fn curly_range_start_unexpected() {
             found: b'x'.into()
         }),
         BodySig::try_from(b"{12x-45}".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -484,7 +484,7 @@ fn curly_range_end_unexpected() {
             found: b'x'.into()
         }),
         BodySig::try_from(b"{12-x45}".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -495,7 +495,7 @@ fn bracket_range_start_unexpected() {
             found: b'x'.into()
         }),
         BodySig::try_from(b"[12x-45]".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -503,7 +503,7 @@ fn bracket_no_left_bytes() {
     assert_eq!(
         Err(BodySigParseError::AnchoredByteNoLeftBytes { pos: 4.into() }),
         BodySig::try_from(b"[1-2]abcd".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -514,7 +514,7 @@ fn bracket_upper_unexpected_char() {
             found: b'x'.into()
         }),
         BodySig::try_from(b"01[1-2x]abcd".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -567,7 +567,7 @@ fn negate_unexpected_char() {
             found: b'x'.into()
         }),
         BodySig::try_from(b"!x".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -595,7 +595,7 @@ fn cc_nothing_adjacent() {
     assert_eq!(
         Err(BodySigParseError::CharClassNothingAdjacent { pos: Position::End }),
         BodySig::try_from(b"aaaa*(L)*".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -606,7 +606,7 @@ fn expecting_low_nyble_at_end() {
             found: None
         }),
         BodySig::try_from(b"0".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -632,7 +632,7 @@ fn low_nyble_bad() {
             found: Some(b'x'.into())
         }),
         BodySig::try_from(b"abcdex01".as_slice()),
-    )
+    );
 }
 
 #[test]
@@ -643,7 +643,7 @@ fn low_nyble_incomplete() {
             found: None
         }),
         BodySig::try_from(b"0".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -768,7 +768,7 @@ fn invalid_pattern_char() {
             found: b'x'.into(),
         }),
         BodySig::try_from(b"0123xx".as_slice())
-    )
+    );
 }
 
 #[test]
@@ -938,7 +938,7 @@ fn negated_generic_altstr() {
             start_pos: 5.into()
         }),
         BodySig::try_from(b"00aa!(1a?5)abab".as_slice()),
-    )
+    );
 }
 
 #[test]
@@ -964,7 +964,7 @@ fn insufficient_static_bytes_ahead_of_fixed_altstr() {
 #[test]
 fn insufficient_static_bytes_ahead_of_empty_altstr() {
     if let Err(e) = BodySig::try_from(b"00()aba?".as_slice()) {
-        eprintln!("{e}")
+        eprintln!("{e}");
     }
     assert_eq!(
         Err(BodySigParseError::MinStaticBytes {
@@ -977,7 +977,7 @@ fn insufficient_static_bytes_ahead_of_empty_altstr() {
 #[test]
 fn insufficient_static_bytes_ahead_of_large_range() {
     if let Err(e) = BodySig::try_from(b"00()aba?".as_slice()) {
-        eprintln!("{e}")
+        eprintln!("{e}");
     }
     assert_eq!(
         Err(BodySigParseError::MinStaticBytes {
@@ -1003,5 +1003,5 @@ fn legal_static_bytes_with_small_fixed_range() {
             )]
         }),
         BodySig::try_from(b"00{2}abab".as_slice()),
-    )
+    );
 }

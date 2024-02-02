@@ -28,11 +28,11 @@ pub enum CharacterClassParseError {
 impl CharacterClass {
     /// Map a character class, side, and negation flag into the appropriate bit flag
     pub(crate) fn pattern_modifier(
-        &self,
+        self,
         is_left_side: bool,
         negated: bool,
     ) -> BitFlags<PatternModifier> {
-        use self::CharacterClass::*;
+        use self::CharacterClass::{LineOrFileBoundary, NonAlphaChar, WordBoundary};
 
         match (self, is_left_side, negated) {
             (WordBoundary, true, false) => PatternModifier::BoundaryLeft.into(),

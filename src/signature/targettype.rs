@@ -1,5 +1,5 @@
 use crate::{
-    feature::{EngineReq, FeatureSet},
+    feature::{EngineReq, Set},
     sigbytes::{AppendSigBytes, SigBytes},
     util::{parse_number_dec, ParseNumberError},
     Feature,
@@ -56,12 +56,12 @@ impl TryFrom<&[u8]> for TargetType {
 }
 
 impl EngineReq for TargetType {
-    fn features(&self) -> FeatureSet {
-        FeatureSet::from_static(match self {
+    fn features(&self) -> Set {
+        Set::from_static(match self {
             TargetType::PDF => &[Feature::TargetTypePdf],
             TargetType::Flash => &[Feature::TargetTypeFlash],
             TargetType::Java => &[Feature::TargetTypeJava],
-            _ => return FeatureSet::default(),
+            _ => return Set::default(),
         })
     }
 }
@@ -70,7 +70,7 @@ impl AppendSigBytes for TargetType {
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         use std::fmt::Write;
         if let Some(n) = self.to_usize() {
-            Ok(write!(sb, "{}", n)?)
+            Ok(write!(sb, "{n}")?)
         } else {
             unreachable!()
         }
@@ -81,6 +81,7 @@ impl TargetType {
     /// Whether the specified TargetType is a directly executable format (i.e.,
     /// does not require an interpreter or intermediate loader such as a Java
     /// runtime, shell, etc.)
+    #[must_use]
     pub fn is_native_executable(&self) -> bool {
         matches!(self, TargetType::PE | TargetType::ELF | TargetType::MachO)
     }
