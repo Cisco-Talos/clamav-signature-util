@@ -65,13 +65,13 @@ where
 }
 
 impl Set {
-    /// Create an empty FeatureSet
+    /// Create an empty feature Set
     #[must_use]
     pub fn empty() -> Self {
         Self::Empty
     }
 
-    /// Obtain a FeatureSet from a static slice
+    /// Obtain a feature Set from a static slice
     #[must_use]
     pub fn from_static(features: &'static [Feature]) -> Self {
         Self::Static(features)
