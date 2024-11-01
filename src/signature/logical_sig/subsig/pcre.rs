@@ -97,7 +97,7 @@ pub enum PCRESubSigParseError {
     #[error("loading pattern: {0}")]
     RegexpMatch(#[from] ParseError),
 
-    #[cfg(validate_regex)]
+    #[cfg(feature = "validate_regex")]
     #[error("compiling regular expression: {0}")]
     CompileRegex(#[from] regex::Error),
 }
@@ -139,7 +139,7 @@ impl PCRESubSig {
         let regexp =
             Match::from_pcre_subsig(parts.next().ok_or(PCRESubSigParseError::EmptyPattern)?)?;
 
-        #[cfg(validate_regex)]
+        #[cfg(feature = "validate_regex")]
         {
             // Validate using the regex crate, which is *not* PCRE-compatible
             let mut regex = regex::RegexBuilder::new(&pattern);

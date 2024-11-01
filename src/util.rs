@@ -9,11 +9,23 @@ pub const SHA1_LEN: usize = 20;
 pub const SHA2_256_LEN: usize = 32;
 
 /// Generic hash digest container
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum Hash {
     Md5([u8; MD5_LEN]),
     Sha1([u8; SHA1_LEN]),
     Sha2_256([u8; SHA2_256_LEN]),
+}
+
+impl std::fmt::Debug for Hash {
+    /// Write out the hash in a human-friendly format
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // This is designed to operate without additional allocations
+        match self {
+            Hash::Md5(data) => write!(f, "Hash::Md5({})", hex::encode(&data)),
+            Hash::Sha1(data) => write!(f, "Hash::Sha1({})", hex::encode(&data)),
+            Hash::Sha2_256(data) => write!(f, "Hash::Sha2_256({})", hex::encode(&data)),
+        }
+    }
 }
 
 impl Hash {

@@ -61,7 +61,7 @@ impl FromSigBytes for PESectionHashSig {
             ParseError::MissingFileSize,
             ParseError::ParseSize
         )?;
-        let hash = util::parse_hash(fields.next().ok_or(ParseError::MissingHashString)?)
+        let hash = util::parse_hash(fields.next().ok_or(ParseError::MissingField("hash_string".to_string()))?)
             .map_err(ParseError::ParseHash)?;
         let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
             .map_err(FromSigBytesParseError::NameNotUnicode)?

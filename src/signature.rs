@@ -21,6 +21,8 @@ pub mod phishing_sig;
 pub mod sigtype;
 /// Enumeration of target types (typically found in logical and extended signatures)
 pub mod targettype;
+/// Digital signature support
+pub mod digital_sig;
 
 use crate::{
     feature::{self, EngineReq},
@@ -135,6 +137,14 @@ pub enum ToSigBytesError {
     #[error("not supported within CVDs")]
     Unsupported,
 
+    /// Not supported value within signature
+    #[error("not supported: {0}")]
+    UnsupportedValue(String),
+
+    /// Encoding error
+    #[error("Failed to encode: {0}")]
+    EncodingError(String),
+
     #[error("reserving memory: {0}")]
     TryReserve(#[from] TryReserveError),
 }
@@ -200,6 +210,7 @@ pub fn parse_from_cvd_with_meta(
         }
         SigType::PhishingURL => phishing_sig::PhishingSig::from_sigbytes(data)?,
         SigType::FTMagic => ftmagic::FTMagicSig::from_sigbytes(data)?,
+        SigType::DigitalSignature => digital_sig::DigitalSig::from_sigbytes(data)?,
         _ => return Err(FromSigBytesParseError::UnsupportedSigType),
     };
 
@@ -215,6 +226,12 @@ pub enum FromSigBytesParseError {
     #[error("missing Name field")]
     MissingName,
 
+    #[error("missing field: {0}")]
+    MissingField(String),
+
+    #[error("invalid value for: {0}")]
+    InvalidValueFor(String),
+    
     #[error("signature name not unicode")]
     NameNotUnicode(std::str::Utf8Error),
 

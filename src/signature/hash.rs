@@ -6,8 +6,11 @@ pub enum ParseError {
     #[error("missing FileSize field")]
     MissingFileSize,
 
-    #[error("missing HashString field")]
-    MissingHashString,
+    #[error("invalid value for field: {0}")]
+    InvalidValueFor(String),
+
+    #[error("missing field: {0}")]
+    MissingField(String),
 
     #[error("parsing size: {0}")]
     ParseSize(ParseNumberError<usize>),

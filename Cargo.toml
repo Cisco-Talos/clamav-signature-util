@@ -17,12 +17,18 @@ hex-literal = "0.4"
 itertools = "0.12"
 num-derive = "0.4"
 num-traits = "0.2"
+openssl = "0.10"
 structopt = "0.3"
 strum = "0.26"
 strum_macros = "0.26"
 thiserror = "1"
 tinyvec = { version = "1.8", features = ["alloc"] }
 url = "2"
+log = "0.4"
+humantime = "2.1"
+
+flexi_logger = "0.29.4"
+clap = { version = "4.5.20", features = ["derive"] }
 
 # Optional crates
 regex = { version = "1", optional = true }
@@ -30,6 +36,10 @@ regex = { version = "1", optional = true }
 [[bin]]
 name = "clam-sigutil"
 path = "src/cmdline.rs"
+
+[lib]
+name = "clam_sigutil"
+path = "src/lib.rs"
 
 [build-dependencies]
 change-case = "0.2"

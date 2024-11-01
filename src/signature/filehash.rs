@@ -55,7 +55,7 @@ impl FromSigBytes for FileHashSig {
         let mut sigmeta = SigMeta::default();
         let mut fields = sb.into().as_bytes().split(|b| *b == b':');
 
-        let hash = util::parse_hash(fields.next().ok_or(ParseError::MissingHashString)?)
+        let hash = util::parse_hash(fields.next().ok_or(ParseError::MissingField("hash_string".to_string()))?)
             .map_err(ParseError::ParseHash)?;
         let file_size = parse_field!(
             OPTIONAL

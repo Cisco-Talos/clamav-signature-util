@@ -22,6 +22,8 @@ pub enum SigType {
     PESectionHash,
     /// Yara signature
     Yara,
+    /// [Digital signature](crate::signature::digital_signature::DigitalSignature)
+    DigitalSignature,
 }
 
 #[derive(Debug, Error)]
@@ -53,7 +55,7 @@ impl SigType {
             //
 
             // Extended signatures
-            "ndb" | "ndu" => SigType::Extended,
+            "ndb" | "ndu" | "sdb" => SigType::Extended,
             // Logical signatures
             "ldb" | "ldu" => SigType::Logical,
             // Container metadata signatures
@@ -92,11 +94,13 @@ impl SigType {
             // Configuration
             "cfg" => todo!(),
 
-            // Oh crap
-            "sdb" => todo!(),
-
             // Imp hash
             "imp" => todo!(),
+
+            //
+            // Digital signatures
+            //
+            "sign" => SigType::DigitalSignature,
 
             _ => return None,
         })
