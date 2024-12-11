@@ -4,11 +4,11 @@ RUN mkdir -p $HOME/.cargo; echo -e '[net]\ngit-fetch-with-cli = true' > $HOME/.c
 RUN mkdir /build
 WORKDIR /build
 COPY *.toml .
+COPY Cargo.lock .
 COPY *.rs .
 COPY *.txt .
 COPY src src
 COPY test-data test-data
-RUN cargo update
 RUN cargo build --release
 RUN strip target/release/clam-sigutil
 
