@@ -15,7 +15,7 @@ use enumflags2::BitFlags;
 use std::ops::RangeInclusive;
 use strum_macros::Display;
 use thiserror::Error;
-use tinyvec::TinyVec;
+use tinyvec::ArrayVec;
 
 // The minimum number of bytes that must be adjacent to the wildcard portion of
 // an anchored-byte match
@@ -237,13 +237,13 @@ struct ParseContext {
     patterns: Vec<Pattern>,
 
     // Bytes currently contributing to a match
-    match_bytes: TinyVec<[MatchByte; 128]>,
+    match_bytes: ArrayVec<[MatchByte; 128]>,
     // Location of the first of the current set of match bytes (outside of alternatives)
     match_bytes_start: usize,
     // The location of the first full byte match. This resets when a nyble wildcard is found
     match_bytes_static_range: Option<(usize, usize)>,
     // The locations of sufficiently-large static strings within the match bytes
-    match_bytes_static_ranges: TinyVec<[(usize, usize); 4]>,
+    match_bytes_static_ranges: ArrayVec<[(usize, usize); 4]>,
     // Accumulated pattern modifier for the current set of match bytes
     pattern_modifier: BitFlags<PatternModifier>,
 
@@ -627,7 +627,7 @@ impl ParentheticalContext {
     // Append the current accumulation of match bytes into the alternative string set
     fn push_alternative_string(
         &mut self,
-        match_bytes: &mut TinyVec<[MatchByte; 128]>,
+        match_bytes: &mut ArrayVec<[MatchByte; 128]>,
         is_final: bool,
     ) -> Result<(), BodySigParseError> {
         if match_bytes.is_empty() {
