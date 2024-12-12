@@ -323,6 +323,20 @@ impl<T: std::str::FromStr> From<std::ops::RangeFrom<T>> for Range<T> {
     }
 }
 
+impl<T: std::str::FromStr> Range<T> {
+    pub fn contains(&self, n: &T) -> bool
+    where
+        T: PartialOrd,
+    {
+        match self {
+            Range::Exact(ref m) => n == m,
+            Range::ToInclusive(ref r) => n <= &r.end,
+            Range::From(ref r) => n >= &r.start,
+            Range::Inclusive(ref r) => r.contains(n),
+        }
+    }
+}
+
 #[derive(Debug, Error, PartialEq)]
 pub enum RangeParseError<T>
 where
