@@ -15,5 +15,8 @@ RUN strip target/release/clam-sigutil
 
 FROM debian:buster-slim
 
+RUN apt-get update && apt-get install -y libssl1.1
 COPY --from=build /build/target/release/clam-sigutil /bin/clam-sigutil
-ENTRYPOINT ["/bin/clam-sigutil", "--listen 127.0.0.1:8080"]
+
+# Set the working directory to /pwd, expecting the user to mount a volume here
+WORKDIR /pwd
