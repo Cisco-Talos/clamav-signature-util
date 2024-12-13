@@ -78,24 +78,47 @@ impl SigType {
             "ftm" => SigType::FTMagic,
 
             // Trusted and Revoked Certificates
-            "crb" => todo!(),
+            "crb" => {
+                println!("Support for .crb is not yet implemented.");
+                return None;
+            }
 
             // False positive list
-            "sfp" | "fp" => todo!(),
+            "sfp" | "fp" => {
+                println!("Support for .sfp and .fp is not yet implemented.");
+                return None;
+            }
 
-            "info" => todo!(),
+            "info" => {
+                println!("Support for .info is not yet implemented.");
+                return None;
+            }
 
             // Icon signatures
-            "idb" => todo!(),
+            "idb" => {
+                println!("Support for .idb is not yet implemented.");
+                return None;
+            }
 
             // Deprecated types
-            "zmd" | "rmd" | "db" => todo!(),
+            "zmd" | "rmd" | "db" => {
+                println!(
+                    "Support for deprecated types .zmd, .rmd, and .db are not yet implemented."
+                );
+                return None;
+            }
 
             // Configuration
-            "cfg" => todo!(),
+            "cfg" => {
+                println!("Support for .cfg is not yet implemented.");
+                return None;
+            }
 
             // Imp hash
-            "imp" => todo!(),
+            "imp" => {
+                println!("Support for .imp is not yet implemented.");
+                return None;
+            }
 
             //
             // Digital signatures
