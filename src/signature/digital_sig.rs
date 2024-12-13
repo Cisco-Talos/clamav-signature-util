@@ -5,8 +5,7 @@ use crate::{
     util::parse_number_dec,
     Signature,
 };
-use std::io::Write;
-use std::str;
+use std::{fmt::Write as FmtWrite, io::Write, str};
 
 use openssl::pkcs7::Pkcs7;
 
@@ -26,18 +25,18 @@ impl std::fmt::Debug for DigitalSig {
                             // strip the trailing newline
                             let pem = &pem[..pem.len() - 1];
                             // add a tab to each line
-                            let pem = pem
-                                .split(|c| c == '\n')
-                                .map(|line| format!("    {}\n", line))
-                                .collect::<String>();
-                            write!(f, "PKCS7::PEM(\n{})", pem)
+                            let pem = pem.split('\n').fold(String::new(), |mut output, line| {
+                                let _ = writeln!(output, "    {line}");
+                                output
+                            });
+                            write!(f, "PKCS7::PEM(\n{pem})")
                         } else {
                             // strip out the newlines
-                            let pem = pem
-                                .split(|c| c == '\n')
-                                .map(|line| format!("{}", line))
-                                .collect::<String>();
-                            write!(f, "PKCS7::PEM({})", pem)
+                            let pem = pem.split('\n').fold(String::new(), |mut output, line| {
+                                let _ = write!(output, "{line}");
+                                output
+                            });
+                            write!(f, "PKCS7::PEM({pem})")
                         }
                     } else {
                         write!(f, "PKCS7::PEM(Invalid)")
@@ -70,10 +69,10 @@ impl AppendSigBytes for DigitalSig {
         match &self {
             DigitalSig::Pkcs7(pkcs7) => {
                 // write out the flevel_min and flevel_max
-                sb.write(b"220::")?;
+                sb.write_all(b"220::")?;
 
                 // write out the signature format
-                sb.write(b"pkcs7-pem:")?;
+                sb.write_all(b"pkcs7-pem:")?;
 
                 // write out the base64 encoded bit of the PEM encoded PKCS#7 signature as the signature bytes
                 let pem = pkcs7
@@ -83,14 +82,9 @@ impl AppendSigBytes for DigitalSig {
                 // remove any line that contains "-----BEGIN PKCS7-----" or "-----END PKCS7-----"
                 let pem = pem
                     .split(|b| *b == b'\n')
-                    .filter_map(|line| {
-                        if line.starts_with(b"-----BEGIN PKCS7-----")
-                            || line.starts_with(b"-----END PKCS7-----")
-                        {
-                            None
-                        } else {
-                            Some(line)
-                        }
+                    .filter(|line| {
+                        !line.starts_with(b"-----BEGIN PKCS7-----")
+                            && !line.starts_with(b"-----END PKCS7-----")
                     })
                     .flat_map(|line| line.iter().copied())
                     .collect::<Vec<u8>>();
@@ -103,7 +97,7 @@ impl AppendSigBytes for DigitalSig {
                     .collect::<Vec<u8>>();
 
                 // write out the signature bytes
-                sb.write(&pem)?;
+                sb.write_all(&pem)?;
             }
         }
         Ok(())

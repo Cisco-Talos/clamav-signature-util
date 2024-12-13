@@ -79,7 +79,7 @@ impl MacroSubSig {
         modifier: Option<SubSigModifier>,
     ) -> Result<Self, MacroSubSigParseError> {
         if let Some(bytes) = bytes.strip_prefix(b"${") {
-            if let Some(bytes) = bytes.strip_suffix(&[b'$']) {
+            if let Some(bytes) = bytes.strip_suffix(b"$") {
                 let mut tokens = bytes.splitn(2, |&b| b == b'}');
                 let range = tokens.next().ok_or(MacroSubSigParseError::MissingRange)?;
 

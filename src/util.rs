@@ -21,9 +21,9 @@ impl std::fmt::Debug for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // This is designed to operate without additional allocations
         match self {
-            Hash::Md5(data) => write!(f, "Hash::Md5({})", hex::encode(&data)),
-            Hash::Sha1(data) => write!(f, "Hash::Sha1({})", hex::encode(&data)),
-            Hash::Sha2_256(data) => write!(f, "Hash::Sha2_256({})", hex::encode(&data)),
+            Hash::Md5(data) => write!(f, "Hash::Md5({})", hex::encode(data)),
+            Hash::Sha1(data) => write!(f, "Hash::Sha1({})", hex::encode(data)),
+            Hash::Sha2_256(data) => write!(f, "Hash::Sha2_256({})", hex::encode(data)),
         }
     }
 }
@@ -377,11 +377,11 @@ where
     type Error = RangeParseError<T>;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if let Some(s) = value.strip_prefix(&[b'-']) {
+        if let Some(s) = value.strip_prefix(b"-") {
             Ok(Self::ToInclusive(
                 ..=parse_number_dec(s).map_err(RangeParseError::End)?,
             ))
-        } else if let Some(s) = value.strip_suffix(&[b'-']) {
+        } else if let Some(s) = value.strip_suffix(b"-") {
             Ok(Self::From(
                 parse_number_dec(s).map_err(RangeParseError::Start)?..,
             ))

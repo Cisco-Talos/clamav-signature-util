@@ -219,11 +219,11 @@ impl FromSigBytes for PhishingSig {
         let prefix = fields.next().ok_or(ParseError::MissingPreamble)?;
 
         // `R` and `H` may include a filter which is (per specification) ignored
-        let sig = if prefix.starts_with(&[b'R']) {
+        let sig = if prefix.starts_with(b"R") {
             Ok(PhishingSig::PDB(PDBMatch::Regexp(make_url_regexp_pair(
                 &mut fields,
             )?)))
-        } else if prefix.starts_with(&[b'H']) {
+        } else if prefix.starts_with(b"H") {
             make_pdbmatch_hostname(&mut fields)
         } else {
             match prefix {
