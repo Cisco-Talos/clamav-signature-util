@@ -425,7 +425,7 @@ impl ParseContext {
             match byte {
                 ASTERISK => {
                     // TODO: return error if wildcard begins signature
-                    self.flush_match_bytes().unwrap();
+                    self.flush_match_bytes()?;
                     self.push_pattern(Pattern::Wildcard)?;
                     Ok(State::HighNyble)
                 }
@@ -819,7 +819,7 @@ impl TryFrom<&[u8]> for BodySig {
                                     });
                                 }
                             };
-                            pc.flush_match_bytes().unwrap();
+                            pc.flush_match_bytes()?;
                             pc.push_pattern(Pattern::ByteRange(range))?;
                             state = State::HighNyble;
                         }
