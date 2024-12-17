@@ -21,7 +21,7 @@ structopt = "0.3"
 strum = "0.26"
 strum_macros = "0.26"
 thiserror = "1"
-tinyvec = "1.8"
+tinyvec = { version = "1.8", features = ["alloc"] }
 url = "2"
 
 # Optional crates
