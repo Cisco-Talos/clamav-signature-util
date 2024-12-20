@@ -185,7 +185,7 @@ pub fn load_filetypes(
         writeln!(feature_tag_rs, "match self {{")?;
         filetype_feature_tag
             .iter()
-            .filter(|(_, feature_tag)| filetype_min_flevel.get(feature_tag.as_str()).is_some())
+            .filter(|(_, feature_tag)| filetype_min_flevel.contains_key(feature_tag.as_str()))
             .for_each(|(filetype, feature_tag)| {
                 writeln!(
                     feature_tag_rs,

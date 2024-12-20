@@ -1,3 +1,21 @@
+/*
+ *  Copyright (C) 2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ *  MA 02110-1301, USA.
+ */
+
 use std::{ffi::OsStr, path::Path, str::FromStr};
 use thiserror::Error;
 
@@ -22,6 +40,8 @@ pub enum SigType {
     PESectionHash,
     /// Yara signature
     Yara,
+    /// [Digital signature](crate::signature::digital_signature::DigitalSignature)
+    DigitalSignature,
 }
 
 #[derive(Debug, Error)]
@@ -53,7 +73,7 @@ impl SigType {
             //
 
             // Extended signatures
-            "ndb" | "ndu" => SigType::Extended,
+            "ndb" | "ndu" | "sdb" => SigType::Extended,
             // Logical signatures
             "ldb" | "ldu" => SigType::Logical,
             // Container metadata signatures
@@ -76,27 +96,52 @@ impl SigType {
             "ftm" => SigType::FTMagic,
 
             // Trusted and Revoked Certificates
-            "crb" => todo!(),
+            "crb" => {
+                println!("Support for .crb is not yet implemented.");
+                return None;
+            }
 
             // False positive list
-            "sfp" | "fp" => todo!(),
+            "sfp" | "fp" => {
+                println!("Support for .sfp and .fp is not yet implemented.");
+                return None;
+            }
 
-            "info" => todo!(),
+            "info" => {
+                println!("Support for .info is not yet implemented.");
+                return None;
+            }
 
             // Icon signatures
-            "idb" => todo!(),
+            "idb" => {
+                println!("Support for .idb is not yet implemented.");
+                return None;
+            }
 
             // Deprecated types
-            "zmd" | "rmd" | "db" => todo!(),
+            "zmd" | "rmd" | "db" => {
+                println!(
+                    "Support for deprecated types .zmd, .rmd, and .db are not yet implemented."
+                );
+                return None;
+            }
 
             // Configuration
-            "cfg" => todo!(),
-
-            // Oh crap
-            "sdb" => todo!(),
+            "cfg" => {
+                println!("Support for .cfg is not yet implemented.");
+                return None;
+            }
 
             // Imp hash
-            "imp" => todo!(),
+            "imp" => {
+                println!("Support for .imp is not yet implemented.");
+                return None;
+            }
+
+            //
+            // Digital signatures
+            //
+            "sign" => SigType::DigitalSignature,
 
             _ => return None,
         })

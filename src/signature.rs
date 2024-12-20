@@ -1,3 +1,21 @@
+/*
+ *  Copyright (C) 2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ *  MA 02110-1301, USA.
+ */
+
 /// Body signatures, typically found in extended signatures
 pub mod bodysig;
 /// Container Metadata signature support
@@ -21,6 +39,8 @@ pub mod phishing_sig;
 pub mod sigtype;
 /// Enumeration of target types (typically found in logical and extended signatures)
 pub mod targettype;
+/// Digital signature support
+pub mod digital_sig;
 
 use crate::{
     feature::{self, EngineReq},
@@ -135,6 +155,14 @@ pub enum ToSigBytesError {
     #[error("not supported within CVDs")]
     Unsupported,
 
+    /// Not supported value within signature
+    #[error("not supported: {0}")]
+    UnsupportedValue(String),
+
+    /// Encoding error
+    #[error("Failed to encode: {0}")]
+    EncodingError(String),
+
     #[error("reserving memory: {0}")]
     TryReserve(#[from] TryReserveError),
 }
@@ -200,6 +228,7 @@ pub fn parse_from_cvd_with_meta(
         }
         SigType::PhishingURL => phishing_sig::PhishingSig::from_sigbytes(data)?,
         SigType::FTMagic => ftmagic::FTMagicSig::from_sigbytes(data)?,
+        SigType::DigitalSignature => digital_sig::DigitalSig::from_sigbytes(data)?,
         _ => return Err(FromSigBytesParseError::UnsupportedSigType),
     };
 
@@ -214,6 +243,12 @@ pub enum FromSigBytesParseError {
 
     #[error("missing Name field")]
     MissingName,
+
+    #[error("missing field: {0}")]
+    MissingField(String),
+
+    #[error("invalid value for: {0}")]
+    InvalidValueFor(String),
 
     #[error("signature name not unicode")]
     NameNotUnicode(std::str::Utf8Error),

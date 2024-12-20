@@ -1,3 +1,21 @@
+/*
+ *  Copyright (C) 2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ *  MA 02110-1301, USA.
+ */
+
 use crate::sigbytes::{AppendSigBytes, SigBytes};
 use itertools::Itertools;
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive, Shl};
@@ -9,11 +27,23 @@ pub const SHA1_LEN: usize = 20;
 pub const SHA2_256_LEN: usize = 32;
 
 /// Generic hash digest container
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum Hash {
     Md5([u8; MD5_LEN]),
     Sha1([u8; SHA1_LEN]),
     Sha2_256([u8; SHA2_256_LEN]),
+}
+
+impl std::fmt::Debug for Hash {
+    /// Write out the hash in a human-friendly format
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // This is designed to operate without additional allocations
+        match self {
+            Hash::Md5(data) => write!(f, "Hash::Md5({})", hex::encode(data)),
+            Hash::Sha1(data) => write!(f, "Hash::Sha1({})", hex::encode(data)),
+            Hash::Sha2_256(data) => write!(f, "Hash::Sha2_256({})", hex::encode(data)),
+        }
+    }
 }
 
 impl Hash {
@@ -311,6 +341,20 @@ impl<T: std::str::FromStr> From<std::ops::RangeFrom<T>> for Range<T> {
     }
 }
 
+impl<T: std::str::FromStr> Range<T> {
+    pub fn contains(&self, n: &T) -> bool
+    where
+        T: PartialOrd,
+    {
+        match self {
+            Range::Exact(ref m) => n == m,
+            Range::ToInclusive(ref r) => n <= &r.end,
+            Range::From(ref r) => n >= &r.start,
+            Range::Inclusive(ref r) => r.contains(n),
+        }
+    }
+}
+
 #[derive(Debug, Error, PartialEq)]
 pub enum RangeParseError<T>
 where
@@ -351,11 +395,11 @@ where
     type Error = RangeParseError<T>;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if let Some(s) = value.strip_prefix(&[b'-']) {
+        if let Some(s) = value.strip_prefix(b"-") {
             Ok(Self::ToInclusive(
                 ..=parse_number_dec(s).map_err(RangeParseError::End)?,
             ))
-        } else if let Some(s) = value.strip_suffix(&[b'-']) {
+        } else if let Some(s) = value.strip_suffix(b"-") {
             Ok(Self::From(
                 parse_number_dec(s).map_err(RangeParseError::Start)?..,
             ))
