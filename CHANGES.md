@@ -8,6 +8,14 @@
 > - Fixed: 🐛
 > - Security: 🛡
 
+## Version 1.2.1
+
+➕Added ClamAV version 1.5.0 with support for CL_TYPE_AI_MODEL.
+
+🌌Upgrade various library dependencies. Notably, drops `structopt` in favor of `clap`, to remove buggy `atty` dependency.
+
+🌌Dockerfile: Upgrade container from Debian Buster (10) to Debian Bullseye (11).
+
 ## Version 1.2.0
 
 ➕New `compare()` method for custom `Range` class used to represent minimum and maximum functionality levels. This is in support of using the library within ClamAV and verifying that a given signature may be loaded by the current ClamAV version.
