@@ -25,50 +25,50 @@ use std::{
     str,
     time::{Duration, Instant},
 };
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(StructOpt)]
+#[derive(Parser, Debug)]
 #[allow(clippy::struct_excessive_bools)]
 struct Opt {
     /// Files or directory containing files to process
-    #[structopt(name = "FILE_OR_DIR")]
+    #[clap(name = "FILE_OR_DIR")]
     paths: Vec<PathBuf>,
 
     /// Report on each file read
-    #[structopt(long, short)]
+    #[arg(long, short)]
     verbose: bool,
 
     /// Perform additional validation on signatures
-    #[structopt(long)]
+    #[arg(long)]
     validate: bool,
 
     /// Print original signatures as they're read
-    #[structopt(long)]
+    #[arg(long)]
     print_orig: bool,
 
     /// Dump signatures in debug format
-    #[structopt(long)]
+    #[arg(long)]
     dump_debug: bool,
 
     /// Dump signatures in long debug format
-    #[structopt(long)]
+    #[arg(long)]
     dump_debug_long: bool,
 
     /// Report required features
-    #[structopt(long)]
+    #[arg(long)]
     print_features: bool,
 
     /// Signature type for stdin, specified as file extension
-    #[structopt(alias = "sigtype", long, parse(try_from_str))]
+    #[arg(alias = "sigtype", long, value_parser = clap::value_parser!(SigType))]
     sig_type: Option<SigType>,
 
     /// Re-export signatures after parsing and verify
-    #[structopt(long)]
+    #[arg(long)]
     check_export: bool,
 }
 
 pub fn main() -> Result<()> {
-    let opt = Opt::from_args();
+    let opt = Opt::parse();
 
     let err_count = if opt.paths.is_empty() {
         match opt.sig_type {
