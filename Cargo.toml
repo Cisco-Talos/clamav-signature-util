@@ -2,7 +2,7 @@
 authors = ["The ClamAV Team <clamav-bugs@external.cisco.com>"]
 edition = "2021"
 name = "clam-sigutil"
-version = "1.2.0"
+version = "1.2.1"
 
 [features]
 default = []
@@ -10,26 +10,25 @@ validate_regex = ["regex"]
 
 [dependencies]
 anyhow = "1"
-downcast-rs = "1"
-enum-variants-strings = "0.2"
+downcast-rs = "2"
+enum-variants-strings = "0.3"
 enumflags2 = "0.7"
 hex = "0.4"
-hex-literal = "0.4"
-itertools = "0.12"
+hex-literal = "1"
+itertools = "0.14"
 num-derive = "0.4"
 num-traits = "0.2"
 openssl = "0.10"
 structopt = "0.3"
-strum = "0.26"
-strum_macros = "0.26"
-thiserror = "1"
+strum = "0.27"
+strum_macros = "0.27"
+thiserror = "2"
 tinyvec = { version = "1.8", features = ["alloc"] }
 url = "2"
 log = "0.4"
 humantime = "2.1"
-
-flexi_logger = "0.29.4"
-clap = { version = "4.5.20", features = ["derive"] }
+flexi_logger = "0.30"
+clap = { version = "4.5", features = ["derive"] }
 
 # Optional crates
 regex = { version = "1", optional = true }
