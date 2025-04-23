@@ -28,6 +28,7 @@ use std::{
 use clap::Parser;
 
 #[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
 #[allow(clippy::struct_excessive_bools)]
 struct Opt {
     /// Files or directory containing files to process

@@ -2,7 +2,7 @@
 authors = ["The ClamAV Team <clamav-bugs@external.cisco.com>"]
 edition = "2021"
 name = "clam-sigutil"
-version = "1.2.1"
+version = "1.2.2"
 
 [features]
 default = []
