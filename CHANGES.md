@@ -8,6 +8,10 @@
 > - Fixed: 🐛
 > - Security: 🛡
 
+## Version 1.2.2
+
+🐛Add back the `--version` / `-V` option, which disappeared with the switch from `structopt` to `clap`.
+
 ## Version 1.2.1
 
 ➕Added ClamAV version 1.5.0 with support for CL_TYPE_AI_MODEL.
