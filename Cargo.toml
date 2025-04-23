@@ -2,7 +2,7 @@
 authors = ["The ClamAV Team <clamav-bugs@external.cisco.com>"]
 edition = "2021"
 name = "clam-sigutil"
-version = "1.2.2"
+version = "1.2.3"
 
 [features]
 default = []
@@ -19,7 +19,6 @@ itertools = "0.14"
 num-derive = "0.4"
 num-traits = "0.2"
 openssl = "0.10"
-structopt = "0.3"
 strum = "0.27"
 strum_macros = "0.27"
 thiserror = "2"
