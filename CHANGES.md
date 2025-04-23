@@ -8,6 +8,12 @@
 > - Fixed: 🐛
 > - Security: 🛡
 
+## Version 1.2.3
+
+🐛Properly remove the `structopt` dependency (from `Cargo.toml`). It is no longer being used, but must be removed from the list.
+
+🌌Dockerfile: Improvements to reduce the image size and improve readability.
+
 ## Version 1.2.2
 
 🐛Add back the `--version` / `-V` option, which disappeared with the switch from `structopt` to `clap`.
