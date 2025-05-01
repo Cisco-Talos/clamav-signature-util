@@ -8,6 +8,10 @@
 > - Fixed: 🐛
 > - Security: 🛡
 
+## Version 1.2.4
+
+🐛Fix the minimum feature level when writing bytes for a new `.sign` digital signature.
+
 ## Version 1.2.3
 
 🐛Properly remove the `structopt` dependency (from `Cargo.toml`). It is no longer being used, but must be removed from the list.

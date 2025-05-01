@@ -87,7 +87,9 @@ impl AppendSigBytes for DigitalSig {
         match &self {
             DigitalSig::Pkcs7(pkcs7) => {
                 // write out the flevel_min and flevel_max
-                sb.write_all(b"220::")?;
+                sb.write_all(
+                    format!("{}::", Feature::DigitalSignaturePkcs7Pem.min_flevel()).as_bytes(),
+                )?;
 
                 // write out the signature format
                 sb.write_all(b"pkcs7-pem:")?;
