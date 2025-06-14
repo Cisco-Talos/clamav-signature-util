@@ -97,6 +97,10 @@ impl FromSigBytes for FileHashSig {
             } else {
                 sigmeta.f_level = Some((min_flevel..).into());
             }
+        } else {
+            // If no flevel is specified, use the minimum flevel for a SHA2-256 hash signature.
+            let min_flevel = crate::Feature::HashSha256.min_flevel();
+            sigmeta.f_level = Some((min_flevel..).into());
         }
 
         Ok((
