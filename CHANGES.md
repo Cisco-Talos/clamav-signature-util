@@ -10,6 +10,10 @@
 
 ## Version 1.2.4
 
+🌌When loading a hash sig (e.g. `.hsb`), if no minimum flevel is specified, set the minimum flevel to that of a SHA2-256 hash sig. Due to the age of all currently supported hash signature types, it is common practice to omit the minimum flevel and this will successful validation without specifying a hash level. Re-export, however, will add in that minimum flevel.
+
+## Version 1.2.4
+
 🐛Fix the minimum feature level when writing bytes for a new `.sign` digital signature.
 
 ## Version 1.2.3
