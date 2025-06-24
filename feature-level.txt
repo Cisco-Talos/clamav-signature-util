@@ -70,7 +70,7 @@
 
 140        v0.104.0
 
-150        v0.105.0                     ByteCompareMin
+150        v0.105.0                     ByteCompareMin FuzzyImageMin
 151        v0.105.1
 151        v0.105.2
 

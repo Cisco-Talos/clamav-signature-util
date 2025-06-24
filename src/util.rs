@@ -142,6 +142,9 @@ where
 
     #[error("not valid unicode: {0}")]
     Utf8Error(#[from] std::str::Utf8Error),
+
+    #[error("negative value: {0}")]
+    NegativeValue(isize),
 }
 
 impl<T> PartialEq for ParseNumberError<T>
