@@ -17,10 +17,12 @@
  */
 
 mod bytecmp;
+mod fuzzy_img;
 mod macrosig;
 mod pcre;
 
 pub use bytecmp::{ByteCmpSubSig, ByteCmpSubSigParseError};
+pub use fuzzy_img::{FuzzyImgSubSig, FuzzyImgSubSigParseError};
 pub use macrosig::{MacroSubSig, MacroSubSigParseError};
 pub use pcre::{PCRESubSig, PCRESubSigParseError};
 
@@ -45,6 +47,7 @@ pub enum SubSigType {
     Macro,
     ByteCmp,
     Pcre,
+    FuzzyImg,
 }
 
 #[derive(Debug, Default, PartialEq, Clone, Copy)]
@@ -100,6 +103,9 @@ pub enum SubSigParseError {
     #[error("parsing byte-compare subsig: {0}")]
     ByteCmpSubSigParse(#[from] ByteCmpSubSigParseError),
 
+    #[error("parsing fuzzy image subsig: {0}")]
+    FuzzyImgSubSigParse(#[from] FuzzyImgSubSigParseError),
+
     #[error("parsing PCRE subsig: {0}")]
     PCRESubSigParse(#[from] PCRESubSigParseError),
 
@@ -132,6 +138,18 @@ pub fn parse_bytes(
         Ok(sig) => return Ok(Box::new(sig) as Box<dyn SubSig>),
         Err(e) => {
             if e.identified() {
+                return Err(e.into());
+            }
+        }
+    }
+
+    // Is it a FuzzyImg sub-sig?
+    match FuzzyImgSubSig::from_bytes(subsig_bytes, modifier) {
+        Ok(sig) => return Ok(Box::new(sig) as Box<dyn SubSig>),
+        Err(e) => {
+            if e.identified() {
+                // This looked enough like a FuzzyImg subsig to just stop here
+                eprintln!("Failed to parse FuzzyImgSubSig: {e}");
                 return Err(e.into());
             }
         }
@@ -214,5 +232,40 @@ mod tests {
             Ok(sig) => eprintln!("sig = {sig:?}",),
             Err(e) => eprintln!("error: {e}"),
         }
+    }
+
+    #[test]
+    fn test_fuzzy_img_valid() {
+        let subsig_bytes = b"fuzzy_img#9900e66e77bb1c4c";
+        let result = parse_bytes(subsig_bytes, None);
+        assert_eq!(result.is_ok(), true, "Expected valid fuzzy image subsig, got: {:?}", result);
+    }
+
+    #[test]
+    fn test_fuzzy_img_valid_hamming() {
+        let subsig_bytes = b"fuzzy_img#9900e66e77bb1c4c#5";
+        let result = parse_bytes(subsig_bytes, None);
+        assert_eq!(result.is_ok(), true, "Expected valid fuzzy image subsig with hamming distance, got: {:?}", result);
+    }
+
+    #[test]
+    fn test_fuzzy_img_invalid_short_hash() {
+        let subsig_bytes = b"fuzzy_img#9900e66e77bb1";
+        let result = parse_bytes(subsig_bytes, None);
+        assert_eq!(result.is_err(), true, "Expected invalid fuzzy image subsig, got: {:?}", result);
+    }
+
+    #[test]
+    fn test_fuzzy_img_invalid_long_hash() {
+        let subsig_bytes = b"fuzzy_img#9900e66e77bb1c4cfff";
+        let result = parse_bytes(subsig_bytes, None);
+        assert_eq!(result.is_err(), true, "Expected invalid fuzzy image subsig, got: {:?}", result);
+    }
+
+    #[test]
+    fn test_fuzzy_img_invalid_hamming() {
+        let subsig_bytes = b"fuzzy_img#9900e66e77bb1c4c#a";
+        let result = parse_bytes(subsig_bytes, None);
+        assert_eq!(result.is_err(), true, "Expected invalid fuzzy image subsig, got: {:?}", result);
     }
 }
