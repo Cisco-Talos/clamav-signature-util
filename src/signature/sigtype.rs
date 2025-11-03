@@ -34,6 +34,8 @@ pub enum SigType {
     PhishingURL,
     /// [File Hash signature](crate::signature::filehash::FileHashSig)
     FileHash,
+    /// [False Positive File Hash signature](crate::signature::filehash::FalsePositiveFileHashSig)
+    FalsePositiveFileHash,
     /// [Filetype Magic signature](crate::signature::filetype_magic::FTMagic)
     FTMagic,
     /// [Portable Executable Section Hash signature](crate::signature::pehash::PESectionHashSig)
@@ -102,10 +104,7 @@ impl SigType {
             }
 
             // False positive list
-            "sfp" | "fp" => {
-                println!("Support for .sfp and .fp is not yet implemented.");
-                return None;
-            }
+            "sfp" | "fp" => SigType::FalsePositiveFileHash,
 
             "info" => {
                 println!("Support for .info is not yet implemented.");
