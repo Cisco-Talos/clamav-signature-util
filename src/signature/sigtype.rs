@@ -34,6 +34,8 @@ pub enum SigType {
     PhishingURL,
     /// [File Hash signature](crate::signature::filehash::FileHashSig)
     FileHash,
+    /// [False Positive File Hash signature](crate::signature::filehash::FalsePositiveFileHashSig)
+    FalsePositiveFileHash,
     /// [Filetype Magic signature](crate::signature::filetype_magic::FTMagic)
     FTMagic,
     /// [Portable Executable Section Hash signature](crate::signature::pehash::PESectionHashSig)
@@ -91,8 +93,10 @@ impl SigType {
             // Hash-based signatures
             //
 
-            // File hash signatures and false positive lists
-            "hdb" | "hsb" | "hdu" | "hsu" | "sfp" | "fp" => SigType::FileHash,
+            // File hash signatures
+            "hdb" | "hsb" | "hdu" | "hsu" => SigType::FileHash,
+            // False positive file hash signatures
+            "sfp" | "fp" => SigType::FalsePositiveFileHash,
             // PE section has signatures
             "mdb" | "msb" | "mdu" | "msu" => SigType::PESectionHash,
 
@@ -125,14 +129,14 @@ mod tests {
     use super::SigType;
 
     #[test]
-    fn false_positive_hash_extensions_map_to_file_hash() {
+    fn false_positive_hash_extensions_map_to_false_positive_file_hash() {
         assert!(matches!(
             SigType::from_file_extension("fp"),
-            Some(SigType::FileHash)
+            Some(SigType::FalsePositiveFileHash)
         ));
         assert!(matches!(
             SigType::from_file_extension("sfp"),
-            Some(SigType::FileHash)
+            Some(SigType::FalsePositiveFileHash)
         ));
     }
 }
