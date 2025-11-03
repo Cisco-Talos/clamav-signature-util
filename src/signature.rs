@@ -290,6 +290,13 @@ pub enum SigValidationError {
         feature_set: feature::SetWithMinFlevel,
     },
 
+    #[error("specified maximum feature level ({spec_max_flevel}) is higher than computed ({required_max_flevel}), {reason}")]
+    SpecifiedMaxFLevelTooHigh {
+        spec_max_flevel: u32,
+        required_max_flevel: u32,
+        reason: String,
+    },
+
     #[error("minimum feature level unspecified; must be at least ({computed_min_flevel}), requires features {feature_set:?}")]
     MinFLevelNotSpecified {
         computed_min_flevel: u32,
