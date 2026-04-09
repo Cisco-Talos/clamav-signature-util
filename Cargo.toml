@@ -41,7 +41,7 @@ name = "clam_sigutil"
 path = "src/lib.rs"
 
 [build-dependencies]
-change-case = "0.2"
+convert_case = "0.11"
 
 [lints.clippy]
 all = "warn"

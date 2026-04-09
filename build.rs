@@ -152,7 +152,7 @@ pub fn load_filetypes(
         for ft in these_filetypes {
             let feature_tag = format!(
                 "FileType{}",
-                change_case::pascal_case(ft.strip_prefix("CL_TYPE_").unwrap())
+                convert_case::ccase!(pascal, ft.strip_prefix("CL_TYPE_").unwrap())
             );
             if flevel > 0 {
                 filetype_min_flevel.insert(feature_tag.clone(), flevel);
