@@ -50,10 +50,12 @@ pub enum PDBMatch {
 
 #[derive(Debug)]
 pub enum WDBMatch {
-    /// `X` prefix (regexp)
+    /// `X` prefix (regexp pair for real and displayed URLs)
     Regexp(UrlRegexpPair),
     /// `M` prefix (match hostname)
     MatchHostname { real: String, displayed: String },
+    /// `Y` prefix (regexp for real URL only)
+    RealOnly(regexp::Match),
 }
 
 /// A pair of regular expressions describing a "real" and displayed pair (e.g.,
@@ -220,6 +222,10 @@ impl AppendSigBytes for PhishingSig {
                 WDBMatch::MatchHostname { real, displayed } => {
                     write!(sb, "M:{real}:{displayed}")?;
                 }
+                WDBMatch::RealOnly(real) => {
+                    sb.write_str("Y:")?;
+                    real.append_sigbytes(sb)?;
+                }
             },
         }
 
@@ -294,6 +300,7 @@ impl FromSigBytes for PhishingSig {
                     &mut fields,
                 )?))),
                 b"M" => make_wdbmatch_hostname(&mut fields),
+                b"Y" => make_wdbmatch_real_only(&mut fields),
                 bytes => Err(ParseError::UnknownPrefix(bytes.into())),
             }
         }?;
@@ -365,6 +372,18 @@ fn make_wdbmatch_hostname<'a, I: Iterator<Item = &'a [u8]>>(
         real,
         displayed,
     }))
+}
+
+fn make_wdbmatch_real_only<'a, I: Iterator<Item = &'a [u8]>>(
+    fields: &mut I,
+) -> Result<PhishingSig, ParseError> {
+    let real = parse_field!(
+        fields,
+        regexp::Match::try_from,
+        ParseError::MissingRealUrl,
+        ParseError::RealUrlRegexpParse
+    )?;
+    Ok(PhishingSig::WDB(WDBMatch::RealOnly(real)))
 }
 
 #[cfg(test)]
@@ -572,6 +591,36 @@ mod tests {
         assert_eq!(sig.to_sigbytes().unwrap(), input);
 
         let input = br"S2:P:e5172364".into();
+        let (sig, _) = PhishingSig::from_sigbytes(&input).unwrap();
+        assert_eq!(sig.to_sigbytes().unwrap(), input);
+    }
+
+    #[test]
+    fn wdb_y_type_valid() {
+        let input = br"Y:.*\.malicious\.com".into();
+        let (sig, sigmeta) = PhishingSig::from_sigbytes(&input).unwrap();
+        assert_eq!(sigmeta, SigMeta::default());
+        let sig = sig.downcast_ref::<PhishingSig>().unwrap();
+        assert!(matches!(sig, PhishingSig::WDB(WDBMatch::RealOnly(_))));
+    }
+
+    #[test]
+    fn wdb_y_type_with_flevel() {
+        let input = br"Y:.*\.example\.com:100".into();
+        let (sig, sigmeta) = PhishingSig::from_sigbytes(&input).unwrap();
+        assert_eq!(
+            sigmeta,
+            SigMeta {
+                f_level: Some((100..).into()),
+            }
+        );
+        let sig = sig.downcast_ref::<PhishingSig>().unwrap();
+        assert!(matches!(sig, PhishingSig::WDB(WDBMatch::RealOnly(_))));
+    }
+
+    #[test]
+    fn wdb_y_type_export() {
+        let input = br"Y:.*\.test\.com".into();
         let (sig, _) = PhishingSig::from_sigbytes(&input).unwrap();
         assert_eq!(sig.to_sigbytes().unwrap(), input);
     }
