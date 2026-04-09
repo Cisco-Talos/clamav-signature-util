@@ -44,4 +44,7 @@ pub enum ParseError {
 }
 
 #[derive(Debug, thiserror::Error, PartialEq)]
-pub enum ValidationError {}
+pub enum ValidationError {
+    #[error("hash signature validation error: {0}")]
+    HashSig(String),
+}

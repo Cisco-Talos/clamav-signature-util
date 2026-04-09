@@ -24,6 +24,8 @@ pub mod container_metadata_sig;
 pub mod ext_sig;
 /// File hash signature support
 pub mod filehash;
+/// False Positive file hash signature support
+pub mod false_positive_filehash;
 /// Filetype Magic signatures
 pub mod ftmagic;
 /// Common functionality for hash-based signatures
@@ -222,6 +224,7 @@ pub fn parse_from_cvd_with_meta(
         SigType::Extended => ext_sig::ExtendedSig::from_sigbytes(data)?,
         SigType::Logical => logical_sig::LogicalSig::from_sigbytes(data)?,
         SigType::FileHash => filehash::FileHashSig::from_sigbytes(data)?,
+        SigType::FalsePositiveFileHash => false_positive_filehash::FalsePositiveFileHashSig::from_sigbytes(data)?,
         SigType::PESectionHash => pehash::PESectionHashSig::from_sigbytes(data)?,
         SigType::ContainerMetadata => {
             container_metadata_sig::ContainerMetadataSig::from_sigbytes(data)?
@@ -288,6 +291,13 @@ pub enum SigValidationError {
         spec_min_flevel: u32,
         computed_min_flevel: u32,
         feature_set: feature::SetWithMinFlevel,
+    },
+
+    #[error("specified maximum feature level ({spec_max_flevel}) is higher than computed ({required_max_flevel}), {reason}")]
+    SpecifiedMaxFLevelTooHigh {
+        spec_max_flevel: u32,
+        required_max_flevel: u32,
+        reason: String,
     },
 
     #[error("minimum feature level unspecified; must be at least ({computed_min_flevel}), requires features {feature_set:?}")]
