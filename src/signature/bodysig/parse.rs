@@ -725,14 +725,14 @@ impl TryFrom<&[u8]> for BodySig {
                                 // bytes need to be flushed to the prior match first.
 
                                 // This never fails in parenthetical context
-                                pc.flush_match_bytes().unwrap();
+                                pc.flush_match_bytes()?;
                             }
                             pc.cur_byte |= hex_nyble(byte, false);
                         }
                         QUESTION_MARK => {
                             if pc.paren_cxt.is_some() {
                                 // This never fails in parenthetical context
-                                pc.flush_match_bytes().unwrap();
+                                pc.flush_match_bytes()?;
                             }
                             pc.mask = if let MatchMask::High = pc.mask {
                                 // ??

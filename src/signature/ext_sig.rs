@@ -21,15 +21,15 @@ use crate::{
     feature::{EngineReq, Set},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     signature::{
+        FromSigBytesParseError, SigMeta, Signature,
         bodysig::BodySig,
         logical_sig::{
             subsig::{SubSig, SubSigModifier},
             targetdesc::TargetDescParseError,
         },
         targettype::{TargetType, TargetTypeParseError},
-        FromSigBytesParseError, SigMeta, Signature,
     },
-    util::{parse_number_dec, ParseNumberError},
+    util::{ParseNumberError, parse_number_dec},
 };
 use std::{fmt::Write, str};
 use thiserror::Error;
@@ -45,6 +45,33 @@ pub struct ExtendedSig {
     pub(crate) body_sig: Option<BodySig>,
     /// Modifier (only applicable when used as a subsig with a logical signature)
     pub(crate) modifier: Option<SubSigModifier>,
+}
+
+impl ExtendedSig {
+    #[must_use]
+    pub fn name_opt(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    #[must_use]
+    pub fn target_type(&self) -> TargetType {
+        self.target_type
+    }
+
+    #[must_use]
+    pub fn offset(&self) -> Option<Offset> {
+        self.offset
+    }
+
+    #[must_use]
+    pub fn body_sig(&self) -> Option<&BodySig> {
+        self.body_sig.as_ref()
+    }
+
+    #[must_use]
+    pub fn modifier(&self) -> Option<SubSigModifier> {
+        self.modifier
+    }
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -164,6 +191,21 @@ impl Offset {
             Some(*value)
         } else {
             None
+        }
+    }
+
+    #[must_use]
+    pub fn offset_pos(&self) -> OffsetPos {
+        match self {
+            Offset::Normal(pos) | Offset::Floating(pos, _) => *pos,
+        }
+    }
+
+    #[must_use]
+    pub fn max_shift(&self) -> Option<usize> {
+        match self {
+            Offset::Normal(_) => None,
+            Offset::Floating(_, max_shift) => Some(*max_shift),
         }
     }
 }
@@ -410,17 +452,30 @@ impl SubSig for ExtendedSig {
 mod tests {
     use super::*;
 
-    const SAMPLE_SIG: &str =
-        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd";
-    const SAMPLE_SIG_WITH_FLEVEL: &str =
-        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd:99:101";
+    const SAMPLE_SIG: &str = "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd";
+    const SAMPLE_SIG_WITH_FLEVEL: &str = "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd:99:101";
 
     #[test]
     fn export() {
         let (sig, sigmeta) = ExtendedSig::from_sigbytes(&SAMPLE_SIG.into()).unwrap();
+        let sig = sig.downcast_ref::<ExtendedSig>().unwrap();
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG, &exported);
         assert_eq!(sigmeta, SigMeta::default());
+        assert_eq!(sig.name_opt(), Some("AllTheStuff-1"));
+        assert!(matches!(
+            sig.target_type(),
+            crate::signature::targettype::TargetType::PE
+        ));
+        assert!(matches!(
+            sig.offset(),
+            Some(Offset::Floating(OffsetPos::EP(78), 45))
+        ));
+        assert!(sig.body_sig().is_some());
+        assert!(sig.modifier().is_none());
+        let offset = sig.offset().unwrap();
+        assert!(matches!(offset.offset_pos(), OffsetPos::EP(78)));
+        assert_eq!(offset.max_shift(), Some(45));
     }
 
     #[test]
@@ -429,6 +484,7 @@ mod tests {
             Ok(sig_and_sigmeta) => sig_and_sigmeta,
             Err(e) => panic!("{}", e),
         };
+        let sig = sig.downcast_ref::<ExtendedSig>().unwrap();
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG, &exported);
         assert_eq!(

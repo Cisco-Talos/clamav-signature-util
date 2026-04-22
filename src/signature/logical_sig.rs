@@ -29,7 +29,7 @@ use crate::{
     feature::EngineReq,
     sigbytes::{AppendSigBytes, FromSigBytes},
     signature::{
-        ext_sig::ExtendedSig, FromSigBytesParseError, SigMeta, SigValidationError, Signature,
+        FromSigBytesParseError, SigMeta, SigValidationError, Signature, ext_sig::ExtendedSig,
     },
     util::Range,
 };
@@ -47,6 +47,23 @@ pub struct LogicalSig {
     expression: Box<dyn expression::Element>,
     #[allow(dead_code)]
     sub_sigs: Vec<Box<dyn SubSig>>,
+}
+
+impl LogicalSig {
+    #[must_use]
+    pub fn target_desc(&self) -> &TargetDesc {
+        &self.target_desc
+    }
+
+    #[must_use]
+    pub fn expression(&self) -> &dyn expression::Element {
+        self.expression.as_ref()
+    }
+
+    #[must_use]
+    pub fn sub_sigs(&self) -> &[Box<dyn SubSig>] {
+        &self.sub_sigs
+    }
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -307,7 +324,16 @@ mod tests {
     fn full_sig() {
         let input = SAMPLE_SIG.into();
         let (sig, _) = LogicalSig::from_sigbytes(&input).unwrap();
-        dbg!(sig);
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+        assert_eq!(sig.target_desc().attrs().len(), 2);
+        assert_eq!(sig.sub_sigs().len(), 4);
+        let expr = sig
+            .expression()
+            .downcast_ref::<expression::Expr>()
+            .expect("top-level expression");
+        assert_eq!(expr.depth(), 0);
+        assert_eq!(expr.elements().len(), 2);
+        assert!(expr.modifier().is_none());
     }
 
     #[test]

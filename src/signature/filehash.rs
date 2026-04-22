@@ -17,11 +17,11 @@
  */
 
 use crate::{
+    Signature,
     feature::{EngineReq, Feature, Set},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
-    signature::{hash::ParseError, FromSigBytesParseError, SigMeta},
-    util::{self, parse_field, parse_number_dec, Hash},
-    Signature,
+    signature::{FromSigBytesParseError, SigMeta, hash::ParseError},
+    util::{self, Hash, parse_field, parse_number_dec},
 };
 use std::{fmt::Write, str};
 
@@ -31,6 +31,18 @@ pub struct FileHashSig {
     name: String,
     hash: Hash,
     file_size: Option<usize>,
+}
+
+impl FileHashSig {
+    #[must_use]
+    pub fn hash(&self) -> &Hash {
+        &self.hash
+    }
+
+    #[must_use]
+    pub fn file_size(&self) -> Option<usize> {
+        self.file_size
+    }
 }
 
 impl Signature for FileHashSig {
@@ -73,8 +85,12 @@ impl FromSigBytes for FileHashSig {
         let mut sigmeta = SigMeta::default();
         let mut fields = sb.into().as_bytes().split(|b| *b == b':');
 
-        let hash = util::parse_hash(fields.next().ok_or(ParseError::MissingField("hash_string".to_string()))?)
-            .map_err(ParseError::ParseHash)?;
+        let hash = util::parse_hash(
+            fields
+                .next()
+                .ok_or(ParseError::MissingField("hash_string".to_string()))?,
+        )
+        .map_err(ParseError::ParseHash)?;
         let file_size = parse_field!(
             OPTIONAL
             fields,
@@ -126,9 +142,14 @@ mod tests {
         let sig = sig.downcast_ref::<FileHashSig>().unwrap();
         assert_eq!(sig.name, "Eicar-Test-Signature");
         assert_eq!(sig.file_size, Some(68));
+        assert_eq!(sig.file_size(), Some(68));
         assert_eq!(
             sig.hash,
             util::Hash::Md5(hex!("44d88612fea8a8f36de82e1278abb02f"))
+        );
+        assert_eq!(
+            sig.hash(),
+            &util::Hash::Md5(hex!("44d88612fea8a8f36de82e1278abb02f"))
         );
     }
 

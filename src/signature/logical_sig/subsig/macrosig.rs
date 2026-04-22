@@ -21,7 +21,7 @@ use crate::{
     feature::EngineReq,
     sigbytes::AppendSigBytes,
     signature::logical_sig::SubSigModifier,
-    util::{parse_number_dec, ParseNumberError},
+    util::{ParseNumberError, parse_number_dec},
 };
 use thiserror::Error;
 

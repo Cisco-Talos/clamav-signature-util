@@ -18,12 +18,12 @@
 
 use super::super::targettype::TargetType;
 use crate::{
+    Feature,
     feature::{EngineReq, Set},
     filetype::{FileType, FileTypeParseError},
     sigbytes::{AppendSigBytes, SigBytes},
     signature::ToSigBytesError,
-    util::{self, parse_number_dec, ParseNumberError, Range},
-    Feature,
+    util::{self, ParseNumberError, Range, parse_number_dec},
 };
 use num_traits::{FromPrimitive, ToPrimitive};
 use std::{fmt::Write, str};
@@ -36,6 +36,13 @@ const MINIMUM_ENGINE_SPEC: u32 = 51;
 #[derive(Debug, Default, PartialEq)]
 pub struct TargetDesc {
     pub(crate) attrs: Vec<TargetDescAttr>,
+}
+
+impl TargetDesc {
+    #[must_use]
+    pub fn attrs(&self) -> &[TargetDescAttr] {
+        &self.attrs
+    }
 }
 
 #[derive(Debug, Error, PartialEq)]

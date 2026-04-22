@@ -16,6 +16,7 @@
  *  MA 02110-1301, USA.
  */
 
+use downcast_rs::{Downcast, impl_downcast};
 use std::fmt::{self, Write};
 
 pub mod error;
@@ -41,7 +42,7 @@ pub struct Expr {
 }
 
 /// Required functionality of an expression `Element`
-pub trait Element: fmt::Display + fmt::Debug {
+pub trait Element: fmt::Display + fmt::Debug + Downcast {
     /// Whether or not this element represents a required or alternative match to
     /// all prior matches within the same expression.
     fn operation(&self) -> Option<Operation>;
@@ -55,6 +56,8 @@ pub trait Element: fmt::Display + fmt::Debug {
     /// Set the modifier for this element
     fn set_modifier(&mut self, op: Option<Modifier>);
 }
+
+impl_downcast!(Element);
 
 /// An element's relationship to the prior element within the same expression.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -89,6 +92,45 @@ pub struct Modifier {
     pub match_req: ModifierValue,
     /// Minimum number of unique matches
     pub match_uniq: Option<ModifierValue>,
+}
+
+impl Expr {
+    #[must_use]
+    pub fn depth(&self) -> u8 {
+        self.depth
+    }
+
+    #[must_use]
+    pub fn elements(&self) -> &[Box<dyn Element>] {
+        &self.elements
+    }
+
+    #[must_use]
+    pub fn operation(&self) -> Option<Operation> {
+        self.operation
+    }
+
+    #[must_use]
+    pub fn modifier(&self) -> Option<Modifier> {
+        self.modifier
+    }
+}
+
+impl SigIndex {
+    #[must_use]
+    pub fn sig_index(&self) -> u8 {
+        self.sig_index
+    }
+
+    #[must_use]
+    pub fn operation(&self) -> Option<Operation> {
+        self.operation
+    }
+
+    #[must_use]
+    pub fn modifier(&self) -> Option<Modifier> {
+        self.modifier
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

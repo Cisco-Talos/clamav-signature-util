@@ -102,10 +102,7 @@ impl SigType {
             }
 
             // False positive list
-            "sfp" | "fp" => {
-                println!("Support for .sfp and .fp is not yet implemented.");
-                return None;
-            }
+            "sfp" | "fp" => SigType::FileHash,
 
             "info" => {
                 println!("Support for .info is not yet implemented.");
@@ -153,5 +150,22 @@ impl FromStr for SigType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         SigType::from_file_extension(s).ok_or(SigTypeParseError::Unknown)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SigType;
+
+    #[test]
+    fn false_positive_hash_extensions_map_to_file_hash() {
+        assert!(matches!(
+            SigType::from_file_extension("fp"),
+            Some(SigType::FileHash)
+        ));
+        assert!(matches!(
+            SigType::from_file_extension("sfp"),
+            Some(SigType::FileHash)
+        ));
     }
 }

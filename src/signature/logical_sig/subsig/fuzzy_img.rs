@@ -19,11 +19,11 @@
 use super::{SubSig, SubSigType};
 use crate::{
     feature::{EngineReq, Feature, Set},
-    sigbytes::{AppendSigBytes},
+    sigbytes::AppendSigBytes,
     signature::logical_sig::SubSigModifier,
-    util::{parse_number_dec, ParseNumberError},
+    util::{ParseNumberError, parse_number_dec},
 };
-use std::{fmt::Write};
+use std::fmt::Write;
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -54,10 +54,7 @@ pub enum FuzzyImgSubSigParseError {
 
 impl super::SubSigError for FuzzyImgSubSigParseError {
     fn identified(&self) -> bool {
-        !matches!(
-            self,
-            FuzzyImgSubSigParseError::MissingFuzzyImgHashPrefix
-        )
+        !matches!(self, FuzzyImgSubSigParseError::MissingFuzzyImgHashPrefix)
     }
 }
 
@@ -93,7 +90,6 @@ impl FuzzyImgSubSig {
         bytes: &[u8],
         modifier: Option<SubSigModifier>,
     ) -> Result<Self, FuzzyImgSubSigParseError> {
-
         let mut parts = bytes.splitn(3, |&b| b == b'#');
 
         // get the first part, which must be "fuzzy_img"
@@ -106,14 +102,13 @@ impl FuzzyImgSubSig {
         }
 
         // The second part is the hash string, which must be a valid hex string
-        let hash_string = parts
-            .next()
-            .ok_or(FuzzyImgSubSigParseError::TooFewFields)?;
+        let hash_string = parts.next().ok_or(FuzzyImgSubSigParseError::TooFewFields)?;
         // Make sure the hash string is valid hex
-        let hash_string = std::str::from_utf8(hash_string)
-            .map_err(|_| FuzzyImgSubSigParseError::InvalidHashString(
+        let hash_string = std::str::from_utf8(hash_string).map_err(|_| {
+            FuzzyImgSubSigParseError::InvalidHashString(
                 String::from_utf8_lossy(hash_string).to_string(),
-            ))?;
+            )
+        })?;
         if !hash_string.chars().all(|c| c.is_ascii_hexdigit()) {
             return Err(FuzzyImgSubSigParseError::InvalidHashString(
                 hash_string.to_string(),
@@ -121,14 +116,14 @@ impl FuzzyImgSubSig {
         }
         // The hash string must be exactly 16 characters long
         if hash_string.len() != 16 {
-            return Err(FuzzyImgSubSigParseError::InvalidHashString(
-                format!("Hash string must be exactly 16 characters long, got {}", hash_string.len()),
-            ));
+            return Err(FuzzyImgSubSigParseError::InvalidHashString(format!(
+                "Hash string must be exactly 16 characters long, got {}",
+                hash_string.len()
+            )));
         }
 
         // The third part is the hamming distance. It is optional, but if it is provided it must be a valid integer.
-        let hamming_distance = parts
-            .next();
+        let hamming_distance = parts.next();
 
         let hamming_distance = if let Some(distance_str) = hamming_distance {
             // Try to parse the hamming distance as an integer

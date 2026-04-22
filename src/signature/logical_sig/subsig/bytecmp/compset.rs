@@ -19,7 +19,7 @@
 use std::num::TryFromIntError;
 
 use super::Encoding;
-use crate::util::{parse_number_dec, parse_number_hex, ParseNumberError};
+use crate::util::{ParseNumberError, parse_number_dec, parse_number_hex};
 use thiserror::Error;
 
 #[allow(dead_code)]

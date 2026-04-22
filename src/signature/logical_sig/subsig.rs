@@ -30,12 +30,12 @@ use crate::{
     feature::EngineReq,
     sigbytes::AppendSigBytes,
     signature::{
-        bodysig::{parse::BodySigParseError, BodySig},
+        bodysig::{BodySig, parse::BodySigParseError},
         ext_sig::{self, ExtendedSig, ExtendedSigParseError, Offset},
         targettype::TargetType,
     },
 };
-use downcast_rs::{impl_downcast, Downcast};
+use downcast_rs::{Downcast, impl_downcast};
 use std::fmt::Write;
 
 use thiserror::Error;
@@ -238,34 +238,59 @@ mod tests {
     fn test_fuzzy_img_valid() {
         let subsig_bytes = b"fuzzy_img#9900e66e77bb1c4c";
         let result = parse_bytes(subsig_bytes, None);
-        assert_eq!(result.is_ok(), true, "Expected valid fuzzy image subsig, got: {:?}", result);
+        assert_eq!(
+            result.is_ok(),
+            true,
+            "Expected valid fuzzy image subsig, got: {:?}",
+            result
+        );
     }
 
     #[test]
     fn test_fuzzy_img_valid_hamming() {
         let subsig_bytes = b"fuzzy_img#9900e66e77bb1c4c#5";
         let result = parse_bytes(subsig_bytes, None);
-        assert_eq!(result.is_ok(), true, "Expected valid fuzzy image subsig with hamming distance, got: {:?}", result);
+        assert_eq!(
+            result.is_ok(),
+            true,
+            "Expected valid fuzzy image subsig with hamming distance, got: {:?}",
+            result
+        );
     }
 
     #[test]
     fn test_fuzzy_img_invalid_short_hash() {
         let subsig_bytes = b"fuzzy_img#9900e66e77bb1";
         let result = parse_bytes(subsig_bytes, None);
-        assert_eq!(result.is_err(), true, "Expected invalid fuzzy image subsig, got: {:?}", result);
+        assert_eq!(
+            result.is_err(),
+            true,
+            "Expected invalid fuzzy image subsig, got: {:?}",
+            result
+        );
     }
 
     #[test]
     fn test_fuzzy_img_invalid_long_hash() {
         let subsig_bytes = b"fuzzy_img#9900e66e77bb1c4cfff";
         let result = parse_bytes(subsig_bytes, None);
-        assert_eq!(result.is_err(), true, "Expected invalid fuzzy image subsig, got: {:?}", result);
+        assert_eq!(
+            result.is_err(),
+            true,
+            "Expected invalid fuzzy image subsig, got: {:?}",
+            result
+        );
     }
 
     #[test]
     fn test_fuzzy_img_invalid_hamming() {
         let subsig_bytes = b"fuzzy_img#9900e66e77bb1c4c#a";
         let result = parse_bytes(subsig_bytes, None);
-        assert_eq!(result.is_err(), true, "Expected invalid fuzzy image subsig, got: {:?}", result);
+        assert_eq!(
+            result.is_err(),
+            true,
+            "Expected invalid fuzzy image subsig, got: {:?}",
+            result
+        );
     }
 }

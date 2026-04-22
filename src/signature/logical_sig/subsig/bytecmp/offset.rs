@@ -17,7 +17,7 @@
  */
 
 use super::Encoding;
-use crate::util::{parse_number_dec, ParseNumberError};
+use crate::util::{ParseNumberError, parse_number_dec};
 use thiserror::Error;
 
 #[derive(Debug)]
