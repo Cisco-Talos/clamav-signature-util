@@ -32,6 +32,18 @@ pub struct PESectionHashSig {
     hash: Hash,
 }
 
+impl PESectionHashSig {
+    #[must_use]
+    pub fn size(&self) -> Option<usize> {
+        self.size
+    }
+
+    #[must_use]
+    pub fn hash(&self) -> &Hash {
+        &self.hash
+    }
+}
+
 impl Signature for PESectionHashSig {
     fn name(&self) -> &str {
         &self.name
@@ -79,8 +91,12 @@ impl FromSigBytes for PESectionHashSig {
             ParseError::MissingFileSize,
             ParseError::ParseSize
         )?;
-        let hash = util::parse_hash(fields.next().ok_or(ParseError::MissingField("hash_string".to_string()))?)
-            .map_err(ParseError::ParseHash)?;
+        let hash = util::parse_hash(
+            fields
+                .next()
+                .ok_or(ParseError::MissingField("hash_string".to_string()))?,
+        )
+        .map_err(ParseError::ParseHash)?;
         let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
             .map_err(FromSigBytesParseError::NameNotUnicode)?
             .to_owned();
@@ -114,9 +130,16 @@ mod tests {
         let sig = sig.downcast_ref::<PESectionHashSig>().unwrap();
         assert_eq!(sig.name, "Win.Test.EICAR_MSB-1");
         assert_eq!(sig.size, Some(45056));
+        assert_eq!(sig.size(), Some(45056));
         assert_eq!(
             sig.hash,
             crate::util::Hash::Sha2_256(hex!(
+                "f9b304ced34fcce3ab75c6dc58ad59e4d62177ffed35494f79f09bc4e8986c16"
+            ))
+        );
+        assert_eq!(
+            sig.hash(),
+            &crate::util::Hash::Sha2_256(hex!(
                 "f9b304ced34fcce3ab75c6dc58ad59e4d62177ffed35494f79f09bc4e8986c16"
             ))
         );

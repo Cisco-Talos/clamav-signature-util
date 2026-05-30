@@ -24,7 +24,7 @@ use thiserror::Error;
 
 const CL_TYPENO: isize = 500;
 
-#[derive(Debug, FromPrimitive, ToPrimitive, EnumVariantsStrings)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, FromPrimitive, ToPrimitive, EnumVariantsStrings)]
 #[enum_variants_strings_transform(transform = "none")]
 #[allow(non_camel_case_types)]
 pub enum ContainerType {
@@ -138,6 +138,14 @@ impl TryFrom<&[u8]> for ContainerType {
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         ContainerType::from_str(str::from_utf8(value)?).map_err(|_| ParseError::Unknown)
+    }
+}
+
+impl ContainerType {
+    /// Return the ClamAV `CL_TYPE_*` spelling for this container type.
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        self.to_str()
     }
 }
 

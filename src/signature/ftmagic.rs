@@ -116,6 +116,49 @@ impl Signature for FTMagicSig {
     }
 }
 
+impl FTMagicSig {
+    #[must_use]
+    pub fn recognition_type(&self) -> &FileType {
+        &self.rtype
+    }
+
+    #[must_use]
+    pub fn file_type(&self) -> &FileType {
+        &self.file_type
+    }
+
+    #[must_use]
+    pub fn magic_bytes(&self) -> &MagicBytes {
+        &self.magic_bytes
+    }
+}
+
+impl MagicBytes {
+    #[must_use]
+    pub fn direct_memory(&self) -> Option<(usize, &[u8])> {
+        match self {
+            Self::DirectMemory { offset, literal } => Some((*offset, literal.as_slice())),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn body_sig(&self) -> Option<(Option<Offset>, &BodySig)> {
+        match self {
+            Self::BodySig { offset, bodysig } => Some((*offset, bodysig)),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn dm_partition(&self) -> Option<(usize, &[u8])> {
+        match self {
+            Self::DMPartition { offset, literal } => Some((*offset, literal.as_slice())),
+            _ => None,
+        }
+    }
+}
+
 impl FromSigBytes for FTMagicSig {
     fn from_sigbytes<'a, SB: Into<&'a crate::sigbytes::SigBytes>>(
         sb: SB,
@@ -277,10 +320,16 @@ mod tests {
         assert_eq!(&sig.name, "JPEG");
         assert_eq!(sig.rtype, FileType::CL_TYPE_ANY);
         assert_eq!(sig.file_type, FileType::CL_TYPE_GRAPHICS);
+        assert_eq!(sig.recognition_type(), &FileType::CL_TYPE_ANY);
+        assert_eq!(sig.file_type(), &FileType::CL_TYPE_GRAPHICS);
         assert!(matches!(
             sig.magic_bytes,
             MagicBytes::DirectMemory { offset: 0, .. }
         ));
+        assert_eq!(
+            sig.magic_bytes().direct_memory(),
+            Some((0, [0xff, 0xd8, 0xff].as_slice()))
+        );
         if let MagicBytes::DirectMemory { literal, .. } = &sig.magic_bytes {
             assert_eq!(&literal.as_slice(), &[0xff, 0xd8, 0xff]);
         }
@@ -304,6 +353,12 @@ mod tests {
                 bodysig: _
             }
         ));
+        let (offset, bodysig) = sig.magic_bytes().body_sig().expect("body sig accessor");
+        assert!(matches!(
+            offset,
+            Some(Offset::Normal(OffsetPos::Absolute(0)))
+        ));
+        assert!(!bodysig.patterns().is_empty());
     }
 
     #[test]
@@ -321,6 +376,10 @@ mod tests {
             sig.magic_bytes,
             MagicBytes::DMPartition { offset: 1024, .. }
         ));
+        assert_eq!(
+            sig.magic_bytes().dm_partition(),
+            Some((1024, [0x48, 0x2b, 0x00, 0x04].as_slice()))
+        );
         if let MagicBytes::DMPartition { literal, .. } = &sig.magic_bytes {
             assert_eq!(&literal.as_slice(), &[0x48, 0x2b, 0x00, 0x04]);
         }

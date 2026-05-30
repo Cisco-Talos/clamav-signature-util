@@ -23,10 +23,21 @@ use crate::{
 use std::fmt::Write;
 use std::ops::RangeInclusive;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ContainerSize {
     Exact(usize),
     Range(RangeInclusive<usize>),
+}
+
+impl ContainerSize {
+    /// Return this CDB `ContainerSize` as an inclusive `(min, max)` range.
+    #[must_use]
+    pub fn inclusive_bounds(&self) -> (usize, usize) {
+        match self {
+            Self::Exact(size) => (*size, *size),
+            Self::Range(range) => (*range.start(), *range.end()),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error, PartialEq)]

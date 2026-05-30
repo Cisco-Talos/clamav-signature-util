@@ -19,6 +19,9 @@
 mod container_size;
 mod container_type;
 
+pub use container_size::ContainerSize;
+pub use container_type::ContainerType;
+
 use crate::{
     feature::{EngineReq, Set},
     regexp::Match,
@@ -30,8 +33,7 @@ use crate::{
     },
     Feature,
 };
-use container_size::{parse, ContainerSize};
-use container_type::ContainerType;
+use container_size::parse;
 use std::{fmt::Write, str};
 use thiserror::Error;
 
@@ -47,6 +49,7 @@ pub struct ContainerMetadataSig {
     is_encrypted: Option<bool>,
     file_pos: Option<usize>,
     res1: Option<u32>,
+    res2: Option<isize>,
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -222,6 +225,17 @@ impl FromSigBytes for ContainerMetadataSig {
             ParseError::InvalidRes1
         )?;
 
+        // Field 10. Older exports may leave Res2 present but empty; treat that
+        // the same as the documented wildcard.
+        let res2 = parse_field!(
+            OPTIONAL
+            fields,
+            parse_optional_res2,
+            ParseError::MissingRes2,
+            ParseError::InvalidRes2
+        )?
+        .flatten();
+
         // Parse optional min/max flevel
         if let Some(min_flevel) = fields.next() {
             if !min_flevel.is_empty() {
@@ -249,9 +263,57 @@ impl FromSigBytes for ContainerMetadataSig {
                 is_encrypted,
                 file_pos,
                 res1,
+                res2,
             }),
             sigmeta,
         ))
+    }
+}
+
+impl ContainerMetadataSig {
+    #[must_use]
+    pub fn container_type(&self) -> Option<ContainerType> {
+        self.container_type
+    }
+
+    #[must_use]
+    pub fn container_size(&self) -> Option<&ContainerSize> {
+        self.container_size.as_ref()
+    }
+
+    #[must_use]
+    pub fn filename_regexp(&self) -> Option<&Match> {
+        self.filename_regexp.as_ref()
+    }
+
+    #[must_use]
+    pub fn file_size_in_container(&self) -> Option<&Range<usize>> {
+        self.file_size_in_container.as_ref()
+    }
+
+    #[must_use]
+    pub fn file_size_real(&self) -> Option<&Range<usize>> {
+        self.file_size_real.as_ref()
+    }
+
+    #[must_use]
+    pub fn is_encrypted(&self) -> Option<bool> {
+        self.is_encrypted
+    }
+
+    #[must_use]
+    pub fn file_pos(&self) -> Option<usize> {
+        self.file_pos
+    }
+
+    #[must_use]
+    pub fn res1(&self) -> Option<u32> {
+        self.res1
+    }
+
+    #[must_use]
+    pub fn res2(&self) -> Option<isize> {
+        self.res2
     }
 }
 
@@ -334,13 +396,20 @@ impl AppendSigBytes for ContainerMetadataSig {
             sb.write_char('*')?;
         }
 
-        // Notice: colon intentially output here so that `Res2` can be present,
-        // but empty.  Res2 is not yet supported at all (since it has no
-        // function).  However, it will need to be included once FLevel min/max
-        // are appended.
         sb.write_char(':')?;
+        if let Some(res2) = &self.res2 {
+            write!(sb, "{res2}")?;
+        }
 
         Ok(())
+    }
+}
+
+fn parse_optional_res2(bytes: &[u8]) -> Result<Option<isize>, ParseNumberError<isize>> {
+    if bytes.is_empty() {
+        Ok(None)
+    } else {
+        parse_number_dec(bytes).map(Some)
     }
 }
 
@@ -350,7 +419,10 @@ mod tests {
     use crate::sigbytes::SigBytes;
 
     const SAMPLE_SIG: &[u8] =
-        br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:99:101";
+        br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:*:99:101";
+
+    const SAMPLE_SIG_WITH_RES2: &[u8] =
+        br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:99";
 
     const SAMPLE_SIG_WITHOUT_FLEVEL: &[u8] =
         br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:";
@@ -359,13 +431,34 @@ mod tests {
     fn full_sig() {
         let bytes = SAMPLE_SIG.into();
         let (sig, meta) = ContainerMetadataSig::from_sigbytes(&bytes).unwrap();
-        dbg!(sig);
+        let sig = sig.downcast_ref::<ContainerMetadataSig>().unwrap();
+        assert!(matches!(
+            sig.container_type(),
+            Some(ContainerType::CL_TYPE_ZIP)
+        ));
+        assert!(sig.container_size().is_some());
+        assert!(sig.filename_regexp().is_some());
+        assert!(sig.file_size_in_container().is_some());
+        assert!(sig.file_size_real().is_some());
+        assert_eq!(sig.is_encrypted(), Some(false));
+        assert_eq!(sig.file_pos(), Some(2010));
+        assert_eq!(sig.res1(), None);
+        assert_eq!(sig.res2(), None);
         assert_eq!(
             meta,
             SigMeta {
                 f_level: Some((99..=101).into()),
             }
         );
+    }
+
+    #[test]
+    fn res2_accessor() {
+        let bytes = SAMPLE_SIG_WITH_RES2.into();
+        let (sig, meta) = ContainerMetadataSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<ContainerMetadataSig>().unwrap();
+        assert_eq!(sig.res2(), Some(99));
+        assert_eq!(meta.f_level, None);
     }
 
     #[test]
