@@ -38,6 +38,8 @@ pub enum SigType {
     FTMagic,
     /// [Portable Executable Section Hash signature](crate::signature::pehash::PESectionHashSig)
     PESectionHash,
+    /// [Portable Executable Import Hash signature](crate::signature::pehash::PEImportHashSig)
+    PEImportHash,
     /// Yara signature
     Yara,
     /// [Digital signature](crate::signature::digital_signature::DigitalSignature)
@@ -130,10 +132,7 @@ impl SigType {
             }
 
             // Imp hash
-            "imp" => {
-                println!("Support for .imp is not yet implemented.");
-                return None;
-            }
+            "imp" => SigType::PEImportHash,
 
             //
             // Digital signatures

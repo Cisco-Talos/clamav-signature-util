@@ -20,6 +20,8 @@
 pub mod bodysig;
 /// Container Metadata signature support
 pub mod container_metadata_sig;
+/// Digital signature support
+pub mod digital_sig;
 /// Extended signature support
 pub mod ext_sig;
 /// File hash signature support
@@ -39,8 +41,6 @@ pub mod phishing_sig;
 pub mod sigtype;
 /// Enumeration of target types (typically found in logical and extended signatures)
 pub mod targettype;
-/// Digital signature support
-pub mod digital_sig;
 
 use crate::{
     feature::{self, EngineReq},
@@ -223,6 +223,7 @@ pub fn parse_from_cvd_with_meta(
         SigType::Logical => logical_sig::LogicalSig::from_sigbytes(data)?,
         SigType::FileHash => filehash::FileHashSig::from_sigbytes(data)?,
         SigType::PESectionHash => pehash::PESectionHashSig::from_sigbytes(data)?,
+        SigType::PEImportHash => pehash::PEImportHashSig::from_sigbytes(data)?,
         SigType::ContainerMetadata => {
             container_metadata_sig::ContainerMetadataSig::from_sigbytes(data)?
         }
