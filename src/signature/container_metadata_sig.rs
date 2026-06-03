@@ -178,7 +178,6 @@ impl FromSigBytes for ContainerMetadataSig {
             file_size_in_container,
             None | Some(Range::Exact(_) | Range::Inclusive(_))
         ) {
-            dbg!(file_size_in_container);
             return Err(ParseError::FSICRangeType.into());
         }
 
@@ -194,7 +193,6 @@ impl FromSigBytes for ContainerMetadataSig {
             file_size_real,
             None | Some(Range::Exact(_) | Range::Inclusive(_))
         ) {
-            dbg!(file_size_real);
             return Err(ParseError::FSRealRangeType.into());
         }
 

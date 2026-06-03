@@ -18,6 +18,7 @@
 
 use anyhow::{anyhow, Result};
 use clam_sigutil::SigType;
+use clap::Parser;
 use std::{
     fs::File,
     io::{BufRead, BufReader, Read},
@@ -25,7 +26,6 @@ use std::{
     str,
     time::{Duration, Instant},
 };
-use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -163,10 +163,55 @@ fn process_file(path: &Path, opt: &Opt) -> Result<()> {
     if let Some(sig_type) = SigType::from_file_extension(extension) {
         let mut fh = File::open(path)?;
         process_sigs(opt, sig_type, &mut fh)?;
+    } else if let Some(message) = unsupported_signature_type_message(extension) {
+        eprintln!(" {message}");
     } else {
         eprintln!(" file extension {extension:?} doesn't map to known signature type");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::unsupported_signature_type_message;
+
+    #[test]
+    fn unsupported_signature_type_messages_are_cli_owned() {
+        assert_eq!(
+            unsupported_signature_type_message("crb"),
+            Some("Support for .crb is not yet implemented.")
+        );
+        assert_eq!(
+            unsupported_signature_type_message("info"),
+            Some("Support for .info is not yet implemented.")
+        );
+        assert_eq!(
+            unsupported_signature_type_message("idb"),
+            Some("Support for .idb is not yet implemented.")
+        );
+        assert_eq!(
+            unsupported_signature_type_message("db"),
+            Some("Support for deprecated types .zmd, .rmd, and .db are not yet implemented.")
+        );
+        assert_eq!(
+            unsupported_signature_type_message("cfg"),
+            Some("Support for .cfg is not yet implemented.")
+        );
+        assert_eq!(unsupported_signature_type_message("ndb"), None);
+    }
+}
+
+fn unsupported_signature_type_message(extension: &str) -> Option<&'static str> {
+    Some(match extension {
+        "crb" => "Support for .crb is not yet implemented.",
+        "info" => "Support for .info is not yet implemented.",
+        "idb" => "Support for .idb is not yet implemented.",
+        "zmd" | "rmd" | "db" => {
+            "Support for deprecated types .zmd, .rmd, and .db are not yet implemented."
+        }
+        "cfg" => "Support for .cfg is not yet implemented.",
+        _ => return None,
+    })
 }
 
 fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()> {

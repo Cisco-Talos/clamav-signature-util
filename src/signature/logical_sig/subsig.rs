@@ -30,12 +30,12 @@ use crate::{
     feature::EngineReq,
     sigbytes::AppendSigBytes,
     signature::{
-        bodysig::{BodySig, parse::BodySigParseError},
+        bodysig::{parse::BodySigParseError, BodySig},
         ext_sig::{self, ExtendedSig, ExtendedSigParseError, Offset},
         targettype::TargetType,
     },
 };
-use downcast_rs::{Downcast, impl_downcast};
+use downcast_rs::{impl_downcast, Downcast};
 use std::fmt::Write;
 
 use thiserror::Error;
@@ -149,7 +149,6 @@ pub fn parse_bytes(
         Err(e) => {
             if e.identified() {
                 // This looked enough like a FuzzyImg subsig to just stop here
-                eprintln!("Failed to parse FuzzyImgSubSig: {e}");
                 return Err(e.into());
             }
         }
@@ -178,7 +177,6 @@ pub fn parse_bytes(
         Err(e) => {
             if e.identified() {
                 // This looked enough like a PCRE subsig to just stop here
-                eprintln!("Failed to parse PCRESubSig: {e}");
                 return Err(e.into());
             }
         }

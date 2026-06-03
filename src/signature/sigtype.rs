@@ -99,7 +99,6 @@ impl SigType {
 
             // Trusted and Revoked Certificates
             "crb" => {
-                println!("Support for .crb is not yet implemented.");
                 return None;
             }
 
@@ -107,27 +106,21 @@ impl SigType {
             "sfp" | "fp" => SigType::FileHash,
 
             "info" => {
-                println!("Support for .info is not yet implemented.");
                 return None;
             }
 
             // Icon signatures
             "idb" => {
-                println!("Support for .idb is not yet implemented.");
                 return None;
             }
 
             // Deprecated types
             "zmd" | "rmd" | "db" => {
-                println!(
-                    "Support for deprecated types .zmd, .rmd, and .db are not yet implemented."
-                );
                 return None;
             }
 
             // Configuration
             "cfg" => {
-                println!("Support for .cfg is not yet implemented.");
                 return None;
             }
 
