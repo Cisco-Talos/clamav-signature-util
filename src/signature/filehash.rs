@@ -17,11 +17,11 @@
  */
 
 use crate::{
-    Signature,
     feature::{EngineReq, Feature, Set},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
-    signature::{FromSigBytesParseError, SigMeta, hash::ParseError},
-    util::{self, Hash, parse_field, parse_number_dec},
+    signature::{hash::ParseError, FromSigBytesParseError, SigMeta},
+    util::{self, parse_field, parse_number_dec, Hash},
+    Signature,
 };
 use std::{fmt::Write, str};
 

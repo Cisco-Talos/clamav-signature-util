@@ -16,7 +16,7 @@
  *  MA 02110-1301, USA.
  */
 
-use downcast_rs::{Downcast, impl_downcast};
+use downcast_rs::{impl_downcast, Downcast};
 use std::fmt::{self, Write};
 
 pub mod error;

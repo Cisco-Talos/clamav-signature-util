@@ -21,15 +21,15 @@ use crate::{
     feature::{EngineReq, Set},
     sigbytes::{AppendSigBytes, FromSigBytes, SigBytes},
     signature::{
-        FromSigBytesParseError, SigMeta, Signature,
         bodysig::BodySig,
         logical_sig::{
             subsig::{SubSig, SubSigModifier},
             targetdesc::TargetDescParseError,
         },
         targettype::{TargetType, TargetTypeParseError},
+        FromSigBytesParseError, SigMeta, Signature,
     },
-    util::{ParseNumberError, parse_number_dec},
+    util::{parse_number_dec, ParseNumberError},
 };
 use std::{fmt::Write, str};
 use thiserror::Error;

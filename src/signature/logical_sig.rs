@@ -29,7 +29,7 @@ use crate::{
     feature::EngineReq,
     sigbytes::{AppendSigBytes, FromSigBytes},
     signature::{
-        FromSigBytesParseError, SigMeta, SigValidationError, Signature, ext_sig::ExtendedSig,
+        ext_sig::ExtendedSig, FromSigBytesParseError, SigMeta, SigValidationError, Signature,
     },
     util::Range,
 };

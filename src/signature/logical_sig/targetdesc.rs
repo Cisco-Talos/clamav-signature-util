@@ -18,12 +18,12 @@
 
 use super::super::targettype::TargetType;
 use crate::{
-    Feature,
     feature::{EngineReq, Set},
     filetype::{FileType, FileTypeParseError},
     sigbytes::{AppendSigBytes, SigBytes},
     signature::ToSigBytesError,
-    util::{self, ParseNumberError, Range, parse_number_dec},
+    util::{self, parse_number_dec, ParseNumberError, Range},
+    Feature,
 };
 use num_traits::{FromPrimitive, ToPrimitive};
 use std::{fmt::Write, str};

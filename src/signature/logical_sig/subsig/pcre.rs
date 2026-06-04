@@ -17,11 +17,11 @@
  */
 
 use crate::{
-    Feature,
     feature::{EngineReq, Set},
     regexp::{Match, ParseError},
     sigbytes::AppendSigBytes,
-    signature::logical_sig::{SubSigModifier, expression},
+    signature::logical_sig::{expression, SubSigModifier},
+    Feature,
 };
 use std::{fmt::Write, str};
 use thiserror::Error;

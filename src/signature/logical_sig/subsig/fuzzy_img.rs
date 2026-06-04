@@ -21,7 +21,7 @@ use crate::{
     feature::{EngineReq, Feature, Set},
     sigbytes::AppendSigBytes,
     signature::logical_sig::SubSigModifier,
-    util::{ParseNumberError, parse_number_dec},
+    util::{parse_number_dec, ParseNumberError},
 };
 use std::fmt::Write;
 use thiserror::Error;
