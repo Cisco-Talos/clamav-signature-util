@@ -21,7 +21,11 @@ mod fuzzy_img;
 mod macrosig;
 mod pcre;
 
-pub use bytecmp::{ByteCmpSubSig, ByteCmpSubSigParseError};
+pub use bytecmp::{
+    ByteCmpSubSig, ByteCmpSubSigParseError, ByteOptions, ComparisonOp, ComparisonSet,
+    Encoding as ByteCmpEncoding, Endianness as ByteCmpEndianness, Offset as ByteCmpOffset,
+    OffsetModifier as ByteCmpOffsetModifier,
+};
 pub use fuzzy_img::{FuzzyImgSubSig, FuzzyImgSubSigParseError};
 pub use macrosig::{MacroSubSig, MacroSubSigParseError};
 pub use pcre::{PCRESubSig, PCRESubSigParseError};

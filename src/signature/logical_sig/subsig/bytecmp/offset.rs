@@ -17,7 +17,7 @@
  */
 
 use super::Encoding;
-use crate::util::{ParseNumberError, parse_number_dec};
+use crate::util::{parse_number_dec, ParseNumberError};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -37,12 +37,26 @@ pub enum ParseError {
     ParseNum(#[from] ParseNumberError<isize>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Modifier {
     /// ">>"
     Positive,
     /// "<<"
     Negative,
+}
+
+impl Offset {
+    pub fn modifier(&self) -> Modifier {
+        self.modifier
+    }
+
+    pub fn offset(&self) -> isize {
+        self.offset
+    }
+
+    pub fn encoding(&self) -> Encoding {
+        self.encoding
+    }
 }
 
 impl TryFrom<&[u8]> for Offset {

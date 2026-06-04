@@ -19,7 +19,7 @@
 use std::num::TryFromIntError;
 
 use super::Encoding;
-use crate::util::{ParseNumberError, parse_number_dec, parse_number_hex};
+use crate::util::{parse_number_dec, parse_number_hex, ParseNumberError};
 use thiserror::Error;
 
 #[allow(dead_code)]
@@ -51,6 +51,20 @@ pub enum ComparisonSetParseError {
 
     #[error("parsing value: too large for i64")]
     TooLarge(#[from] TryFromIntError),
+}
+
+impl ComparisonSet {
+    pub fn symbol(&self) -> ComparisonOp {
+        self.symbol
+    }
+
+    pub fn value(&self) -> i64 {
+        self.value
+    }
+
+    pub fn encoding(&self) -> Encoding {
+        self.encoding
+    }
 }
 
 impl TryFrom<&[u8]> for ComparisonSet {
@@ -90,7 +104,7 @@ impl TryFrom<&[u8]> for ComparisonSet {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComparisonOp {
     LessThan,
     Equal,

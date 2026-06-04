@@ -46,6 +46,22 @@ pub enum ByteOptionsParseError {
 }
 
 impl ByteOptions {
+    pub fn encoding(&self) -> Option<Encoding> {
+        self.encoding
+    }
+
+    pub fn endianness(&self) -> Option<Endianness> {
+        self.endianness
+    }
+
+    pub fn evaluate_if_can_extract(&self) -> bool {
+        self.evaluate_if_can_extract
+    }
+
+    pub fn extract_bytes(&self) -> u8 {
+        self.extract_bytes
+    }
+
     pub fn from_bytes(bytes: &[u8]) -> Result<ByteOptions, ByteOptionsParseError> {
         let mut encoding = None;
         let mut endianness = None;
