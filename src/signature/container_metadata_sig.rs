@@ -397,13 +397,23 @@ fn parse_res2_and_flevel_fields<'a>(
         [res2] => parse_optional_res2(res2)
             .map(|res2| (res2, &[][..]))
             .map_err(ParseError::InvalidRes2),
-        [min_flevel, max_flevel] if !min_flevel.is_empty() && !max_flevel.is_empty() => {
+        [min_flevel, max_flevel] if is_legacy_flevel_pair(min_flevel, max_flevel) => {
             Ok((None, fields))
         }
         [res2, flevel @ ..] => parse_optional_res2(res2)
             .map(|res2| (res2, flevel))
             .map_err(ParseError::InvalidRes2),
     }
+}
+
+fn is_legacy_flevel_pair(min_flevel: &[u8], max_flevel: &[u8]) -> bool {
+    let Ok(min_flevel) = parse_number_dec::<u32>(min_flevel) else {
+        return false;
+    };
+    let Ok(max_flevel) = parse_number_dec::<u32>(max_flevel) else {
+        return false;
+    };
+    min_flevel <= max_flevel
 }
 
 fn parse_flevel_fields(
@@ -442,6 +452,9 @@ mod tests {
 
     const SAMPLE_SIG_WITH_RES2_AND_FLEVEL: &[u8] =
         br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:7:99:101";
+
+    const SAMPLE_SIG_WITH_RES2_AND_OPEN_FLEVEL: &[u8] =
+        br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:99:51";
 
     const SAMPLE_SIG_WITHOUT_FLEVEL: &[u8] =
         br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:";
@@ -504,6 +517,20 @@ mod tests {
             meta,
             SigMeta {
                 f_level: Some((99..=101).into()),
+            }
+        );
+    }
+
+    #[test]
+    fn descending_pair_is_explicit_res2_with_open_flevel() {
+        let bytes = SAMPLE_SIG_WITH_RES2_AND_OPEN_FLEVEL.into();
+        let (sig, meta) = ContainerMetadataSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<ContainerMetadataSig>().unwrap();
+        assert_eq!(sig.res2(), Some(99));
+        assert_eq!(
+            meta,
+            SigMeta {
+                f_level: Some((51..).into()),
             }
         );
     }
