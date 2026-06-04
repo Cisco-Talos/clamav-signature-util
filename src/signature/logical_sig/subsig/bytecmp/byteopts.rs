@@ -77,8 +77,8 @@ impl ByteOptions {
                 b'l' => endianness = Some(Endianness::Little),
                 b'b' => endianness = Some(Endianness::Big),
                 b'e' => evaluate_if_can_extract = true,
-                b'1' | b'2' | b'4' | b'8' => extract_bytes = Some(byte - b'0'),
-                b'0'..=b'9' => return Err(ByteOptionsParseError::InvalidNumBytes),
+                b'1'..=b'9' => extract_bytes = Some(byte - b'0'),
+                b'0' => return Err(ByteOptionsParseError::InvalidNumBytes),
                 _ => return Err(ByteOptionsParseError::Unrecognized),
             }
         }
