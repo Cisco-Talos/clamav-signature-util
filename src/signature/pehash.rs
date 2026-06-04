@@ -73,19 +73,27 @@ impl Signature for PEImportHashSig {
 impl EngineReq for PEImportHashSig {
     fn features(&self) -> Set {
         Set::from_static(match (self.size, &self.hash) {
-            (None, Hash::Md5(_)) => &[Feature::HashSizeUnknown],
-            (None, Hash::Sha1(_)) => &[Feature::HashSizeUnknown, Feature::HashSha1],
-            (None, Hash::Sha2_256(_)) => &[Feature::HashSizeUnknown, Feature::HashSha256],
-            (Some(_), Hash::Md5(_)) => &[],
-            (Some(_), Hash::Sha1(_)) => &[Feature::HashSha1],
-            (Some(_), Hash::Sha2_256(_)) => &[Feature::HashSha256],
+            (None, Hash::Md5(_)) => &[Feature::PEImportHash, Feature::HashSizeUnknown],
+            (None, Hash::Sha1(_)) => &[
+                Feature::PEImportHash,
+                Feature::HashSizeUnknown,
+                Feature::HashSha1,
+            ],
+            (None, Hash::Sha2_256(_)) => &[
+                Feature::PEImportHash,
+                Feature::HashSizeUnknown,
+                Feature::HashSha256,
+            ],
+            (Some(_), Hash::Md5(_)) => &[Feature::PEImportHash],
+            (Some(_), Hash::Sha1(_)) => &[Feature::PEImportHash, Feature::HashSha1],
+            (Some(_), Hash::Sha2_256(_)) => &[Feature::PEImportHash, Feature::HashSha256],
         })
     }
 }
 
 impl AppendSigBytes for PEImportHashSig {
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
-        append_pe_hash_sigbytes(sb, self.size, &self.hash, &self.name)
+        append_pe_import_hash_sigbytes(sb, self.size, &self.hash, &self.name)
     }
 }
 
@@ -93,7 +101,7 @@ impl FromSigBytes for PEImportHashSig {
     fn from_sigbytes<'a, SB: Into<&'a SigBytes>>(
         sb: SB,
     ) -> Result<(Box<dyn crate::Signature>, super::SigMeta), FromSigBytesParseError> {
-        let (name, size, hash, sigmeta) = parse_pe_hash_sigbytes(sb)?;
+        let (name, size, hash, sigmeta) = parse_pe_import_hash_sigbytes(sb)?;
         Ok((Box::new(Self { name, size, hash }), sigmeta))
     }
 }
@@ -150,6 +158,25 @@ fn append_pe_hash_sigbytes(
     Ok(())
 }
 
+fn append_pe_import_hash_sigbytes(
+    sb: &mut SigBytes,
+    size: Option<usize>,
+    hash: &Hash,
+    name: &str,
+) -> Result<(), crate::signature::ToSigBytesError> {
+    let size_hint = name.len() + hash.size() * 2 + 10;
+    sb.try_reserve_exact(size_hint)?;
+
+    write!(sb, "{hash}:")?;
+    if let Some(size) = size {
+        write!(sb, "{size}")?;
+    } else {
+        sb.write_char('*')?;
+    }
+    write!(sb, ":{name}")?;
+    Ok(())
+}
+
 fn parse_pe_hash_sigbytes<'a, SB: Into<&'a SigBytes>>(
     sb: SB,
 ) -> Result<(String, Option<usize>, Hash, super::SigMeta), FromSigBytesParseError> {
@@ -168,6 +195,43 @@ fn parse_pe_hash_sigbytes<'a, SB: Into<&'a SigBytes>>(
             .ok_or(ParseError::MissingField("hash_string".to_string()))?,
     )
     .map_err(ParseError::ParseHash)?;
+    let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
+        .map_err(FromSigBytesParseError::NameNotUnicode)?
+        .to_owned();
+
+    // Parse optional min/max flevel
+    if let Some(min_flevel) = fields.next() {
+        let min_flevel = parse_number_dec(min_flevel).map_err(ParseError::ParseMinFlevel)?;
+
+        if let Some(max_flevel) = fields.next() {
+            let max_flevel = parse_number_dec(max_flevel).map_err(ParseError::ParseMaxFlevel)?;
+            sigmeta.f_level = Some((min_flevel..=max_flevel).into());
+        } else {
+            sigmeta.f_level = Some((min_flevel..).into());
+        }
+    }
+
+    Ok((name, size, hash, sigmeta))
+}
+
+fn parse_pe_import_hash_sigbytes<'a, SB: Into<&'a SigBytes>>(
+    sb: SB,
+) -> Result<(String, Option<usize>, Hash, super::SigMeta), FromSigBytesParseError> {
+    let mut sigmeta = SigMeta::default();
+    let mut fields = sb.into().as_bytes().split(|b| *b == b':');
+    let hash = util::parse_hash(
+        fields
+            .next()
+            .ok_or(ParseError::MissingField("hash_string".to_string()))?,
+    )
+    .map_err(ParseError::ParseHash)?;
+    let size = parse_field!(
+        OPTIONAL
+        fields,
+        parse_number_dec,
+        ParseError::MissingFileSize,
+        ParseError::ParseSize
+    )?;
     let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
         .map_err(FromSigBytesParseError::NameNotUnicode)?
         .to_owned();
@@ -225,7 +289,7 @@ mod tests {
 
     #[test]
     fn import_hash() {
-        let bytes = b"*:44d88612fea8a8f36de82e1278abb02f:Win.Test.IMP-1".into();
+        let bytes = b"44d88612fea8a8f36de82e1278abb02f:*:Win.Test.IMP-1".into();
         let (sig, _) = PEImportHashSig::from_sigbytes(&bytes).unwrap();
         let sig = sig.downcast_ref::<PEImportHashSig>().unwrap();
         assert_eq!(sig.name(), "Win.Test.IMP-1");
@@ -236,5 +300,38 @@ mod tests {
         );
         let exported = sig.to_sigbytes().unwrap();
         assert_eq!(&bytes, &exported);
+    }
+
+    #[test]
+    fn sized_import_hash_uses_hdb_field_order_and_flevel_90() {
+        let bytes = b"44d88612fea8a8f36de82e1278abb02f:68:Win.Test.IMP-1:90".into();
+        let (sig, meta) = PEImportHashSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<PEImportHashSig>().unwrap();
+        assert_eq!(sig.name(), "Win.Test.IMP-1");
+        assert_eq!(sig.size(), Some(68));
+        assert_eq!(
+            sig.hash(),
+            &crate::util::Hash::Md5(hex!("44d88612fea8a8f36de82e1278abb02f"))
+        );
+        assert!(sig.validate(&meta).is_ok());
+        let exported = sig.to_sigbytes().unwrap();
+        assert_eq!(
+            &SigBytes::from("44d88612fea8a8f36de82e1278abb02f:68:Win.Test.IMP-1"),
+            &exported
+        );
+    }
+
+    #[test]
+    fn import_hash_requires_flevel_90() {
+        let bytes = b"44d88612fea8a8f36de82e1278abb02f:68:Win.Test.IMP-1".into();
+        let (sig, meta) = PEImportHashSig::from_sigbytes(&bytes).unwrap();
+        let error = sig.validate(&meta).expect_err("missing flevel rejected");
+        assert!(matches!(
+            error,
+            crate::signature::SigValidationError::MinFLevelNotSpecified {
+                computed_min_flevel: 90,
+                ..
+            }
+        ));
     }
 }

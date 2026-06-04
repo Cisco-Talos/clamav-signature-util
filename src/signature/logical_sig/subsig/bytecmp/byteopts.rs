@@ -97,6 +97,9 @@ impl ByteOptions {
                 _ => (),
             }
         }
+        if encoding == Some(Encoding::RawBinary) && !matches!(extract_bytes, 1 | 2 | 4 | 8) {
+            return Err(ByteOptionsParseError::InvalidNumBytes);
+        }
 
         Ok(ByteOptions {
             encoding,
@@ -104,5 +107,38 @@ impl ByteOptions {
             evaluate_if_can_extract,
             extract_bytes,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_binary_accepts_clamav_widths() {
+        for width in [b'1', b'2', b'4', b'8'] {
+            let options = ByteOptions::from_bytes(&[b'i', width]).expect("parse raw-binary width");
+            assert_eq!(options.encoding(), Some(Encoding::RawBinary));
+            assert_eq!(options.extract_bytes(), width - b'0');
+        }
+    }
+
+    #[test]
+    fn raw_binary_rejects_non_clamav_widths() {
+        for width in [b'3', b'5', b'6', b'7', b'9'] {
+            assert!(matches!(
+                ByteOptions::from_bytes(&[b'i', width]),
+                Err(ByteOptionsParseError::InvalidNumBytes)
+            ));
+        }
+    }
+
+    #[test]
+    fn text_encodings_keep_extended_fixture_lengths() {
+        for encoding in [b'h', b'd', b'a'] {
+            let options =
+                ByteOptions::from_bytes(&[encoding, b'3']).expect("parse text byte option");
+            assert_eq!(options.extract_bytes(), 3);
+        }
     }
 }

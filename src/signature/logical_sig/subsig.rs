@@ -28,7 +28,7 @@ pub use bytecmp::{
 };
 pub use fuzzy_img::{FuzzyImgSubSig, FuzzyImgSubSigParseError};
 pub use macrosig::{MacroSubSig, MacroSubSigParseError};
-pub use pcre::{PCRESubSig, PCRESubSigParseError};
+pub use pcre::{Flag as PCREFlag, PCRESubSig, PCRESubSigParseError};
 
 use crate::{
     feature::EngineReq,

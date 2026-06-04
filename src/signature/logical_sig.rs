@@ -327,10 +327,7 @@ mod tests {
         let sig = sig.downcast_ref::<LogicalSig>().unwrap();
         assert_eq!(sig.target_desc().attrs().len(), 2);
         assert_eq!(sig.sub_sigs().len(), 4);
-        let expr = sig
-            .expression()
-            .downcast_ref::<expression::Expr>()
-            .expect("top-level expression");
+        let expr = sig.expression().as_expr().expect("top-level expression");
         assert_eq!(expr.depth(), 0);
         assert_eq!(expr.elements().len(), 2);
         assert!(expr.modifier().is_none());

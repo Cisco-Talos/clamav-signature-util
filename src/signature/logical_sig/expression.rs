@@ -16,7 +16,6 @@
  *  MA 02110-1301, USA.
  */
 
-use downcast_rs::{impl_downcast, Downcast};
 use std::fmt::{self, Write};
 
 pub mod error;
@@ -42,7 +41,7 @@ pub struct Expr {
 }
 
 /// Required functionality of an expression `Element`
-pub trait Element: fmt::Display + fmt::Debug + Downcast {
+pub trait Element: fmt::Display + fmt::Debug {
     /// Whether or not this element represents a required or alternative match to
     /// all prior matches within the same expression.
     fn operation(&self) -> Option<Operation>;
@@ -55,9 +54,17 @@ pub trait Element: fmt::Display + fmt::Debug + Downcast {
 
     /// Set the modifier for this element
     fn set_modifier(&mut self, op: Option<Modifier>);
-}
 
-impl_downcast!(Element);
+    /// Return this element as a grouped expression when applicable.
+    fn as_expr(&self) -> Option<&Expr> {
+        None
+    }
+
+    /// Return this element as a subsignature index when applicable.
+    fn as_sig_index(&self) -> Option<&SigIndex> {
+        None
+    }
+}
 
 /// An element's relationship to the prior element within the same expression.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -184,6 +191,10 @@ impl Element for Expr {
     fn set_modifier(&mut self, modifier: Option<Modifier>) {
         self.modifier = modifier;
     }
+
+    fn as_expr(&self) -> Option<&Expr> {
+        Some(self)
+    }
 }
 
 /*********************************************************************
@@ -287,6 +298,10 @@ impl Element for SigIndex {
 
     fn set_modifier(&mut self, modifier: Option<Modifier>) {
         self.modifier = modifier;
+    }
+
+    fn as_sig_index(&self) -> Option<&SigIndex> {
+        Some(self)
     }
 }
 

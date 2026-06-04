@@ -223,32 +223,9 @@ impl FromSigBytes for ContainerMetadataSig {
             ParseError::InvalidRes1
         )?;
 
-        // Field 10. Older exports may leave Res2 present but empty; treat that
-        // the same as the documented wildcard.
-        let res2 = parse_field!(
-            OPTIONAL
-            fields,
-            parse_optional_res2,
-            ParseError::MissingRes2,
-            ParseError::InvalidRes2
-        )?
-        .flatten();
-
-        // Parse optional min/max flevel
-        if let Some(min_flevel) = fields.next() {
-            if !min_flevel.is_empty() {
-                let min_flevel =
-                    parse_number_dec(min_flevel).map_err(ParseError::ParseMinFlevel)?;
-
-                if let Some(max_flevel) = fields.next() {
-                    let max_flevel =
-                        parse_number_dec(max_flevel).map_err(ParseError::ParseMaxFlevel)?;
-                    sigmeta.f_level = Some((min_flevel..=max_flevel).into());
-                } else {
-                    sigmeta.f_level = Some((min_flevel..).into());
-                }
-            }
-        }
+        let trailing_fields = fields.collect::<Vec<_>>();
+        let (res2, flevel_fields) = parse_res2_and_flevel_fields(&trailing_fields)?;
+        parse_flevel_fields(flevel_fields, &mut sigmeta)?;
 
         Ok((
             Box::new(Self {
@@ -404,11 +381,49 @@ impl AppendSigBytes for ContainerMetadataSig {
 }
 
 fn parse_optional_res2(bytes: &[u8]) -> Result<Option<isize>, ParseNumberError<isize>> {
-    if bytes.is_empty() {
+    if bytes.is_empty() || bytes == b"*" {
         Ok(None)
     } else {
         parse_number_dec(bytes).map(Some)
     }
+}
+
+fn parse_res2_and_flevel_fields<'a>(
+    fields: &'a [&'a [u8]],
+) -> Result<(Option<isize>, &'a [&'a [u8]]), ParseError> {
+    match fields {
+        [] => Ok((None, &[])),
+        [res2] if res2.is_empty() || *res2 == b"*" => Ok((None, &[])),
+        [res2] => parse_optional_res2(res2)
+            .map(|res2| (res2, &[][..]))
+            .map_err(ParseError::InvalidRes2),
+        [min_flevel, max_flevel] if !min_flevel.is_empty() && !max_flevel.is_empty() => {
+            Ok((None, fields))
+        }
+        [res2, flevel @ ..] => parse_optional_res2(res2)
+            .map(|res2| (res2, flevel))
+            .map_err(ParseError::InvalidRes2),
+    }
+}
+
+fn parse_flevel_fields(
+    fields: &[&[u8]],
+    sigmeta: &mut SigMeta,
+) -> Result<(), FromSigBytesParseError> {
+    if let Some(min_flevel) = fields.first() {
+        if !min_flevel.is_empty() {
+            let min_flevel = parse_number_dec(min_flevel).map_err(ParseError::ParseMinFlevel)?;
+
+            if let Some(max_flevel) = fields.get(1) {
+                let max_flevel =
+                    parse_number_dec(max_flevel).map_err(ParseError::ParseMaxFlevel)?;
+                sigmeta.f_level = Some((min_flevel..=max_flevel).into());
+            } else {
+                sigmeta.f_level = Some((min_flevel..).into());
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -419,8 +434,14 @@ mod tests {
     const SAMPLE_SIG: &[u8] =
         br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:*:99:101";
 
+    const SAMPLE_SIG_OLD_FLEVEL_WITHOUT_RES2: &[u8] =
+        br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:99:101";
+
     const SAMPLE_SIG_WITH_RES2: &[u8] =
         br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:99";
+
+    const SAMPLE_SIG_WITH_RES2_AND_FLEVEL: &[u8] =
+        br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:7:99:101";
 
     const SAMPLE_SIG_WITHOUT_FLEVEL: &[u8] =
         br"Email.Trojan.Toa-1:CL_TYPE_ZIP:1337:Courrt.{1,15}\.scr$:220-221:2008:0:2010:*:";
@@ -457,6 +478,34 @@ mod tests {
         let sig = sig.downcast_ref::<ContainerMetadataSig>().unwrap();
         assert_eq!(sig.res2(), Some(99));
         assert_eq!(meta.f_level, None);
+    }
+
+    #[test]
+    fn old_layout_without_res2_preserves_flevel() {
+        let bytes = SAMPLE_SIG_OLD_FLEVEL_WITHOUT_RES2.into();
+        let (sig, meta) = ContainerMetadataSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<ContainerMetadataSig>().unwrap();
+        assert_eq!(sig.res2(), None);
+        assert_eq!(
+            meta,
+            SigMeta {
+                f_level: Some((99..=101).into()),
+            }
+        );
+    }
+
+    #[test]
+    fn explicit_res2_preserves_following_flevel() {
+        let bytes = SAMPLE_SIG_WITH_RES2_AND_FLEVEL.into();
+        let (sig, meta) = ContainerMetadataSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<ContainerMetadataSig>().unwrap();
+        assert_eq!(sig.res2(), Some(7));
+        assert_eq!(
+            meta,
+            SigMeta {
+                f_level: Some((99..=101).into()),
+            }
+        );
     }
 
     #[test]
