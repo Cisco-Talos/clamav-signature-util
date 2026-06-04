@@ -80,7 +80,16 @@ impl TryFrom<&[u8]> for ComparisonSet {
                 e
             }
         })?;
-        let (encoding, value) = if let Some(hex_value_bytes) = remainder.strip_prefix(b"0x") {
+        let (encoding, value) = if let Some(hex_value_bytes) = remainder.strip_prefix(b"-0x") {
+            let value = parse_number_hex(hex_value_bytes)
+                .map_err(ComparisonSetParseError::ParseHexValue)?;
+            let value = if value == (i64::MAX as u64) + 1 {
+                i64::MIN
+            } else {
+                -i64::try_from(value)?
+            };
+            (Encoding::Hex, value)
+        } else if let Some(hex_value_bytes) = remainder.strip_prefix(b"0x") {
             (
                 Encoding::Hex,
                 i64::try_from(
