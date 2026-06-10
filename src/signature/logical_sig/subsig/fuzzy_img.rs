@@ -79,13 +79,25 @@ impl AppendSigBytes for FuzzyImgSubSig {
         sb.try_reserve_exact(size_hint)?;
         write!(sb, "fuzzy_img#{}", self.hash_string)?;
         if let Some(distance) = self.hamming_distance {
-            write!(sb, "{}", distance)?;
+            write!(sb, "#{}", distance)?;
         }
         Ok(())
     }
 }
 
 impl FuzzyImgSubSig {
+    pub fn hash_string(&self) -> &str {
+        &self.hash_string
+    }
+
+    pub fn hamming_distance(&self) -> Option<isize> {
+        self.hamming_distance
+    }
+
+    pub fn modifier(&self) -> Option<SubSigModifier> {
+        self.modifier
+    }
+
     pub fn from_bytes(
         bytes: &[u8],
         modifier: Option<SubSigModifier>,
@@ -150,5 +162,36 @@ impl FuzzyImgSubSig {
             hamming_distance,
             modifier,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sigbytes::{AppendSigBytes, SigBytes};
+
+    #[test]
+    fn fuzzy_img_accessors_expose_parsed_fields() {
+        let modifier = SubSigModifier {
+            case_insensitive: true,
+            ..SubSigModifier::default()
+        };
+        let sig = FuzzyImgSubSig::from_bytes(b"fuzzy_img#9900e66e77bb1c4c#5", Some(modifier))
+            .expect("valid fuzzy image subsig");
+
+        assert_eq!(sig.hash_string(), "9900e66e77bb1c4c");
+        assert_eq!(sig.hamming_distance(), Some(5));
+        assert_eq!(sig.modifier(), Some(modifier));
+    }
+
+    #[test]
+    fn fuzzy_img_sigbytes_preserve_hamming_separator() {
+        let sig = FuzzyImgSubSig::from_bytes(b"fuzzy_img#9900e66e77bb1c4c#5", None)
+            .expect("valid fuzzy image subsig");
+        let mut bytes = SigBytes::default();
+
+        sig.append_sigbytes(&mut bytes).expect("append sigbytes");
+
+        assert_eq!(bytes.as_ref(), b"fuzzy_img#9900e66e77bb1c4c#5");
     }
 }
