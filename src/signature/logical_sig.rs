@@ -131,7 +131,8 @@ impl FromSigBytes for LogicalSig {
         sb: SB,
     ) -> Result<(Box<dyn Signature>, super::SigMeta), FromSigBytesParseError> {
         let mut sigmeta = SigMeta::default();
-        let mut fields = sb.into().as_bytes().split(|b| *b == b';');
+        let fields = tokenize_ldb_fields(sb.into().as_bytes());
+        let mut fields = fields.into_iter();
 
         let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
             .map_err(FromSigBytesParseError::NameNotUnicode)?
@@ -256,6 +257,27 @@ fn find_modifier(haystack: &[u8]) -> (Option<SubSigModifier>, &[u8]) {
         }
     }
     (None, haystack)
+}
+
+fn tokenize_ldb_fields(bytes: &[u8]) -> Vec<&[u8]> {
+    let mut fields = Vec::new();
+    let mut field_start = 0;
+    let mut within_pcre = false;
+
+    for (pos, &byte) in bytes.iter().enumerate() {
+        if byte == b';' && !within_pcre {
+            fields.push(&bytes[field_start..pos]);
+            field_start = pos + 1;
+        } else if fields.len() >= 2
+            && byte == b'/'
+            && (pos == 0 || bytes[pos.saturating_sub(1)] != b'\\')
+        {
+            within_pcre = !within_pcre;
+        }
+    }
+
+    fields.push(&bytes[field_start..]);
+    fields
 }
 
 /*
@@ -396,6 +418,81 @@ mod tests {
         let (sig, _) = LogicalSig::from_sigbytes(&input).unwrap();
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG_WITH_PCRE_OFFSET, &exported);
+    }
+
+    #[test]
+    fn parses_pcre_subsignature_with_semicolon() {
+        let input = concat!(
+            "Demo.Pcre.Semicolon;Engine:90-255,Target:3;0&1;",
+            "66756e6374696f6e20;",
+            r#"0/= ?([a-z0-9]{4,10}\+)+[a-z0-9]{4,10};\s+[a-z0-9]{4,10}\[\d+\]/"#
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse semicolon pcre");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(2, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_pcre_subsignature_with_semicolon_alternative() {
+        let input = concat!(
+            "Demo.Pcre.SemicolonAlternative;Engine:90-255,Target:0;0;",
+            r#"0/symbolDict\.Add\s+("|')(\?\?|\*\*|!!|@@|\$\$|^^|;;)("|'),\s*ChrW\(&[a-z0-9]+\)/ig"#
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse semicolon alt pcre");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(1, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_daily_wide_body_with_large_square_bracket_gap() {
+        let input = concat!(
+            "Txt.Trojan.Storm-0978-10006328-0;Engine:90-255,Target:0;0&1&2;",
+            "3c68746d6c3e::w;",
+            "3c2f7363726970743e::w;",
+            "646f63756d656e742e7772697465[2-16]",
+            "3c696672616d65207372633d226d68746d6c3a6d732d6974733a633a",
+            "[32-128]66696c653030312e7a69702f323232322e63686d3a3a2f",
+            "66696c65312e6d6874223e3c2f696672616d653e::w",
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse daily wide body");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(3, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_main_ldb_wildcard_heavy_logical_signature() {
+        let input = concat!(
+            "Win.Packed.Gandcrab-6552923-4;Engine:71-255,Target:1;",
+            "0&((1>5)|(2>5)|(3>5)|(4>5)|(5>5)|(6>5)|(7>5)|(8>5)|(9>5))&10;",
+            "0:4d5a{-196608}????0080??000080{-255}",
+            "00000000000000000000000000000100!(00)000000??0?0080{-4096}",
+            "0000000000000000000000000000010000000000??0?0000{-4096}",
+            "!(0000)??0?!(0000)01000000000000000000;",
+            "6a0?6a0?ff15;5050ff15;5353ff15;5151ff15;5252ff15;",
+            "5656ff15;5757ff15;5555ff15;5454ff15;",
+            "EOF-208:000000000000000000000000000000000000000000000000",
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "0000000000000000000000000000000000000000!(00)!(00)!(00)!(00)",
+            "!(00)!(00)!(00)!(00)",
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse main wildcard body");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(11, sig.sub_sigs().len());
     }
 
     #[test]

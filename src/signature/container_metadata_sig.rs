@@ -48,7 +48,7 @@ pub struct ContainerMetadataSig {
     file_size_real: Option<Range<usize>>,
     is_encrypted: Option<bool>,
     file_pos: Option<usize>,
-    res1: Option<u32>,
+    res1_raw: Option<String>,
     res2: Option<isize>,
 }
 
@@ -105,8 +105,8 @@ pub enum ParseError {
     #[error("missing Res1 field")]
     MissingRes1,
 
-    #[error("invalid Res1 field: {0}")]
-    InvalidRes1(ParseNumberError<u32>),
+    #[error("Res1 field not unicode: {0}")]
+    Res1NotUnicode(str::Utf8Error),
 
     #[error("missing Res2 field")]
     MissingRes2,
@@ -215,12 +215,12 @@ impl FromSigBytes for ContainerMetadataSig {
         )?;
 
         // Field 9
-        let res1 = parse_field!(
+        let res1_raw = parse_field!(
             OPTIONAL
             fields,
-            parse_number_dec::<u32>,
+            parse_res1_raw,
             ParseError::MissingRes1,
-            ParseError::InvalidRes1
+            ParseError::Res1NotUnicode
         )?;
 
         let trailing_fields = fields.collect::<Vec<_>>();
@@ -237,7 +237,7 @@ impl FromSigBytes for ContainerMetadataSig {
                 file_size_real,
                 is_encrypted,
                 file_pos,
-                res1,
+                res1_raw,
                 res2,
             }),
             sigmeta,
@@ -282,8 +282,8 @@ impl ContainerMetadataSig {
     }
 
     #[must_use]
-    pub fn res1(&self) -> Option<u32> {
-        self.res1
+    pub fn res1_raw(&self) -> Option<&str> {
+        self.res1_raw.as_deref()
     }
 
     #[must_use]
@@ -365,7 +365,7 @@ impl AppendSigBytes for ContainerMetadataSig {
         }
         sb.write_char(':')?;
 
-        if let Some(res1) = &self.res1 {
+        if let Some(res1) = &self.res1_raw {
             write!(sb, "{res1}")?;
         } else {
             sb.write_char('*')?;
@@ -378,6 +378,10 @@ impl AppendSigBytes for ContainerMetadataSig {
 
         Ok(())
     }
+}
+
+fn parse_res1_raw(bytes: &[u8]) -> Result<String, str::Utf8Error> {
+    str::from_utf8(bytes).map(ToOwned::to_owned)
 }
 
 fn parse_optional_res2(bytes: &[u8]) -> Result<Option<isize>, ParseNumberError<isize>> {
@@ -474,7 +478,7 @@ mod tests {
         assert!(sig.file_size_real().is_some());
         assert_eq!(sig.is_encrypted(), Some(false));
         assert_eq!(sig.file_pos(), Some(2010));
-        assert_eq!(sig.res1(), None);
+        assert_eq!(sig.res1_raw(), None);
         assert_eq!(sig.res2(), None);
         assert_eq!(
             meta,
@@ -491,6 +495,19 @@ mod tests {
         let sig = sig.downcast_ref::<ContainerMetadataSig>().unwrap();
         assert_eq!(sig.res2(), Some(99));
         assert_eq!(meta.f_level, None);
+    }
+
+    #[test]
+    fn crc_like_res1_field_round_trips_as_raw_text() {
+        let input =
+            SigBytes::from("Win.Trojan.Trojan-1059:CL_TYPE_ZIP:*:*:20598:21008:1:1:ba9f27fb:");
+        let (sig, meta) = ContainerMetadataSig::from_sigbytes(&input).unwrap();
+        let sig = sig.downcast_ref::<ContainerMetadataSig>().unwrap();
+
+        assert_eq!(sig.res1_raw(), Some("ba9f27fb"));
+        assert_eq!(sig.res2(), None);
+        assert_eq!(meta.f_level, None);
+        assert_eq!(sig.to_sigbytes().unwrap(), input);
     }
 
     #[test]

@@ -34,7 +34,7 @@ use crate::{
     feature::EngineReq,
     sigbytes::AppendSigBytes,
     signature::{
-        bodysig::{parse::BodySigParseError, BodySig},
+        bodysig::parse::BodySigParseError,
         ext_sig::{self, ExtendedSig, ExtendedSigParseError, Offset},
         targettype::TargetType,
     },
@@ -187,7 +187,12 @@ pub fn parse_bytes(
     }
 
     // Fall through to extended signature
-    let body_sig = BodySig::try_from(bodysig_bytes).map_err(SubSigParseError::BodySigParse)?;
+    let body_sig = crate::signature::bodysig::parse::parse_with_logical_modifier(
+        bodysig_bytes,
+        modifier.is_some_and(|modifier| modifier.widechar),
+        modifier.is_some_and(|modifier| modifier.match_fullword),
+    )
+    .map_err(SubSigParseError::BodySigParse)?;
     let sig = ExtendedSig {
         name: None,
         target_type: TargetType::Any,

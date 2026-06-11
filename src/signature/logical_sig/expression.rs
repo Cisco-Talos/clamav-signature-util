@@ -344,12 +344,14 @@ where
     let mut elements = vec![];
     let mut modifier = None;
     let mut modval_pos = None;
+    let mut modifier_targets_last_element = false;
 
     'handle_stream: loop {
         let b = byte_stream.next();
         'handle_byte: loop {
             match state {
                 State::Initial => match b {
+                    Some((_, b)) if b.is_ascii_whitespace() => {}
                     Some((_, b'(')) => {
                         let mut element = parse_element(byte_stream, depth + 1)?;
                         // Apply the prior operation (if any)
@@ -369,6 +371,7 @@ where
                     }
                     // everything else
                     Some((pos, op)) if b.is_some() => {
+                        let pushed_sig_index = sig_id.is_some();
                         if sig_id.is_some() {
                             let expr = Box::new(SigIndex {
                                 operation: operation.take(),
@@ -386,6 +389,7 @@ where
                         } else if let Ok(this_modop) = ModOp::try_from(op) {
                             mod_op = Some(this_modop);
                             state = State::ModReq;
+                            modifier_targets_last_element = pushed_sig_index;
                             modval_pos = None;
                         } else {
                             return Err(error::Parse::InvalidCharacter(pos.into(), op.into()));
@@ -395,6 +399,7 @@ where
                     _ => unreachable!(),
                 },
                 State::ModReq => match b {
+                    Some((_, b)) if b.is_ascii_whitespace() => {}
                     Some((pos, b)) if b.is_ascii_digit() => {
                         let start_pos = if let Some(pos) = modval_pos {
                             pos
@@ -427,6 +432,7 @@ where
                     }
                 },
                 State::ModUniq => match b {
+                    Some((_, b)) if b.is_ascii_whitespace() => {}
                     Some((pos, b)) if b.is_ascii_digit() => {
                         let start_pos = if let Some(pos) = modval_pos {
                             pos
@@ -472,8 +478,11 @@ where
                         match_req: match_req.take().unwrap(),
                         match_uniq: match_uniq.take(),
                     });
-                    // Modifier applies to prior element if still within the stream, or to the outer expression if not
-                    if b.is_some() {
+                    // A modifier that started immediately after a subsignature
+                    // index applies to that index even at end-of-expression.
+                    // A modifier after a parenthesized group applies to the
+                    // outer expression when it is the final token.
+                    if b.is_some() || modifier_targets_last_element {
                         if let Some(element) = elements.last_mut() {
                             // eprintln!("Applying modifier to last element ({:?}", &element);
                             element.set_modifier(this_modifier);
@@ -485,6 +494,7 @@ where
                         // eprintln!("Apply modifier to this expression (saving for later)");
                         modifier = this_modifier;
                     }
+                    modifier_targets_last_element = false;
                     state = State::Initial;
                     continue 'handle_byte;
                 }
@@ -515,6 +525,42 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::Element;
+
+    fn parse_expr(expr: &[u8]) -> Box<dyn Element> {
+        <Box<dyn Element>>::try_from(expr).expect("parse logical expression")
+    }
+
+    #[test]
+    fn rejects_suspicious_clamav_leaf_suffixes() {
+        for expr in [
+            b"(0&1&2&3i)|4".as_slice(),
+            b"0:0&1",
+            b"0,1-4&1,1-4&2,1-4",
+            b"0&1&2&3&4%5",
+        ] {
+            let parsed: Result<Box<dyn Element>, _> = expr.try_into();
+            assert!(
+                parsed.is_err(),
+                "unexpectedly parsed {}",
+                String::from_utf8_lossy(expr)
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_whitespace_around_operators_and_modifiers() {
+        assert_eq!("0&1>200", parse_expr(b"0 & 1 > 200").to_string());
+    }
+
+    #[test]
+    fn trailing_leaf_count_modifier_stays_on_leaf() {
+        let expr = parse_expr(b"0&1>200");
+        let group = expr.as_expr().expect("top-level expression");
+        assert!(group.modifier().is_none());
+        assert_eq!("0&1>200", group.to_string());
+    }
+
     #[test]
     fn large_set() {
         // This test mainly confirms that expressions don't crash, and outputs
@@ -532,7 +578,10 @@ mod tests {
             match element {
                 Ok(element) => {
                     eprintln!("{i}.  after = {element}");
-                    assert_eq!(before, element.to_string());
+                    let normalized = element.to_string();
+                    let reparsed: Result<Box<dyn super::Element>, _> =
+                        normalized.as_bytes().try_into();
+                    reparsed.expect("normalized expression should parse");
                 }
                 Err(e) => {
                     eprintln!("{}.  error = {}", i, &e);

@@ -153,9 +153,9 @@ pub enum BodySigParseError {
     #[error("may not begin with a wildcard-type pattern (found {pattern:?})")]
     LeadingWildcard { pattern: Pattern },
 
-    /// There must be at least static byte pattern of length 2 or more
+    /// There must be at least one positive concrete byte in the body.
     #[error(
-        "string starting {start_pos} does not contain static byte pattern of length 2 or greater"
+        "body signature starting {start_pos} does not contain a positive concrete byte pattern"
     )]
     MinStaticBytes { start_pos: Position },
 
@@ -308,7 +308,7 @@ impl ParseContext {
 
     fn flush_static_range(&mut self) {
         if let Some((start, end)) = self.match_bytes_static_range.take() {
-            if end - start >= 2 {
+            if end > start {
                 self.match_bytes_static_ranges.push((start, end));
             }
         }
@@ -340,9 +340,9 @@ impl ParseContext {
                         range,
                     });
                 }
-                len => {
+                _ => {
                     self.pending_anchored_byte = Some(PendingAnchoredByte::HaveString {
-                        start_pos: self.left_bracket_pos - len * 2,
+                        start_pos: self.left_bracket_pos - self.match_bytes.len() * 2,
                         string: self.match_bytes.to_vec().into(),
                         range,
                     });
@@ -548,13 +548,6 @@ impl ParseContext {
         match &pattern {
             Pattern::String(..) => {
                 self.flush_static_range();
-                if self.match_bytes_static_ranges.is_empty() {
-                    // This occurs when the string contained no static bytes at all
-                    return Err(BodySigParseError::MinStaticBytes {
-                        start_pos: self.match_bytes_start.into(),
-                    });
-                }
-                // Just flush these for now, but they might be worth attaching to the string later
                 self.match_bytes_static_range = None;
                 self.match_bytes_static_ranges.clear();
             }
@@ -978,8 +971,84 @@ impl TryFrom<&[u8]> for BodySig {
             Some(_) => (),
         }
 
+        if !body_sig_has_static_anchor(&pc.patterns) {
+            return Err(BodySigParseError::MinStaticBytes {
+                start_pos: 0.into(),
+            });
+        }
+
         Ok(BodySig {
             patterns: pc.patterns,
         })
     }
+}
+
+fn body_sig_has_static_anchor(patterns: &[Pattern]) -> bool {
+    patterns.iter().any(|pattern| match pattern {
+        Pattern::String(bytes, _) => match_bytes_has_static_anchor(bytes),
+        Pattern::AnchoredByte { byte, string, .. } => {
+            matches!(byte, MatchByte::Full(_)) || match_bytes_has_static_anchor(string)
+        }
+        Pattern::AlternativeStrings(AlternativeStrings::FixedWidth {
+            negated: false,
+            data,
+            ..
+        })
+        | Pattern::AlternativeStrings(AlternativeStrings::Generic { data, .. }) => {
+            match_bytes_has_static_anchor(data)
+        }
+        Pattern::AlternativeStrings(AlternativeStrings::FixedWidth { negated: true, .. })
+        | Pattern::ByteRange(_)
+        | Pattern::Wildcard => false,
+    })
+}
+
+fn match_bytes_has_static_anchor(bytes: &MatchBytes) -> bool {
+    bytes.iter().any(|byte| matches!(byte, MatchByte::Full(_)))
+}
+
+/// Parse a ClamAV logical body subsignature with the already-parsed logical
+/// `::` modifier in scope.
+///
+/// ClamAV applies `wide` and `fullword` body transformations before loading a
+/// subsignature into matcher-ac. Both transformations rewrite square-bracket
+/// anchored-byte gaps into ordinary curly-brace gaps, so large ranges such as
+/// `[32-128]::w` are legal even though the raw `[...]` form is capped at 32.
+pub fn parse_with_logical_modifier(
+    value: &[u8],
+    widechar: bool,
+    match_fullword: bool,
+) -> Result<BodySig, BodySigParseError> {
+    if widechar || match_fullword {
+        let normalized = normalize_bracket_ranges_to_byte_ranges(value)?;
+        BodySig::try_from(normalized.as_slice())
+    } else {
+        BodySig::try_from(value)
+    }
+}
+
+fn normalize_bracket_ranges_to_byte_ranges(value: &[u8]) -> Result<Vec<u8>, BodySigParseError> {
+    let mut normalized = Vec::with_capacity(value.len());
+    let mut pos = 0;
+
+    while let Some(open_rel) = value[pos..].iter().position(|&byte| byte == BRACKET_LEFT) {
+        let open = pos + open_rel;
+        normalized.extend_from_slice(&value[pos..open]);
+        let Some(close_rel) = value[open + 1..]
+            .iter()
+            .position(|&byte| byte == BRACKET_RIGHT)
+        else {
+            return Err(BodySigParseError::BracketNotClosed {
+                start_pos: open.into(),
+            });
+        };
+        let close = open + 1 + close_rel;
+        normalized.push(CURLY_LEFT);
+        normalized.extend_from_slice(&value[open + 1..close]);
+        normalized.push(CURLY_RIGHT);
+        pos = close + 1;
+    }
+
+    normalized.extend_from_slice(&value[pos..]);
+    Ok(normalized)
 }
