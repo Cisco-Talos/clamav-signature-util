@@ -937,8 +937,13 @@ fn trailing_wildcard() {
 }
 
 #[test]
-fn one_static_byte_after_wildcard_is_legal() {
-    assert!(BodySig::try_from(b"(a?ee|?bff)*aa".as_slice()).is_ok());
+fn one_static_byte_after_wildcard_is_rejected() {
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"(a?ee|?bff)*aa".as_slice())
+    );
 }
 
 #[test]
@@ -960,13 +965,28 @@ fn legal_two_byte_with_fixed_wildcard() {
 }
 
 #[test]
-fn non_static_segment_after_static_anchor_is_legal() {
-    assert!(BodySig::try_from(b"aabb*a?b???{2}".as_slice()).is_ok());
+fn wildcard_split_requires_static_anchor_after_wildcard() {
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"aabb*a?b???{2}".as_slice())
+    );
 }
 
 #[test]
-fn non_static_segment_with_leading_fixed_wildcard_after_anchor_is_legal() {
-    assert!(BodySig::try_from(b"aabb*{2}a?b???{2}".as_slice()).is_ok());
+fn wildcard_split_requires_static_anchor_after_leading_fixed_range() {
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"aabb*{2}a?b???{2}".as_slice())
+    );
+}
+
+#[test]
+fn wildcard_split_accepts_static_anchor_on_both_sides() {
+    assert!(BodySig::try_from(b"aabb*ccdd".as_slice()).is_ok());
 }
 
 #[test]
@@ -1009,11 +1029,16 @@ fn empty_altstr_after_one_static_byte_reports_empty_altstr() {
 }
 
 #[test]
-fn one_static_byte_ahead_of_large_range_is_legal() {
+fn one_static_byte_ahead_of_large_range_is_rejected() {
     if let Err(e) = BodySig::try_from(b"00()aba?".as_slice()) {
         eprintln!("{e}");
     }
-    assert!(BodySig::try_from(b"00{500}aba?".as_slice()).is_ok());
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"00{500}aba?".as_slice())
+    );
 }
 
 #[test]

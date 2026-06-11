@@ -153,9 +153,10 @@ pub enum BodySigParseError {
     #[error("may not begin with a wildcard-type pattern (found {pattern:?})")]
     LeadingWildcard { pattern: Pattern },
 
-    /// There must be at least one positive concrete byte in the body.
+    /// Each unbounded-wildcard-delimited AC body part must contain at least one
+    /// positive two-byte concrete subpattern.
     #[error(
-        "body signature starting {start_pos} does not contain a positive concrete byte pattern"
+        "body signature starting {start_pos} does not contain a positive concrete byte pattern of length 2 or greater"
     )]
     MinStaticBytes { start_pos: Position },
 
@@ -984,11 +985,15 @@ impl TryFrom<&[u8]> for BodySig {
 }
 
 fn body_sig_has_static_anchor(patterns: &[Pattern]) -> bool {
+    patterns
+        .split(|pattern| matches!(pattern, Pattern::Wildcard))
+        .all(body_sig_part_has_static_anchor)
+}
+
+fn body_sig_part_has_static_anchor(patterns: &[Pattern]) -> bool {
     patterns.iter().any(|pattern| match pattern {
         Pattern::String(bytes, _) => match_bytes_has_static_anchor(bytes),
-        Pattern::AnchoredByte { byte, string, .. } => {
-            matches!(byte, MatchByte::Full(_)) || match_bytes_has_static_anchor(string)
-        }
+        Pattern::AnchoredByte { string, .. } => match_bytes_has_static_anchor(string),
         Pattern::AlternativeStrings(AlternativeStrings::FixedWidth {
             negated: false,
             data,
@@ -1004,7 +1009,18 @@ fn body_sig_has_static_anchor(patterns: &[Pattern]) -> bool {
 }
 
 fn match_bytes_has_static_anchor(bytes: &MatchBytes) -> bool {
-    bytes.iter().any(|byte| matches!(byte, MatchByte::Full(_)))
+    let mut run = 0;
+    for byte in bytes.iter() {
+        if matches!(byte, MatchByte::Full(_)) {
+            run += 1;
+            if run >= ANCHORED_BYTE_MATCH_STRING_MIN_BYTES {
+                return true;
+            }
+        } else {
+            run = 0;
+        }
+    }
+    false
 }
 
 /// Parse a ClamAV logical body subsignature with the already-parsed logical
