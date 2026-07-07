@@ -28,6 +28,9 @@ pub mod feature;
 /// File type classification
 pub mod filetype;
 
+/// Detached PKCS#7 code-signing helpers.
+pub mod codesign;
+
 /// Regular expressions
 pub mod regexp;
 
