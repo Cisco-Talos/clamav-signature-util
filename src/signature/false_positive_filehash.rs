@@ -53,7 +53,7 @@ impl Signature for FalsePositiveFileHashSig {
         &self.name
     }
 
-    fn validate(&self, _sigmeta: &SigMeta) -> Result<(), super::SigValidationError> {
+    fn validate(&self, sigmeta: &SigMeta) -> Result<(), super::SigValidationError> {
         // Verify appropriate flevels for wildcard file size and hash type
         match &self.hash {
             Hash::Md5(_) => {
@@ -75,6 +75,7 @@ impl Signature for FalsePositiveFileHashSig {
             }
         }
 
+        self.validate_flevel(sigmeta)?;
         Ok(())
     }
 }
@@ -159,6 +160,10 @@ impl FromSigBytes for FalsePositiveFileHashSig {
                     )),
                 ));
             }
+
+            // If no flevel is specified, use the minimum flevel for a SHA2-256 hash signature.
+            let min_flevel = crate::Feature::HashSha256.min_flevel();
+            sigmeta.f_level = Some((min_flevel..).into());
         }
 
         Ok((
@@ -383,6 +388,18 @@ mod tests {
     }
 
     #[test]
+    fn sha256_known_size_rejects_too_low_explicit_min_flevel() {
+        let bytes =
+            b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:544:sha256_too_low:73"
+                .into();
+        let (sig, sig_meta) = FalsePositiveFileHashSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<FalsePositiveFileHashSig>().unwrap();
+
+        let validate_result = sig.validate(&sig_meta);
+        assert!(validate_result.is_err());
+    }
+
+    #[test]
     fn sha256_unknown_size_should_fail_missing_min_and_max() {
         let bytes = b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_should_fail_missing_min_and_max".into();
         let result = FalsePositiveFileHashSig::from_sigbytes(&bytes);
@@ -400,7 +417,7 @@ mod tests {
 
     #[test]
     fn sha256_unknown_size_min_flevel_good() {
-        let bytes = b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_min_flevel_good:73".into();
+        let bytes = b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_min_flevel_good:74".into();
         let (sig, sig_meta) = FalsePositiveFileHashSig::from_sigbytes(&bytes).unwrap();
         let sig = sig.downcast_ref::<FalsePositiveFileHashSig>().unwrap();
         assert_eq!(sig.name, "sha256_unknown_size_min_flevel_good");
@@ -427,7 +444,7 @@ mod tests {
 
     #[test]
     fn sha256_unknown_size_min_flevel_also_good() {
-        let bytes = b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_min_flevel_also_good:74".into();
+        let bytes = b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_min_flevel_also_good:75".into();
         let (sig, sig_meta) = FalsePositiveFileHashSig::from_sigbytes(&bytes).unwrap();
         let sig = sig.downcast_ref::<FalsePositiveFileHashSig>().unwrap();
         assert_eq!(sig.name, "sha256_unknown_size_min_flevel_also_good");
