@@ -72,21 +72,9 @@ impl Signature for PEImportHashSig {
 
 impl EngineReq for PEImportHashSig {
     fn features(&self) -> Set {
-        Set::from_static(match (self.size, &self.hash) {
-            (None, Hash::Md5(_)) => &[Feature::PEImportHash, Feature::HashSizeUnknown],
-            (None, Hash::Sha1(_)) => &[
-                Feature::PEImportHash,
-                Feature::HashSizeUnknown,
-                Feature::HashSha1,
-            ],
-            (None, Hash::Sha2_256(_)) => &[
-                Feature::PEImportHash,
-                Feature::HashSizeUnknown,
-                Feature::HashSha256,
-            ],
-            (Some(_), Hash::Md5(_)) => &[Feature::PEImportHash],
-            (Some(_), Hash::Sha1(_)) => &[Feature::PEImportHash, Feature::HashSha1],
-            (Some(_), Hash::Sha2_256(_)) => &[Feature::PEImportHash, Feature::HashSha256],
+        Set::from_static(match self.size {
+            None => &[Feature::PEImportHash, Feature::HashSizeUnknown],
+            Some(_) => &[Feature::PEImportHash],
         })
     }
 }
@@ -225,6 +213,11 @@ fn parse_pe_import_hash_sigbytes<'a, SB: Into<&'a SigBytes>>(
             .ok_or(ParseError::MissingField("hash_string".to_string()))?,
     )
     .map_err(ParseError::ParseHash)?;
+    if !matches!(hash, Hash::Md5(_)) {
+        return Err(FromSigBytesParseError::HashSig(
+            ParseError::InvalidValueFor("PE import hash signatures require MD5".to_owned()),
+        ));
+    }
     let size = parse_field!(
         OPTIONAL
         fields,
@@ -333,5 +326,20 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn import_hash_rejects_non_md5_hashes() {
+        for bytes in [
+            b"62dd70f5e7530e0239901ac186f1f9ae39292561:68:Win.Test.IMP-SHA1".as_slice(),
+            b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:68:Win.Test.IMP-SHA256".as_slice(),
+        ] {
+            let error = PEImportHashSig::from_sigbytes(&SigBytes::from(bytes))
+                .expect_err("non-MD5 import hash rejected");
+            assert!(matches!(
+                error,
+                FromSigBytesParseError::HashSig(ParseError::InvalidValueFor(_))
+            ));
+        }
     }
 }

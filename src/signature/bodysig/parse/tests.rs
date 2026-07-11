@@ -490,11 +490,8 @@ fn empty_parens() {
 #[test]
 fn empty_alternative_string() {
     assert_eq!(
-        Ok(BodySig {
-            patterns: vec![Pattern::AlternativeStrings(AlternativeStrings::Generic {
-                ranges: vec![0..0, 0..1, 1..2],
-                data: hex!("1234").into()
-            })]
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
         }),
         BodySig::try_from(b"(|12|34)".as_slice()),
     );
@@ -987,6 +984,36 @@ fn wildcard_split_requires_static_anchor_after_leading_fixed_range() {
 #[test]
 fn wildcard_split_accepts_static_anchor_on_both_sides() {
     assert!(BodySig::try_from(b"aabb*ccdd".as_slice()).is_ok());
+}
+
+#[test]
+fn open_ended_range_split_requires_static_anchor_after_range() {
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"aabb{10-}a?b?".as_slice())
+    );
+}
+
+#[test]
+fn open_ended_range_split_accepts_static_anchor_on_both_sides() {
+    assert!(BodySig::try_from(b"aabb{10-}ccdd".as_slice()).is_ok());
+}
+
+#[test]
+fn fixed_width_alternative_anchor_is_checked_per_alternative() {
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"(aa|bb)*ccdd".as_slice())
+    );
+}
+
+#[test]
+fn fixed_width_alternative_anchor_accepts_two_byte_alternatives() {
+    assert!(BodySig::try_from(b"(aabb|ccdd)*eeff".as_slice()).is_ok());
 }
 
 #[test]

@@ -267,16 +267,24 @@ fn tokenize_ldb_fields(bytes: &[u8]) -> Vec<&[u8]> {
         if byte == b';' && !within_pcre {
             fields.push(&bytes[field_start..pos]);
             field_start = pos + 1;
-        } else if fields.len() >= 2
-            && byte == b'/'
-            && (pos == 0 || bytes[pos.saturating_sub(1)] != b'\\')
-        {
+        } else if fields.len() >= 2 && byte == b'/' && !is_escaped_by_backslash_run(bytes, pos) {
             within_pcre = !within_pcre;
         }
     }
 
     fields.push(&bytes[field_start..]);
     fields
+}
+
+fn is_escaped_by_backslash_run(bytes: &[u8], pos: usize) -> bool {
+    let mut count = 0usize;
+    for byte in bytes[..pos].iter().rev() {
+        if *byte != b'\\' {
+            break;
+        }
+        count += 1;
+    }
+    count % 2 == 1
 }
 
 /*
@@ -446,6 +454,21 @@ mod tests {
         let sig = sig.downcast_ref::<LogicalSig>().unwrap();
 
         assert_eq!(1, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_pcre_subsignature_ending_with_literal_backslash() {
+        let input = concat!(
+            "Demo.Pcre.LiteralBackslash;Engine:90-255,Target:0;0&1;",
+            r"0/\\/",
+            ";6162"
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse backslash pcre");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(2, sig.sub_sigs().len());
     }
 
     #[test]

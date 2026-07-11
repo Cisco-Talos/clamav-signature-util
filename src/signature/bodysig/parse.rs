@@ -986,31 +986,65 @@ impl TryFrom<&[u8]> for BodySig {
 
 fn body_sig_has_static_anchor(patterns: &[Pattern]) -> bool {
     patterns
-        .split(|pattern| matches!(pattern, Pattern::Wildcard))
+        .split(pattern_splits_static_anchor_part)
         .all(body_sig_part_has_static_anchor)
+}
+
+fn pattern_splits_static_anchor_part(pattern: &Pattern) -> bool {
+    match pattern {
+        Pattern::Wildcard => true,
+        Pattern::ByteRange(range) => range.max().is_none(),
+        Pattern::String(..) | Pattern::AnchoredByte { .. } | Pattern::AlternativeStrings(_) => {
+            false
+        }
+    }
 }
 
 fn body_sig_part_has_static_anchor(patterns: &[Pattern]) -> bool {
     patterns.iter().any(|pattern| match pattern {
         Pattern::String(bytes, _) => match_bytes_has_static_anchor(bytes),
         Pattern::AnchoredByte { string, .. } => match_bytes_has_static_anchor(string),
-        Pattern::AlternativeStrings(
-            AlternativeStrings::FixedWidth {
-                negated: false,
-                data,
-                ..
-            }
-            | AlternativeStrings::Generic { data, .. },
-        ) => match_bytes_has_static_anchor(data),
+        Pattern::AlternativeStrings(AlternativeStrings::FixedWidth {
+            negated: false,
+            width,
+            data,
+        }) => fixed_width_alternatives_have_static_anchor(*width, data),
+        Pattern::AlternativeStrings(AlternativeStrings::Generic { ranges, data }) => {
+            generic_alternatives_have_static_anchor(ranges, data)
+        }
         Pattern::AlternativeStrings(AlternativeStrings::FixedWidth { negated: true, .. })
         | Pattern::ByteRange(_)
         | Pattern::Wildcard => false,
     })
 }
 
+fn fixed_width_alternatives_have_static_anchor(width: usize, data: &MatchBytes) -> bool {
+    if width == 0 {
+        return false;
+    }
+    data.bytes
+        .chunks_exact(width)
+        .any(match_byte_slice_has_static_anchor)
+}
+
+fn generic_alternatives_have_static_anchor(
+    ranges: &[std::ops::Range<usize>],
+    data: &MatchBytes,
+) -> bool {
+    ranges.iter().any(|range| {
+        data.bytes
+            .get(range.clone())
+            .is_some_and(match_byte_slice_has_static_anchor)
+    })
+}
+
 fn match_bytes_has_static_anchor(bytes: &MatchBytes) -> bool {
+    match_byte_slice_has_static_anchor(&bytes.bytes)
+}
+
+fn match_byte_slice_has_static_anchor(bytes: &[MatchByte]) -> bool {
     let mut run = 0;
-    for byte in bytes.iter() {
+    for byte in bytes {
         if matches!(byte, MatchByte::Full(_)) {
             run += 1;
             if run >= ANCHORED_BYTE_MATCH_STRING_MIN_BYTES {
