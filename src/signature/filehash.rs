@@ -205,11 +205,11 @@ impl FromSigBytes for FileHashSig {
                         "missing min_flevel for hash with unknown file size: {hash}"
                     )),
                 ));
-            } else {
-                // If no flevel is specified, use the minimum flevel for a SHA2-256 hash signature.
-                let min_flevel = crate::Feature::HashSha256.min_flevel();
-                sigmeta.f_level = Some((min_flevel..).into());
             }
+
+            // If no flevel is specified, use the minimum flevel for a SHA2-256 hash signature.
+            let min_flevel = crate::Feature::HashSha256.min_flevel();
+            sigmeta.f_level = Some((min_flevel..).into());
         }
 
         Ok((
@@ -265,7 +265,8 @@ mod tests {
     #[test]
     fn md5_unknown_size_should_fail_missing_min_and_max() {
         let bytes =
-            b"aa15bcf478d165efd2065190eb473bcb:*:md5_unknown_size_should_fail_missing_min_and_max".into();
+            b"aa15bcf478d165efd2065190eb473bcb:*:md5_unknown_size_should_fail_missing_min_and_max"
+                .into();
         let result = FileHashSig::from_sigbytes(&bytes);
         // Should fail to even parse because ClamAV requires min flevel 73 for wildcard sigs.
         assert!(result.is_err());
@@ -273,7 +274,9 @@ mod tests {
 
     #[test]
     fn md5_unknown_size_should_fail_missing_max() {
-        let bytes = b"aa15bcf478d165efd2065190eb473bcb:*:md5_unknown_size_should_fail_missing_max:73".into();
+        let bytes =
+            b"aa15bcf478d165efd2065190eb473bcb:*:md5_unknown_size_should_fail_missing_max:73"
+                .into();
         let (sig, sig_meta) = FileHashSig::from_sigbytes(&bytes).unwrap();
         let sig = sig.downcast_ref::<FileHashSig>().unwrap();
         assert_eq!(sig.name, "md5_unknown_size_should_fail_missing_max");
@@ -306,7 +309,8 @@ mod tests {
     #[test]
     fn md5_unknown_size_should_fail_max_too_high() {
         let bytes =
-            b"aa15bcf478d165efd2065190eb473bcb:*:md5_unknown_size_should_fail_max_too_high:73:230".into();
+            b"aa15bcf478d165efd2065190eb473bcb:*:md5_unknown_size_should_fail_max_too_high:73:230"
+                .into();
         let (sig, sig_meta) = FileHashSig::from_sigbytes(&bytes).unwrap();
         let sig = sig.downcast_ref::<FileHashSig>().unwrap();
         assert_eq!(sig.name, "md5_unknown_size_should_fail_max_too_high");
@@ -368,7 +372,10 @@ mod tests {
         let bytes = b"62dd70f5e7530e0239901ac186f1f9ae39292561:*:sha1_unknown_size_should_fail_wildcard_not_allowed:73:229".into();
         let (sig, sig_meta) = FileHashSig::from_sigbytes(&bytes).unwrap();
         let sig = sig.downcast_ref::<FileHashSig>().unwrap();
-        assert_eq!(sig.name, "sha1_unknown_size_should_fail_wildcard_not_allowed");
+        assert_eq!(
+            sig.name,
+            "sha1_unknown_size_should_fail_wildcard_not_allowed"
+        );
         assert_eq!(sig.file_size, None);
         assert_eq!(
             sig.hash,
@@ -448,7 +455,10 @@ mod tests {
         let bytes = b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_should_fail_min_still_too_low:229".into();
         let (sig, sig_meta) = FileHashSig::from_sigbytes(&bytes).unwrap();
         let sig = sig.downcast_ref::<FileHashSig>().unwrap();
-        assert_eq!(sig.name, "sha256_unknown_size_should_fail_min_still_too_low");
+        assert_eq!(
+            sig.name,
+            "sha256_unknown_size_should_fail_min_still_too_low"
+        );
         assert_eq!(sig.file_size, None);
         assert_eq!(
             sig.hash,
