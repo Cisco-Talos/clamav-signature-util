@@ -263,9 +263,15 @@ fn tokenize_ldb_fields(bytes: &[u8]) -> Vec<&[u8]> {
     let mut field_start = 0;
 
     for (pos, &byte) in bytes.iter().enumerate() {
-        if byte == b';' && should_split_ldb_field(bytes, field_start, pos, fields.len()) {
+        if byte == b';' {
             fields.push(&bytes[field_start..pos]);
             field_start = pos + 1;
+            if fields.len() == 3 {
+                if let Some(expected_count) = expected_subsig_count(fields[2]) {
+                    tokenize_subsig_fields(bytes, field_start, expected_count, &mut fields);
+                    return fields;
+                }
+            }
         }
     }
 
@@ -273,35 +279,100 @@ fn tokenize_ldb_fields(bytes: &[u8]) -> Vec<&[u8]> {
     fields
 }
 
-fn should_split_ldb_field(bytes: &[u8], field_start: usize, pos: usize, fields_len: usize) -> bool {
-    if fields_len < 3 {
-        return true;
+fn expected_subsig_count(expression: &[u8]) -> Option<usize> {
+    let expression = <Box<dyn expression::Element>>::try_from(expression).ok()?;
+    let mut max_index = None;
+    max_subsig_index(expression.as_ref(), &mut max_index);
+    max_index.map(|index| usize::from(index) + 1)
+}
+
+fn max_subsig_index(element: &dyn expression::Element, max_index: &mut Option<u8>) {
+    if let Some(sig_index) = element.as_sig_index() {
+        *max_index =
+            Some(max_index.map_or(sig_index.sig_index(), |max| max.max(sig_index.sig_index())));
     }
 
-    let field = &bytes[field_start..pos];
-    !pcre_field_may_continue(field)
+    if let Some(expression) = element.as_expr() {
+        for child in expression.elements() {
+            max_subsig_index(child.as_ref(), max_index);
+        }
+    }
 }
 
-fn pcre_field_may_continue(field: &[u8]) -> bool {
-    let Some(first_slash) = field.iter().position(|byte| *byte == b'/') else {
+fn tokenize_subsig_fields<'a>(
+    bytes: &'a [u8],
+    field_start: usize,
+    expected_count: usize,
+    fields: &mut Vec<&'a [u8]>,
+) {
+    if expected_count == 0 {
+        return;
+    }
+
+    let mut subsig_fields = Vec::with_capacity(expected_count);
+    if tokenize_valid_subsig_fields(bytes, field_start, expected_count, &mut subsig_fields) {
+        fields.extend(subsig_fields);
+        return;
+    }
+
+    tokenize_subsig_fields_by_semicolon(bytes, field_start, fields);
+}
+
+fn tokenize_valid_subsig_fields<'a>(
+    bytes: &'a [u8],
+    field_start: usize,
+    remaining_count: usize,
+    fields: &mut Vec<&'a [u8]>,
+) -> bool {
+    if remaining_count == 1 {
+        let field = &bytes[field_start..];
+        if is_valid_subsig_field(field) {
+            fields.push(field);
+            return true;
+        }
         return false;
-    };
-    let Some(last_slash) = field.iter().rposition(|byte| *byte == b'/') else {
-        return true;
-    };
+    }
 
-    last_slash == first_slash
-        || !field[last_slash + 1..]
-            .iter()
-            .copied()
-            .all(is_pcre_flag_byte)
+    for pos in semicolon_positions(bytes, field_start) {
+        let field = &bytes[field_start..pos];
+        if !is_valid_subsig_field(field) {
+            continue;
+        }
+
+        fields.push(field);
+        if tokenize_valid_subsig_fields(bytes, pos + 1, remaining_count - 1, fields) {
+            return true;
+        }
+        fields.pop();
+    }
+
+    false
 }
 
-fn is_pcre_flag_byte(byte: u8) -> bool {
-    matches!(
-        byte,
-        b'g' | b'r' | b'e' | b'i' | b's' | b'm' | b'x' | b'A' | b'E' | b'U'
-    )
+fn is_valid_subsig_field(field: &[u8]) -> bool {
+    let (modifier, subsig_bytes) = find_modifier(field);
+    subsig::parse_bytes(subsig_bytes, modifier).is_ok()
+}
+
+fn semicolon_positions(bytes: &[u8], start: usize) -> impl Iterator<Item = usize> + '_ {
+    bytes
+        .iter()
+        .enumerate()
+        .skip(start)
+        .filter_map(|(pos, byte)| (*byte == b';').then_some(pos))
+}
+
+fn tokenize_subsig_fields_by_semicolon<'a>(
+    bytes: &'a [u8],
+    field_start: usize,
+    fields: &mut Vec<&'a [u8]>,
+) {
+    let mut field_start = field_start;
+    for pos in semicolon_positions(bytes, field_start) {
+        fields.push(&bytes[field_start..pos]);
+        field_start = pos + 1;
+    }
+    fields.push(&bytes[field_start..]);
 }
 
 /*
@@ -471,6 +542,34 @@ mod tests {
         let sig = sig.downcast_ref::<LogicalSig>().unwrap();
 
         assert_eq!(1, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_pcre_subsignature_when_inner_slash_suffix_looks_like_flags() {
+        let input = concat!(
+            "Demo.Pcre.InnerSlashFlags;Engine:90-255,Target:0;0;",
+            r#"0/foo/g;bar/"#
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse flag-like inner slash pcre");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(1, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn splits_after_pcre_with_inner_semicolon_before_following_subsignature() {
+        let input = concat!(
+            "Demo.Pcre.InnerSlashThenBody;Engine:90-255,Target:0;0&1;",
+            r#"0/foo/g;bar/;4142"#
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse pcre and body subsig");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(2, sig.sub_sigs().len());
     }
 
     #[test]
