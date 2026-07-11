@@ -97,7 +97,7 @@ impl SigType {
             "hdb" | "hsb" | "hdu" | "hsu" => SigType::FileHash,
             // False positive file hash signatures
             "sfp" | "fp" => SigType::FalsePositiveFileHash,
-            // PE section has signatures
+            // PE section hash signatures
             "mdb" | "msb" | "mdu" | "msu" => SigType::PESectionHash,
 
             // Filetype Magic signatures
@@ -109,6 +109,7 @@ impl SigType {
             //
             // Digital signatures
             //
+            #[cfg(feature = "codesign")]
             "sign" => SigType::DigitalSignature,
 
             _ => return None,
@@ -138,5 +139,17 @@ mod tests {
             SigType::from_file_extension("sfp"),
             Some(SigType::FalsePositiveFileHash)
         ));
+    }
+
+    #[test]
+    fn digital_signature_extension_requires_codesign_feature() {
+        #[cfg(feature = "codesign")]
+        assert!(matches!(
+            SigType::from_file_extension("sign"),
+            Some(SigType::DigitalSignature)
+        ));
+
+        #[cfg(not(feature = "codesign"))]
+        assert!(SigType::from_file_extension("sign").is_none());
     }
 }

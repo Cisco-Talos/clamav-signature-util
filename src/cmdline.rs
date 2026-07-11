@@ -186,6 +186,8 @@ fn unsupported_signature_type_message(extension: &str) -> Option<&'static str> {
             "Support for deprecated types .zmd, .rmd, and .db are not yet implemented."
         }
         "cfg" => "Support for .cfg is not yet implemented.",
+        #[cfg(not(feature = "codesign"))]
+        "sign" => "Support for .sign requires the codesign feature.",
         _ => return None,
     })
 }
@@ -319,6 +321,13 @@ mod tests {
             unsupported_signature_type_message("cfg"),
             Some("Support for .cfg is not yet implemented.")
         );
+        #[cfg(not(feature = "codesign"))]
+        assert_eq!(
+            unsupported_signature_type_message("sign"),
+            Some("Support for .sign requires the codesign feature.")
+        );
+        #[cfg(feature = "codesign")]
+        assert_eq!(unsupported_signature_type_message("sign"), None);
         assert_eq!(unsupported_signature_type_message("ndb"), None);
     }
 }
