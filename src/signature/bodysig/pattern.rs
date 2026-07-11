@@ -236,7 +236,11 @@ impl Pattern {
 
     #[must_use]
     pub fn is_unbounded_wildcard(&self) -> bool {
-        matches!(self, Self::Wildcard)
+        match self {
+            Self::Wildcard => true,
+            Self::ByteRange(range) => range.max().is_none(),
+            _ => false,
+        }
     }
 }
 
@@ -380,6 +384,15 @@ mod tests {
         let wildcard = Pattern::Wildcard;
         assert!(wildcard.is_unbounded_wildcard());
         assert!(wildcard.byte_range().is_none());
+
+        let open_ended_range = Pattern::ByteRange((3..).into());
+        assert!(open_ended_range.is_unbounded_wildcard());
+        assert!(matches!(
+            open_ended_range.byte_range(),
+            Some(Range::From(bounds)) if bounds.start == 3
+        ));
+
+        assert!(!range.is_unbounded_wildcard());
     }
 
     #[test]
