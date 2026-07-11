@@ -58,7 +58,7 @@ impl ByteOptions {
 
     #[must_use]
     pub fn evaluate_if_can_extract(&self) -> bool {
-        self.evaluate_if_can_extract
+        self.evaluate_if_can_extract || self.encoding == Some(Encoding::RawBinary)
     }
 
     #[must_use]
@@ -120,7 +120,14 @@ mod tests {
             let options = ByteOptions::from_bytes(&[b'i', width]).expect("parse raw-binary width");
             assert_eq!(options.encoding(), Some(Encoding::RawBinary));
             assert_eq!(options.extract_bytes(), width - b'0');
+            assert!(options.evaluate_if_can_extract());
         }
+    }
+
+    #[test]
+    fn raw_binary_exact_extraction_is_implicit() {
+        let options = ByteOptions::from_bytes(b"i4").expect("parse raw-binary byte option");
+        assert!(options.evaluate_if_can_extract());
     }
 
     #[test]

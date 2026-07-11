@@ -138,7 +138,7 @@ fn process_dir(path: &Path, opt: &Opt) -> Result<()> {
                     continue;
                 }
                 if let Err(e) = process_path(&dirent.path(), opt) {
-                    println!("Error processing path {}: {e}", dirent.path().display());
+                    eprintln!("Error processing path {}: {e}", dirent.path().display());
                     err_count += 1;
                 }
             }
@@ -170,11 +170,22 @@ fn process_file(path: &Path, opt: &Opt) -> Result<()> {
         let mut fh = File::open(path)?;
         process_sigs(opt, sig_type, &mut fh)?;
     } else if let Some(message) = unsupported_signature_type_message(extension) {
-        eprintln!(" {message}");
+        eprintln!("{prefix}{message}", prefix = diagnostic_prefix(opt));
     } else {
-        eprintln!(" file extension {extension} doesn't map to known signature type");
+        eprintln!(
+            "{prefix}file extension {extension} doesn't map to known signature type",
+            prefix = diagnostic_prefix(opt)
+        );
     }
     Ok(())
+}
+
+fn diagnostic_prefix(opt: &Opt) -> &'static str {
+    if opt.verbose {
+        " "
+    } else {
+        ""
+    }
 }
 
 fn unsupported_signature_type_message(extension: &str) -> Option<&'static str> {
