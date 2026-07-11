@@ -310,7 +310,14 @@ fn tokenize_subsig_fields<'a>(
     }
 
     let mut subsig_fields = Vec::with_capacity(expected_count);
-    if tokenize_valid_subsig_fields(bytes, field_start, expected_count, &mut subsig_fields) {
+    let mut failed_states = std::collections::HashSet::new();
+    if tokenize_valid_subsig_fields(
+        bytes,
+        field_start,
+        expected_count,
+        &mut subsig_fields,
+        &mut failed_states,
+    ) {
         fields.extend(subsig_fields);
         return;
     }
@@ -323,13 +330,19 @@ fn tokenize_valid_subsig_fields<'a>(
     field_start: usize,
     remaining_count: usize,
     fields: &mut Vec<&'a [u8]>,
+    failed_states: &mut std::collections::HashSet<(usize, usize)>,
 ) -> bool {
+    if failed_states.contains(&(field_start, remaining_count)) {
+        return false;
+    }
+
     if remaining_count == 1 {
         let field = &bytes[field_start..];
         if is_valid_subsig_field(field) {
             fields.push(field);
             return true;
         }
+        failed_states.insert((field_start, remaining_count));
         return false;
     }
 
@@ -340,12 +353,14 @@ fn tokenize_valid_subsig_fields<'a>(
         }
 
         fields.push(field);
-        if tokenize_valid_subsig_fields(bytes, pos + 1, remaining_count - 1, fields) {
+        if tokenize_valid_subsig_fields(bytes, pos + 1, remaining_count - 1, fields, failed_states)
+        {
             return true;
         }
         fields.pop();
     }
 
+    failed_states.insert((field_start, remaining_count));
     false
 }
 

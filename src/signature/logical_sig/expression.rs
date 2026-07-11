@@ -351,7 +351,14 @@ where
         'handle_byte: loop {
             match state {
                 State::Initial => match b {
-                    Some((_, b)) if b.is_ascii_whitespace() => {}
+                    Some((pos, b)) if b.is_ascii_whitespace() => {
+                        if sig_id.is_some()
+                            && next_non_whitespace(byte_stream.clone())
+                                .is_some_and(|(_, byte)| byte.is_ascii_digit())
+                        {
+                            return Err(error::Parse::InvalidCharacter(pos.into(), b.into()));
+                        }
+                    }
                     Some((_, b'(')) => {
                         let mut element = parse_element(byte_stream, depth + 1)?;
                         // Apply the prior operation (if any)
@@ -399,7 +406,14 @@ where
                     _ => unreachable!(),
                 },
                 State::ModReq => match b {
-                    Some((_, b)) if b.is_ascii_whitespace() => {}
+                    Some((pos, b)) if b.is_ascii_whitespace() => {
+                        if match_req.is_some()
+                            && next_non_whitespace(byte_stream.clone())
+                                .is_some_and(|(_, byte)| byte.is_ascii_digit())
+                        {
+                            return Err(error::Parse::InvalidCharacter(pos.into(), b.into()));
+                        }
+                    }
                     Some((pos, b)) if b.is_ascii_digit() => {
                         let start_pos = if let Some(pos) = modval_pos {
                             pos
@@ -432,7 +446,14 @@ where
                     }
                 },
                 State::ModUniq => match b {
-                    Some((_, b)) if b.is_ascii_whitespace() => {}
+                    Some((pos, b)) if b.is_ascii_whitespace() => {
+                        if match_uniq.is_some()
+                            && next_non_whitespace(byte_stream.clone())
+                                .is_some_and(|(_, byte)| byte.is_ascii_digit())
+                        {
+                            return Err(error::Parse::InvalidCharacter(pos.into(), b.into()));
+                        }
+                    }
                     Some((pos, b)) if b.is_ascii_digit() => {
                         let start_pos = if let Some(pos) = modval_pos {
                             pos
@@ -523,6 +544,13 @@ where
     }))
 }
 
+fn next_non_whitespace<B>(mut byte_stream: B) -> Option<(usize, u8)>
+where
+    B: Iterator<Item = (usize, u8)>,
+{
+    byte_stream.find(|(_, byte)| !byte.is_ascii_whitespace())
+}
+
 #[cfg(test)]
 mod tests {
     use super::Element;
@@ -551,6 +579,18 @@ mod tests {
     #[test]
     fn accepts_whitespace_around_operators_and_modifiers() {
         assert_eq!("0&1>200", parse_expr(b"0 & 1 > 200").to_string());
+    }
+
+    #[test]
+    fn rejects_whitespace_inside_logical_numbers() {
+        for expr in [b"1 2&0".as_slice(), b"0&1>2 00", b"0&1>2,0 1"] {
+            let parsed: Result<Box<dyn Element>, _> = expr.try_into();
+            assert!(
+                parsed.is_err(),
+                "unexpectedly parsed {}",
+                String::from_utf8_lossy(expr)
+            );
+        }
     }
 
     #[test]
