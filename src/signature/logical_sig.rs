@@ -261,14 +261,11 @@ fn find_modifier(haystack: &[u8]) -> (Option<SubSigModifier>, &[u8]) {
 fn tokenize_ldb_fields(bytes: &[u8]) -> Vec<&[u8]> {
     let mut fields = Vec::new();
     let mut field_start = 0;
-    let mut within_pcre = false;
 
     for (pos, &byte) in bytes.iter().enumerate() {
-        if byte == b';' && !within_pcre {
+        if byte == b';' && should_split_ldb_field(bytes, field_start, pos, fields.len()) {
             fields.push(&bytes[field_start..pos]);
             field_start = pos + 1;
-        } else if fields.len() >= 2 && byte == b'/' && !is_escaped_by_backslash_run(bytes, pos) {
-            within_pcre = !within_pcre;
         }
     }
 
@@ -276,15 +273,35 @@ fn tokenize_ldb_fields(bytes: &[u8]) -> Vec<&[u8]> {
     fields
 }
 
-fn is_escaped_by_backslash_run(bytes: &[u8], pos: usize) -> bool {
-    let mut count = 0usize;
-    for byte in bytes[..pos].iter().rev() {
-        if *byte != b'\\' {
-            break;
-        }
-        count += 1;
+fn should_split_ldb_field(bytes: &[u8], field_start: usize, pos: usize, fields_len: usize) -> bool {
+    if fields_len < 3 {
+        return true;
     }
-    count % 2 == 1
+
+    let field = &bytes[field_start..pos];
+    !pcre_field_may_continue(field)
+}
+
+fn pcre_field_may_continue(field: &[u8]) -> bool {
+    let Some(first_slash) = field.iter().position(|byte| *byte == b'/') else {
+        return false;
+    };
+    let Some(last_slash) = field.iter().rposition(|byte| *byte == b'/') else {
+        return true;
+    };
+
+    last_slash == first_slash
+        || !field[last_slash + 1..]
+            .iter()
+            .copied()
+            .all(is_pcre_flag_byte)
+}
+
+fn is_pcre_flag_byte(byte: u8) -> bool {
+    matches!(
+        byte,
+        b'g' | b'r' | b'e' | b'i' | b's' | b'm' | b'x' | b'A' | b'E' | b'U'
+    )
 }
 
 /*
@@ -440,6 +457,20 @@ mod tests {
         let sig = sig.downcast_ref::<LogicalSig>().unwrap();
 
         assert_eq!(2, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_pcre_subsignature_with_inner_slash_before_semicolon() {
+        let input = concat!(
+            "Demo.Pcre.InnerSlashSemicolon;Engine:90-255,Target:0;0;",
+            r#"0/foo/bar;baz/"#
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse inner slash pcre");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(1, sig.sub_sigs().len());
     }
 
     #[test]
