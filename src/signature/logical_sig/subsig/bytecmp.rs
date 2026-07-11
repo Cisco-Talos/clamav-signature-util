@@ -138,14 +138,17 @@ impl AppendSigBytes for ByteCmpSubSig {
 }
 
 impl ByteCmpSubSig {
+    #[must_use]
     pub fn subsigid_trigger(&self) -> u8 {
         self.subsigid_trigger
     }
 
+    #[must_use]
     pub fn offset(&self) -> &Offset {
         &self.offset
     }
 
+    #[must_use]
     pub fn byte_options(&self) -> &ByteOptions {
         &self.byte_options
     }
@@ -154,6 +157,7 @@ impl ByteCmpSubSig {
         self.comparisons.iter().filter_map(Option::as_ref)
     }
 
+    #[must_use]
     pub fn modifier(&self) -> Option<SubSigModifier> {
         self.modifier
     }

@@ -46,18 +46,22 @@ pub enum ByteOptionsParseError {
 }
 
 impl ByteOptions {
+    #[must_use]
     pub fn encoding(&self) -> Option<Encoding> {
         self.encoding
     }
 
+    #[must_use]
     pub fn endianness(&self) -> Option<Endianness> {
         self.endianness
     }
 
+    #[must_use]
     pub fn evaluate_if_can_extract(&self) -> bool {
         self.evaluate_if_can_extract
     }
 
+    #[must_use]
     pub fn extract_bytes(&self) -> u8 {
         self.extract_bytes
     }
@@ -89,11 +93,7 @@ impl ByteOptions {
         if encoding == Some(Encoding::Decimal) {
             match endianness {
                 Some(Endianness::Little) => return Err(ByteOptionsParseError::IncompatibleOptions),
-                None => {
-                    if encoding == Some(Encoding::Decimal) {
-                        endianness = Some(Endianness::Big);
-                    }
-                }
+                None => endianness = Some(Endianness::Big),
                 _ => (),
             }
         }

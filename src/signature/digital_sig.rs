@@ -89,7 +89,7 @@ impl std::fmt::Debug for DigitalSig {
 }
 
 impl Signature for DigitalSig {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Digital Signature"
     }
 }
@@ -184,7 +184,7 @@ impl FromSigBytes for DigitalSig {
             return Err(FromSigBytesParseError::MissingField(
                 "max_flevel".to_string(),
             ));
-        };
+        }
 
         // parse the signature format
         let signature_format = fields

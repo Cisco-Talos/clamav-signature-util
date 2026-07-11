@@ -246,7 +246,6 @@ fn find_modifier(haystack: &[u8]) -> (Option<SubSigModifier>, &[u8]) {
                 b'f' => modifier.match_fullword = true,
                 b':' => {
                     state = State::ReadDelimiter;
-                    continue;
                 }
                 _ => break,
             },

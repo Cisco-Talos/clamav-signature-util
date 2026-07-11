@@ -81,7 +81,7 @@ pub enum Operation {
 /// signature.
 pub struct SigIndex {
     operation: Option<Operation>,
-    sig_index: u8,
+    index: u8,
     modifier: Option<Modifier>,
 }
 
@@ -126,7 +126,7 @@ impl Expr {
 impl SigIndex {
     #[must_use]
     pub fn sig_index(&self) -> u8 {
-        self.sig_index
+        self.index
     }
 
     #[must_use]
@@ -272,7 +272,7 @@ impl fmt::Display for SigIndex {
         if let Some(op) = self.operation() {
             write!(f, "{op}")?;
         }
-        write!(f, "{}", self.sig_index)?;
+        write!(f, "{}", self.index)?;
         if let Some(modifier) = &self.modifier {
             write!(f, "{}{}", modifier.mod_op, modifier.match_req)?;
             if let Some(match_uniq) = modifier.match_uniq {
@@ -375,7 +375,7 @@ where
                         if sig_id.is_some() {
                             let expr = Box::new(SigIndex {
                                 operation: operation.take(),
-                                sig_index: sig_id.take().unwrap(),
+                                index: sig_id.take().unwrap(),
                                 modifier: modifier.take(),
                             });
                             elements.push(expr);
@@ -507,7 +507,7 @@ where
     if let Some(sig_id) = sig_id {
         let expr = Box::new(SigIndex {
             operation: operation.take(),
-            sig_index: sig_id,
+            index: sig_id,
             // modifier: modifier.take(),
             modifier: None,
         });

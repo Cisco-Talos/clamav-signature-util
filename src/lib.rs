@@ -21,6 +21,11 @@
 //! An API for ingesting and validating ClamAV signatures
 
 #![deny(clippy::mod_module_files)]
+#![allow(
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc
+)]
 
 /// Functionality associated with engine features
 pub mod feature;

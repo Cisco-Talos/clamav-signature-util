@@ -137,11 +137,17 @@ impl Verifier {
             }
 
             let Ok(cert_bytes) = std::fs::read(&path) else {
-                log::debug!("error reading certificate file {path:?}; skipping");
+                log::debug!(
+                    "error reading certificate file {path}; skipping",
+                    path = path.display()
+                );
                 continue;
             };
             let Ok(certs) = X509::stack_from_pem(&cert_bytes) else {
-                log::debug!("error parsing certificate file {path:?}; skipping");
+                log::debug!(
+                    "error parsing certificate file {path}; skipping",
+                    path = path.display()
+                );
                 continue;
             };
             for cert in certs {
@@ -155,6 +161,7 @@ impl Verifier {
         })
     }
 
+    #[must_use]
     pub fn certs_directory(&self) -> &Path {
         &self.certs_directory
     }
@@ -183,8 +190,8 @@ impl Verifier {
             Ok(()) => Ok(signer_names.join(", ")),
             Err(error) if openssl_error_looks_untrusted(&error) => {
                 log::debug!(
-                    "signature could not be verified by cert store {:?}: {error}",
-                    self.certs_directory
+                    "signature could not be verified by cert store {certs_directory}: {error}",
+                    certs_directory = self.certs_directory.display()
                 );
                 Err(Error::NoTrustedSigner)
             }
@@ -198,7 +205,6 @@ fn cert_common_name(cert: &openssl::x509::X509Ref) -> Option<String> {
         .entries()
         .find(|entry| entry.object().nid() == openssl::nid::Nid::COMMONNAME)
         .map(|entry| String::from_utf8_lossy(entry.data().as_slice()).into_owned())
-        .map(|name| name.to_string())
 }
 
 fn openssl_error_looks_untrusted(error: &openssl::error::ErrorStack) -> bool {

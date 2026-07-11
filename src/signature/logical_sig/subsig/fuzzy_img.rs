@@ -79,21 +79,24 @@ impl AppendSigBytes for FuzzyImgSubSig {
         sb.try_reserve_exact(size_hint)?;
         write!(sb, "fuzzy_img#{}", self.hash_string)?;
         if let Some(distance) = self.hamming_distance {
-            write!(sb, "#{}", distance)?;
+            write!(sb, "#{distance}")?;
         }
         Ok(())
     }
 }
 
 impl FuzzyImgSubSig {
+    #[must_use]
     pub fn hash_string(&self) -> &str {
         &self.hash_string
     }
 
+    #[must_use]
     pub fn hamming_distance(&self) -> Option<isize> {
         self.hamming_distance
     }
 
+    #[must_use]
     pub fn modifier(&self) -> Option<SubSigModifier> {
         self.modifier
     }

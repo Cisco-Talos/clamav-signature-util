@@ -994,14 +994,14 @@ fn body_sig_part_has_static_anchor(patterns: &[Pattern]) -> bool {
     patterns.iter().any(|pattern| match pattern {
         Pattern::String(bytes, _) => match_bytes_has_static_anchor(bytes),
         Pattern::AnchoredByte { string, .. } => match_bytes_has_static_anchor(string),
-        Pattern::AlternativeStrings(AlternativeStrings::FixedWidth {
-            negated: false,
-            data,
-            ..
-        })
-        | Pattern::AlternativeStrings(AlternativeStrings::Generic { data, .. }) => {
-            match_bytes_has_static_anchor(data)
-        }
+        Pattern::AlternativeStrings(
+            AlternativeStrings::FixedWidth {
+                negated: false,
+                data,
+                ..
+            }
+            | AlternativeStrings::Generic { data, .. },
+        ) => match_bytes_has_static_anchor(data),
         Pattern::AlternativeStrings(AlternativeStrings::FixedWidth { negated: true, .. })
         | Pattern::ByteRange(_)
         | Pattern::Wildcard => false,

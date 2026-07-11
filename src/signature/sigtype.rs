@@ -69,6 +69,8 @@ impl SigType {
     /// if the extension is not recognized.
     #[must_use]
     pub fn from_file_extension(ext: &str) -> Option<Self> {
+        // Additional ClamAV extensions that are not mapped here yet include:
+        // crb, info, idb, zmd, rmd, db, and cfg.
         Some(match ext {
             //
             // Body-based signatures
@@ -89,40 +91,13 @@ impl SigType {
             // Hash-based signatures
             //
 
-            // File hash signatures
-            "hdb" | "hsb" | "hdu" | "hsu" => SigType::FileHash,
+            // File hash signatures and false positive lists
+            "hdb" | "hsb" | "hdu" | "hsu" | "sfp" | "fp" => SigType::FileHash,
             // PE section has signatures
             "mdb" | "msb" | "mdu" | "msu" => SigType::PESectionHash,
 
             // Filetype Magic signatures
             "ftm" => SigType::FTMagic,
-
-            // Trusted and Revoked Certificates
-            "crb" => {
-                return None;
-            }
-
-            // False positive list
-            "sfp" | "fp" => SigType::FileHash,
-
-            "info" => {
-                return None;
-            }
-
-            // Icon signatures
-            "idb" => {
-                return None;
-            }
-
-            // Deprecated types
-            "zmd" | "rmd" | "db" => {
-                return None;
-            }
-
-            // Configuration
-            "cfg" => {
-                return None;
-            }
 
             // Imp hash
             "imp" => SigType::PEImportHash,

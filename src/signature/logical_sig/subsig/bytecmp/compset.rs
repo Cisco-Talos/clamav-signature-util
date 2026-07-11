@@ -54,14 +54,17 @@ pub enum ComparisonSetParseError {
 }
 
 impl ComparisonSet {
+    #[must_use]
     pub fn symbol(&self) -> ComparisonOp {
         self.symbol
     }
 
+    #[must_use]
     pub fn value(&self) -> i64 {
         self.value
     }
 
+    #[must_use]
     pub fn encoding(&self) -> Encoding {
         self.encoding
     }
@@ -100,8 +103,7 @@ impl TryFrom<&[u8]> for ComparisonSet {
         } else {
             (
                 Encoding::Decimal,
-                parse_number_dec::<i64>(remainder).map_err(ComparisonSetParseError::ParseValue)?
-                    as i64,
+                parse_number_dec::<i64>(remainder).map_err(ComparisonSetParseError::ParseValue)?,
             )
         };
 

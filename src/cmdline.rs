@@ -1,3 +1,9 @@
+#![allow(
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc
+)]
+
 /*
  *  Copyright (C) 2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
  *
@@ -91,7 +97,7 @@ pub fn main() -> Result<()> {
         let mut err_count = 0;
         for path in opt.paths.iter().map(PathBuf::as_path) {
             if let Err(e) = process_path(path, &opt) {
-                eprintln!("processing {path:?}: {e}");
+                eprintln!("processing {path}: {e}", path = path.display());
                 err_count += 1;
             }
         }
@@ -132,12 +138,12 @@ fn process_dir(path: &Path, opt: &Opt) -> Result<()> {
                     continue;
                 }
                 if let Err(e) = process_path(&dirent.path(), opt) {
-                    println!("Error processing path {:?}: {}", dirent.path(), e);
+                    println!("Error processing path {}: {e}", dirent.path().display());
                     err_count += 1;
                 }
             }
             Err(e) => {
-                eprintln!("Error reading directory {path:?}: {e}");
+                eprintln!("Error reading directory {path}: {e}", path = path.display());
                 err_count += 1;
             }
         }
@@ -152,7 +158,7 @@ fn process_dir(path: &Path, opt: &Opt) -> Result<()> {
 
 fn process_file(path: &Path, opt: &Opt) -> Result<()> {
     if opt.verbose {
-        eprint!("{path:?}:");
+        eprint!("{path}:", path = path.display());
     }
 
     let extension = path
@@ -166,39 +172,9 @@ fn process_file(path: &Path, opt: &Opt) -> Result<()> {
     } else if let Some(message) = unsupported_signature_type_message(extension) {
         eprintln!(" {message}");
     } else {
-        eprintln!(" file extension {extension:?} doesn't map to known signature type");
+        eprintln!(" file extension {extension} doesn't map to known signature type");
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::unsupported_signature_type_message;
-
-    #[test]
-    fn unsupported_signature_type_messages_are_cli_owned() {
-        assert_eq!(
-            unsupported_signature_type_message("crb"),
-            Some("Support for .crb is not yet implemented.")
-        );
-        assert_eq!(
-            unsupported_signature_type_message("info"),
-            Some("Support for .info is not yet implemented.")
-        );
-        assert_eq!(
-            unsupported_signature_type_message("idb"),
-            Some("Support for .idb is not yet implemented.")
-        );
-        assert_eq!(
-            unsupported_signature_type_message("db"),
-            Some("Support for deprecated types .zmd, .rmd, and .db are not yet implemented.")
-        );
-        assert_eq!(
-            unsupported_signature_type_message("cfg"),
-            Some("Support for .cfg is not yet implemented.")
-        );
-        assert_eq!(unsupported_signature_type_message("ndb"), None);
-    }
 }
 
 fn unsupported_signature_type_message(extension: &str) -> Option<&'static str> {
@@ -230,7 +206,7 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
         sigbuf.clear();
         if fh.read_until(b'\n', &mut sigbuf)? == 0 {
             break;
-        };
+        }
         line_no += 1;
         if sigbuf.starts_with(b"#") {
             // comment
@@ -315,4 +291,34 @@ fn process_sigs<F: Read>(opt: &Opt, sig_type: SigType, fh: &mut F) -> Result<()>
         return Err(anyhow!("{} errors encountered", err_count));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::unsupported_signature_type_message;
+
+    #[test]
+    fn unsupported_signature_type_messages_are_cli_owned() {
+        assert_eq!(
+            unsupported_signature_type_message("crb"),
+            Some("Support for .crb is not yet implemented.")
+        );
+        assert_eq!(
+            unsupported_signature_type_message("info"),
+            Some("Support for .info is not yet implemented.")
+        );
+        assert_eq!(
+            unsupported_signature_type_message("idb"),
+            Some("Support for .idb is not yet implemented.")
+        );
+        assert_eq!(
+            unsupported_signature_type_message("db"),
+            Some("Support for deprecated types .zmd, .rmd, and .db are not yet implemented.")
+        );
+        assert_eq!(
+            unsupported_signature_type_message("cfg"),
+            Some("Support for .cfg is not yet implemented.")
+        );
+        assert_eq!(unsupported_signature_type_message("ndb"), None);
+    }
 }

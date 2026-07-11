@@ -46,14 +46,17 @@ pub enum Modifier {
 }
 
 impl Offset {
+    #[must_use]
     pub fn modifier(&self) -> Modifier {
         self.modifier
     }
 
+    #[must_use]
     pub fn offset(&self) -> isize {
         self.offset
     }
 
+    #[must_use]
     pub fn encoding(&self) -> Encoding {
         self.encoding
     }

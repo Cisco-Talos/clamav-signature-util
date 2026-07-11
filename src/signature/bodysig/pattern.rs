@@ -248,7 +248,7 @@ impl std::fmt::Debug for Pattern {
                 tfmt.field(mbs);
                 if !pmod.is_empty() {
                     tfmt.field(pmod);
-                };
+                }
                 tfmt.finish()
             }
             Self::Wildcard => f.write_str("Wildcard"),

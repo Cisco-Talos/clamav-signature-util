@@ -66,7 +66,7 @@ impl TryFrom<&[u8]> for ContainerSize {
     type Error = ParseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.iter().any(|&b| b == b'-') {
+        if value.contains(&b'-') {
             Ok(ContainerSize::Range(parse_range_inclusive(value)?))
         } else {
             Ok(ContainerSize::Exact(parse_number_dec(value)?))
@@ -75,7 +75,7 @@ impl TryFrom<&[u8]> for ContainerSize {
 }
 
 pub fn parse(bytes: &[u8]) -> Result<ContainerSize, ParseError> {
-    if bytes.iter().any(|&b| b == b'-') {
+    if bytes.contains(&b'-') {
         Ok(ContainerSize::Range(parse_range_inclusive(bytes)?))
     } else {
         Ok(ContainerSize::Exact(parse_number_dec(bytes)?))
