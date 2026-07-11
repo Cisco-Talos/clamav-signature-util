@@ -21,6 +21,7 @@ pub mod bodysig;
 /// Container Metadata signature support
 pub mod container_metadata_sig;
 /// Digital signature support
+#[cfg(feature = "codesign")]
 pub mod digital_sig;
 /// Extended signature support
 pub mod ext_sig;
@@ -229,11 +230,35 @@ pub fn parse_from_cvd_with_meta(
         }
         SigType::PhishingURL => phishing_sig::PhishingSig::from_sigbytes(data)?,
         SigType::FTMagic => ftmagic::FTMagicSig::from_sigbytes(data)?,
-        SigType::DigitalSignature => digital_sig::DigitalSig::from_sigbytes(data)?,
+        SigType::DigitalSignature => {
+            #[cfg(feature = "codesign")]
+            {
+                digital_sig::DigitalSig::from_sigbytes(data)?
+            }
+            #[cfg(not(feature = "codesign"))]
+            {
+                return Err(FromSigBytesParseError::UnsupportedSigType);
+            }
+        }
         _ => return Err(FromSigBytesParseError::UnsupportedSigType),
     };
 
     Ok((sig, sigmeta))
+}
+
+#[cfg(all(test, not(feature = "codesign")))]
+mod tests {
+    use super::{parse_from_cvd_with_meta, FromSigBytesParseError};
+    use crate::{sigbytes::SigBytes, SigType};
+
+    #[cfg(not(feature = "codesign"))]
+    #[test]
+    fn digital_signature_records_are_unsupported_without_codesign_feature() {
+        let bytes = SigBytes::from("90::pkcs7-pem:AAAA");
+        let error = parse_from_cvd_with_meta(SigType::DigitalSignature, &bytes)
+            .expect_err("codesign-disabled builds should not parse ClamAV .sign records");
+        assert_eq!(error, FromSigBytesParseError::UnsupportedSigType);
+    }
 }
 
 /// Errors that can be encountered while parsing signature input

@@ -29,6 +29,7 @@ pub mod feature;
 pub mod filetype;
 
 /// Detached PKCS#7 code-signing helpers.
+#[cfg(feature = "codesign")]
 pub mod codesign;
 
 /// Regular expressions
