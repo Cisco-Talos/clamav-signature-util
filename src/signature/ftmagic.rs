@@ -263,7 +263,7 @@ impl AppendSigBytes for FTMagicSig {
         sb: &mut crate::sigbytes::SigBytes,
     ) -> Result<(), crate::signature::ToSigBytesError> {
         match &self.magic_bytes {
-            MagicBytes::DirectMemory { offset, .. } => write!(sb, "1:{offset}")?,
+            MagicBytes::DirectMemory { offset, .. } => write!(sb, "0:{offset}")?,
             MagicBytes::DMPartition { offset, .. } => write!(sb, "4:{offset}")?,
             MagicBytes::BodySig { offset, .. } => {
                 sb.write_str("1:")?;
@@ -333,6 +333,15 @@ mod tests {
         if let MagicBytes::DirectMemory { literal, .. } = &sig.magic_bytes {
             assert_eq!(&literal.as_slice(), &[0xff, 0xd8, 0xff]);
         }
+    }
+
+    #[test]
+    fn export_preserves_direct_memory_magic_type() {
+        let input = SigBytes::from("0:0:ffd8ff:JPEG:CL_TYPE_ANY:CL_TYPE_GRAPHICS");
+        let (sig, _) = FTMagicSig::from_sigbytes(&input).unwrap();
+        let sig = sig.downcast_ref::<FTMagicSig>().unwrap();
+        let exported = sig.to_sigbytes().unwrap();
+        assert_eq!(&input, &exported);
     }
 
     #[test]

@@ -197,9 +197,24 @@ fn parse_pe_hash_sigbytes<'a, SB: Into<&'a SigBytes>>(
         } else {
             sigmeta.f_level = Some((min_flevel..).into());
         }
+    } else if let Some(min_flevel) = pe_section_hash_min_flevel(size, &hash) {
+        sigmeta.f_level = Some((min_flevel..).into());
     }
 
     Ok((name, size, hash, sigmeta))
+}
+
+fn pe_section_hash_min_flevel(size: Option<usize>, hash: &Hash) -> Option<u32> {
+    let hash_min = match hash {
+        Hash::Sha1(_) => Feature::HashSha1.min_flevel(),
+        Hash::Sha2_256(_) => Feature::HashSha256.min_flevel(),
+        Hash::Md5(_) => return None,
+    };
+
+    Some(match size {
+        Some(_) => hash_min,
+        None => hash_min.max(Feature::HashSizeUnknown.min_flevel()),
+    })
 }
 
 fn parse_pe_import_hash_sigbytes<'a, SB: Into<&'a SigBytes>>(
@@ -252,11 +267,16 @@ mod tests {
     #[test]
     fn eicar() {
         let bytes = b"45056:f9b304ced34fcce3ab75c6dc58ad59e4d62177ffed35494f79f09bc4e8986c16:Win.Test.EICAR_MSB-1".into();
-        let (sig, _) = PESectionHashSig::from_sigbytes(&bytes).unwrap();
+        let (sig, meta) = PESectionHashSig::from_sigbytes(&bytes).unwrap();
         let sig = sig.downcast_ref::<PESectionHashSig>().unwrap();
         assert_eq!(sig.name, "Win.Test.EICAR_MSB-1");
         assert_eq!(sig.size, Some(45056));
         assert_eq!(sig.size(), Some(45056));
+        assert_eq!(
+            meta.f_level,
+            Some((Feature::HashSha256.min_flevel()..).into())
+        );
+        sig.validate(&meta).unwrap();
         assert_eq!(
             sig.hash,
             crate::util::Hash::Sha2_256(hex!(
@@ -278,6 +298,30 @@ mod tests {
         let sig = sig.downcast_ref::<PESectionHashSig>().unwrap();
         let exported = sig.to_sigbytes().unwrap();
         assert_eq!(&bytes, &exported);
+    }
+
+    #[test]
+    fn sha1_section_hash_without_explicit_flevel_infers_required_minimum() {
+        let bytes = b"45056:62dd70f5e7530e0239901ac186f1f9ae39292561:Win.Test.EICAR_MDB-1".into();
+        let (sig, meta) = PESectionHashSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<PESectionHashSig>().unwrap();
+        assert_eq!(
+            meta.f_level,
+            Some((Feature::HashSha1.min_flevel()..).into())
+        );
+        sig.validate(&meta).unwrap();
+    }
+
+    #[test]
+    fn wildcard_sha_section_hash_without_explicit_flevel_infers_required_minimum() {
+        let bytes = b"*:62dd70f5e7530e0239901ac186f1f9ae39292561:Win.Test.EICAR_MDB-1".into();
+        let (sig, meta) = PESectionHashSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<PESectionHashSig>().unwrap();
+        let expected_min = Feature::HashSha1
+            .min_flevel()
+            .max(Feature::HashSizeUnknown.min_flevel());
+        assert_eq!(meta.f_level, Some((expected_min..).into()));
+        sig.validate(&meta).unwrap();
     }
 
     #[test]
