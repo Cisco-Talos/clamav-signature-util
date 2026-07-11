@@ -34,7 +34,7 @@ pub enum SigType {
     PhishingURL,
     /// [File Hash signature](crate::signature::filehash::FileHashSig)
     FileHash,
-    /// [False Positive File Hash signature](crate::signature::filehash::FalsePositiveFileHashSig)
+    /// [False Positive File Hash signature](crate::signature::false_positive_filehash::FalsePositiveFileHashSig)
     FalsePositiveFileHash,
     /// [Filetype Magic signature](crate::signature::filetype_magic::FTMagic)
     FTMagic,

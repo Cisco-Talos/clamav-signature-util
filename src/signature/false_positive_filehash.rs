@@ -99,25 +99,9 @@ impl AppendSigBytes for FalsePositiveFileHashSig {
         if let Some(size) = self.file_size {
             write!(sb, "{size}:")?;
         } else {
-            sb.write_char('*')?;
+            sb.write_str("*:")?;
         }
         write!(sb, "{}", self.name)?;
-
-        match &self.hash {
-            Hash::Md5(_) => {
-                // wildcard md5's are not allowed.
-                return Err(crate::signature::ToSigBytesError::UnsupportedValue(
-                    "MD5 FP signature hashes are not allowed".to_string(),
-                ));
-            }
-            Hash::Sha1(_) => {
-                // wildcard sha1's are not allowed.
-                return Err(crate::signature::ToSigBytesError::UnsupportedValue(
-                    "SHA1 FP signature hashes are not allowed".to_string(),
-                ));
-            }
-            Hash::Sha2_256(_) => {}
-        }
 
         Ok(())
     }
@@ -223,6 +207,9 @@ mod tests {
         // But should fail validation since md5 based fp signatures are not allowed
         let validate_result = sig.validate(&sig_meta);
         assert!(validate_result.is_err());
+
+        let exported = sig.to_sigbytes().unwrap();
+        assert_eq!(&bytes, &exported);
     }
 
     #[test]
@@ -428,6 +415,14 @@ mod tests {
         // Should have correctly parsed wildcard file size sig because min flevel >= 73 is present
         let validate_result = sig.validate(&sig_meta);
         assert!(validate_result.is_ok());
+
+        let exported = sig.to_sigbytes().unwrap();
+        assert_eq!(
+            &SigBytes::from(
+                "71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_min_flevel_good"
+            ),
+            &exported
+        );
     }
 
     #[test]

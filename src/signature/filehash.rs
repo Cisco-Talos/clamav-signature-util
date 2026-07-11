@@ -88,18 +88,19 @@ impl Signature for FileHashSig {
                     if let Some(flevel_range) = &sigmeta.f_level {
                         if flevel_range.start().unwrap_or(0) < 230 {
                             return Err(super::SigValidationError::HashSig(
-                                ValidationError::HashSig("SHA2-256 hashes with unknown file size require a maximum feature level of at least 230".to_string()),
+                                ValidationError::HashSig("SHA2-256 hashes with unknown file size require a minimum feature level of at least 230".to_string()),
                             ));
                         }
                     } else {
                         return Err(super::SigValidationError::HashSig(
-                            ValidationError::HashSig("SHA2-256 hashes with unknown file size require a maximum feature level of at least 230".to_string()),
+                            ValidationError::HashSig("SHA2-256 hashes with unknown file size require a minimum feature level of at least 230".to_string()),
                         ));
                     }
                 }
             }
         }
 
+        self.validate_flevel(sigmeta)?;
         Ok(())
     }
 }
@@ -124,31 +125,9 @@ impl AppendSigBytes for FileHashSig {
         if let Some(size) = self.file_size {
             write!(sb, "{size}:")?;
         } else {
-            sb.write_char('*')?;
+            sb.write_str("*:")?;
         }
         write!(sb, "{}", self.name)?;
-
-        // determine if we need to write min/max flevel
-        if self.file_size.is_none() {
-            // wildcard file size, so the min must be at least 73, and may be higher.
-            // the max must be 229 or lower, for md5 hashes.
-            match &self.hash {
-                Hash::Md5(_) => {
-                    // flevel for wildcard md5 must be capped at flevel 229 (i.e. before ClamAV 1.5.0)
-                    write!(sb, ":73:229")?;
-                }
-                Hash::Sha1(_) => {
-                    // wildcard sha1's are not allowed.
-                    return Err(crate::signature::ToSigBytesError::UnsupportedValue(
-                        "SHA1 hashes must specify the file size".to_string(),
-                    ));
-                }
-                Hash::Sha2_256(_) => {
-                    // flevel for wildcard sha256 must be at least 230 (i.e. ClamAV 1.5.0 and newer)
-                    write!(sb, ":230")?;
-                }
-            }
-        }
 
         Ok(())
     }
@@ -304,6 +283,12 @@ mod tests {
         let validate_result = sig.validate(&sig_meta);
         // result should be Ok since flevel range is valid
         assert!(validate_result.is_ok());
+
+        let exported = sig.to_sigbytes().unwrap();
+        assert_eq!(
+            &SigBytes::from("aa15bcf478d165efd2065190eb473bcb:*:md5_good_wildcard"),
+            &exported
+        );
     }
 
     #[test]
@@ -425,6 +410,18 @@ mod tests {
     }
 
     #[test]
+    fn sha256_known_size_rejects_too_low_explicit_min_flevel() {
+        let bytes =
+            b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:544:sha256_too_low:72"
+                .into();
+        let (sig, sig_meta) = FileHashSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<FileHashSig>().unwrap();
+
+        let validate_result = sig.validate(&sig_meta);
+        assert!(validate_result.is_err());
+    }
+
+    #[test]
     fn sha256_unknown_size_should_fail_missing_min_and_max() {
         let bytes = b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_should_fail_missing_min_and_max".into();
         let result = FileHashSig::from_sigbytes(&bytes);
@@ -487,6 +484,14 @@ mod tests {
         let validate_result = sig.validate(&sig_meta);
         // result should be Ok since flevel range is valid
         assert!(validate_result.is_ok());
+
+        let exported = sig.to_sigbytes().unwrap();
+        assert_eq!(
+            &SigBytes::from(
+                "71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_good_wildcard"
+            ),
+            &exported
+        );
     }
 
     #[test]
