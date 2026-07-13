@@ -499,11 +499,11 @@ where
                         match_req: match_req.take().unwrap(),
                         match_uniq: match_uniq.take(),
                     });
-                    // A modifier that started immediately after a subsignature
-                    // index applies to that index even at end-of-expression.
-                    // A modifier after a parenthesized group applies to the
-                    // outer expression when it is the final token.
-                    if b.is_some() || modifier_targets_last_element {
+                    // A modifier applies to the element it follows. This is
+                    // true even when the modified element is the final
+                    // parenthesized group in a larger expression, as in
+                    // `0&(1&2)=0`.
+                    if b.is_some() || modifier_targets_last_element || !elements.is_empty() {
                         if let Some(element) = elements.last_mut() {
                             // eprintln!("Applying modifier to last element ({:?}", &element);
                             element.set_modifier(this_modifier);
@@ -599,6 +599,32 @@ mod tests {
         let group = expr.as_expr().expect("top-level expression");
         assert!(group.modifier().is_none());
         assert_eq!("0&1>200", group.to_string());
+    }
+
+    #[test]
+    fn trailing_group_count_modifier_stays_on_group() {
+        let expr = parse_expr(b"0&(1&2)=0");
+        let group = expr.as_expr().expect("top-level expression");
+        assert!(group.modifier().is_none());
+        assert_eq!("0&(1&2)=0", group.to_string());
+
+        let trailing = group.elements()[1]
+            .as_expr()
+            .expect("second element should be grouped");
+        assert!(trailing.modifier().is_some());
+    }
+
+    #[test]
+    fn whole_parenthesized_expression_modifier_stays_on_group() {
+        let expr = parse_expr(b"(0&1)>1");
+        let group = expr.as_expr().expect("top-level expression");
+        assert!(group.modifier().is_none());
+        assert_eq!("(0&1)>1", group.to_string());
+
+        let inner = group.elements()[0]
+            .as_expr()
+            .expect("first element should be grouped");
+        assert!(inner.modifier().is_some());
     }
 
     #[test]
