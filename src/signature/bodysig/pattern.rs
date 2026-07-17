@@ -73,6 +73,15 @@ pub enum MatchByte {
     // A match that ignores the low nyble, matching only the high nyble (e.g., "f?")
     HighNyble(u8),
 
+    // A match of any byte except the full byte value (e.g., "~af")
+    NotFull(u8),
+
+    // A match of any byte whose low nyble is not the provided nyble (e.g., "~?f")
+    NotLowNyble(u8),
+
+    // A match of any byte whose high nyble is not the provided nyble (e.g., "~f?")
+    NotHighNyble(u8),
+
     // A match that ignores the entire byte (e.g., "??")
     #[default]
     Any,
@@ -176,6 +185,9 @@ impl std::fmt::Debug for MatchByte {
             Self::Full(byte) => write!(f, "{byte:02x}"),
             Self::LowNyble(low) => write!(f, "?{:x}", low & 0x0f),
             Self::HighNyble(high) => write!(f, "{:x}?", high >> 4 & 0x0f),
+            Self::NotFull(byte) => write!(f, "~{byte:02x}"),
+            Self::NotLowNyble(low) => write!(f, "~?{:x}", low & 0x0f),
+            Self::NotHighNyble(high) => write!(f, "~{:x}?", high >> 4 & 0x0f),
             Self::Any => write!(f, "??"),
             Self::WildcardMany { size } => write!(f, "{{{size}}}"),
         }

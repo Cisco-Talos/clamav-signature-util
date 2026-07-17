@@ -83,6 +83,59 @@ fn string_with_wildcards() {
 }
 
 #[test]
+fn string_with_yara_style_hex_negation() {
+    assert_eq!(
+        Ok(BodySig {
+            patterns: vec![Pattern::String(
+                vec![
+                    MatchByte::Full(0xaa),
+                    MatchByte::Full(0xbb),
+                    MatchByte::NotFull(0x00),
+                    MatchByte::NotHighNyble(0x00),
+                    MatchByte::NotLowNyble(0x0f),
+                    MatchByte::Full(0xcc),
+                    MatchByte::Full(0xdd),
+                ]
+                .into(),
+                PatternModifier::empty()
+            )],
+        }),
+        b"aabb~00~0?~?fccdd".as_slice().try_into()
+    );
+}
+
+#[test]
+fn yara_style_hex_negation_rejects_invalid_forms() {
+    assert_eq!(
+        Err(BodySigParseError::NegatedWildcard {
+            start_pos: 4.into(),
+        }),
+        BodySig::try_from(b"aabb~??ccdd".as_slice())
+    );
+    assert_eq!(
+        Err(BodySigParseError::ExpectingNegatedLowNyble {
+            pos: Position::End,
+            found: None,
+        }),
+        BodySig::try_from(b"aabb~0".as_slice())
+    );
+    assert_eq!(
+        Err(BodySigParseError::ExpectingNegatedHighNyble {
+            pos: 5.into(),
+            found: b'('.into(),
+        }),
+        BodySig::try_from(b"aabb~(00|01)ccdd".as_slice())
+    );
+    assert_eq!(
+        Err(BodySigParseError::ExpectingNegatedHighNyble {
+            pos: 5.into(),
+            found: b'{'.into(),
+        }),
+        BodySig::try_from(b"aabb~{2}ccdd".as_slice())
+    );
+}
+
+#[test]
 fn string_with_ifinibyte_wildcard() {
     assert_eq!(
         Ok(BodySig {

@@ -55,6 +55,7 @@ const PAREN_LEFT: u8 = b'(';
 const PAREN_RIGHT: u8 = b')';
 const PIPE: u8 = b'|';
 const QUESTION_MARK: u8 = b'?';
+const TILDE: u8 = b'~';
 
 #[derive(Debug, Error, PartialEq)]
 pub enum BodySigParseError {
@@ -148,6 +149,21 @@ pub enum BodySigParseError {
         found: Option<SigChar>,
     },
 
+    /// The parser was expecting the first nyble of a negated hex-encoded byte.
+    #[error("expected hex/nyble character {pos} after hex negation, found {found:?}")]
+    ExpectingNegatedHighNyble { pos: Position, found: SigChar },
+
+    /// The parser was expecting the second nyble of a negated hex-encoded byte.
+    #[error("expected hex/nyble character {pos} in negated hex byte, found {found:?}")]
+    ExpectingNegatedLowNyble {
+        pos: Position,
+        found: Option<SigChar>,
+    },
+
+    /// Negating a full-byte wildcard is not meaningful.
+    #[error("invalid negated wildcard ~?? starting {start_pos}")]
+    NegatedWildcard { start_pos: Position },
+
     /// The pattern began with an unsized element (a wildcard or fixed byte range
     /// exceeding 128 bytes)
     #[error("may not begin with a wildcard-type pattern (found {pattern:?})")]
@@ -213,6 +229,10 @@ enum State {
     HighNyble,
     // Expecting low hex-encoded nyble of a byte
     LowNyble,
+    // After a YARA-style `~`, expecting the first nyble of a negated byte.
+    NegatedHighNyble,
+    // After a YARA-style `~x`, expecting the second nyble of a negated byte.
+    NegatedLowNyble,
     // At start of a {curly-brace} expression
     CurlyBraceLower,
     // Expecting the upper value of a curly-brace range
@@ -707,6 +727,7 @@ impl TryFrom<&[u8]> for BodySig {
                             pc.mask = MatchMask::High;
                             state = State::LowNyble;
                         }
+                        TILDE => state = State::NegatedHighNyble,
                         _ => state = pc.handle_non_matchbyte(Some((pos, byte)))?,
                     }
                 }
@@ -756,6 +777,62 @@ impl TryFrom<&[u8]> for BodySig {
                         },
                         pos - 1,
                     );
+                    state = State::HighNyble;
+                }
+                State::NegatedHighNyble => match byte {
+                    b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => {
+                        pc.mask = MatchMask::None;
+                        pc.cur_byte = hex_nyble(byte, true);
+                        state = State::NegatedLowNyble;
+                    }
+                    QUESTION_MARK => {
+                        pc.cur_byte = 0;
+                        pc.mask = MatchMask::High;
+                        state = State::NegatedLowNyble;
+                    }
+                    other => {
+                        return Err(BodySigParseError::ExpectingNegatedHighNyble {
+                            pos: pos.into(),
+                            found: other.into(),
+                        })
+                    }
+                },
+                State::NegatedLowNyble => {
+                    let start_pos = pos.saturating_sub(2);
+                    let match_byte = match byte {
+                        b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => {
+                            if pc.paren_cxt.is_some() {
+                                pc.flush_match_bytes()?;
+                            }
+                            let low = hex_nyble(byte, false);
+                            match pc.mask {
+                                MatchMask::None => MatchByte::NotFull(pc.cur_byte | low),
+                                MatchMask::High => MatchByte::NotLowNyble(low),
+                                MatchMask::Low | MatchMask::Full => unreachable!(),
+                            }
+                        }
+                        QUESTION_MARK => {
+                            if pc.paren_cxt.is_some() {
+                                pc.flush_match_bytes()?;
+                            }
+                            match pc.mask {
+                                MatchMask::None => MatchByte::NotHighNyble(pc.cur_byte),
+                                MatchMask::High => {
+                                    return Err(BodySigParseError::NegatedWildcard {
+                                        start_pos: start_pos.into(),
+                                    })
+                                }
+                                MatchMask::Low | MatchMask::Full => unreachable!(),
+                            }
+                        }
+                        other => {
+                            return Err(BodySigParseError::ExpectingNegatedLowNyble {
+                                pos: pos.into(),
+                                found: Some(other.into()),
+                            })
+                        }
+                    };
+                    pc.push_matchbyte(match_byte, start_pos);
                     state = State::HighNyble;
                 }
                 State::CurlyBraceLower => match byte {
@@ -933,6 +1010,12 @@ impl TryFrom<&[u8]> for BodySig {
             }
             State::LowNyble => {
                 return Err(BodySigParseError::ExpectingLowNyble {
+                    pos: Position::End,
+                    found: None,
+                })
+            }
+            State::NegatedHighNyble | State::NegatedLowNyble => {
+                return Err(BodySigParseError::ExpectingNegatedLowNyble {
                     pos: Position::End,
                     found: None,
                 })
