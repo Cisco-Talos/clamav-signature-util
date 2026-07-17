@@ -156,6 +156,88 @@ pub enum PhishingSig {
     WDB(WDBMatch),
 }
 
+impl UrlRegexpPair {
+    #[must_use]
+    pub fn real(&self) -> &regexp::Match {
+        &self.real
+    }
+
+    #[must_use]
+    pub fn displayed(&self) -> &regexp::Match {
+        &self.displayed
+    }
+}
+
+impl PDBMatch {
+    #[must_use]
+    pub fn regexp_pair(&self) -> Option<&UrlRegexpPair> {
+        match self {
+            Self::Regexp(pair) => Some(pair),
+            Self::DisplayedHostname(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn displayed_hostname(&self) -> Option<&str> {
+        match self {
+            Self::DisplayedHostname(hostname) => Some(hostname),
+            Self::Regexp(_) => None,
+        }
+    }
+}
+
+impl WDBMatch {
+    #[must_use]
+    pub fn regexp_pair(&self) -> Option<&UrlRegexpPair> {
+        match self {
+            Self::Regexp(pair) => Some(pair),
+            Self::MatchHostname { .. } | Self::RealOnly(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn hostnames(&self) -> Option<(&str, &str)> {
+        match self {
+            Self::MatchHostname { real, displayed } => Some((real, displayed)),
+            Self::Regexp(_) | Self::RealOnly(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn real_only(&self) -> Option<&regexp::Match> {
+        match self {
+            Self::RealOnly(real) => Some(real),
+            Self::Regexp(_) | Self::MatchHostname { .. } => None,
+        }
+    }
+}
+
+impl PhishingSig {
+    #[must_use]
+    pub fn pdb(&self) -> Option<&PDBMatch> {
+        match self {
+            Self::PDB(pdb) => Some(pdb),
+            Self::GSB { .. } | Self::WDB(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn gsb(&self) -> Option<(&GSBMatchType, &GSBPred)> {
+        match self {
+            Self::GSB { match_type, pred } => Some((match_type, pred)),
+            Self::PDB(_) | Self::WDB(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn wdb(&self) -> Option<&WDBMatch> {
+        match self {
+            Self::WDB(wdb) => Some(wdb),
+            Self::PDB(_) | Self::GSB { .. } => None,
+        }
+    }
+}
+
 impl Signature for PhishingSig {
     fn name(&self) -> &str {
         // Mostphishing signatures don't have names
@@ -407,6 +489,12 @@ mod tests {
         );
         let sig = sig.downcast_ref::<PhishingSig>().unwrap();
         assert!(matches!(sig, PhishingSig::PDB(PDBMatch::Regexp { .. })));
+        let pair = sig
+            .pdb()
+            .and_then(PDBMatch::regexp_pair)
+            .expect("PDB regexp pair");
+        assert_eq!(pair.real().raw.as_slice(), br".*\.com");
+        assert_eq!(pair.displayed().raw.as_slice(), br".*\.org");
     }
 
     #[test]
@@ -460,6 +548,9 @@ mod tests {
                 pred: GSBPred::HostPrefixHash(_)
             }
         ));
+        let (match_type, pred) = sig.gsb().expect("GSB accessor");
+        assert!(matches!(match_type, GSBMatchType::Malware));
+        assert_eq!(pred, &GSBPred::HostPrefixHash([0xfd, 0xcb, 0xe0, 0x54]));
     }
 
     #[test]
@@ -602,6 +693,40 @@ mod tests {
         assert_eq!(sigmeta, SigMeta::default());
         let sig = sig.downcast_ref::<PhishingSig>().unwrap();
         assert!(matches!(sig, PhishingSig::WDB(WDBMatch::RealOnly(_))));
+        assert_eq!(
+            sig.wdb()
+                .and_then(WDBMatch::real_only)
+                .expect("WDB real-only accessor")
+                .raw
+                .as_slice(),
+            br".*\.malicious\.com"
+        );
+    }
+
+    #[test]
+    fn pdb_hostname_accessor() {
+        let input = br"H:example.com".into();
+        let (sig, _) = PhishingSig::from_sigbytes(&input).unwrap();
+        let sig = sig.downcast_ref::<PhishingSig>().unwrap();
+        assert_eq!(
+            sig.pdb()
+                .and_then(PDBMatch::displayed_hostname)
+                .expect("PDB hostname accessor"),
+            "example.com"
+        );
+    }
+
+    #[test]
+    fn wdb_hostname_accessor() {
+        let input = br"M:real.example:displayed.example".into();
+        let (sig, _) = PhishingSig::from_sigbytes(&input).unwrap();
+        let sig = sig.downcast_ref::<PhishingSig>().unwrap();
+        assert_eq!(
+            sig.wdb()
+                .and_then(WDBMatch::hostnames)
+                .expect("WDB hostname accessor"),
+            ("real.example", "displayed.example")
+        );
     }
 
     #[test]

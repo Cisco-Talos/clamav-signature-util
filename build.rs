@@ -1,3 +1,9 @@
+#![allow(
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc
+)]
+
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     env,
@@ -36,6 +42,17 @@ pub fn main() -> Result<(), std::io::Error> {
 }
 
 // Build the feature level (FLEVEL) translations
+/// Builds generated feature and file-type lookup tables.
+///
+/// # Errors
+///
+/// Returns an error if generated files cannot be created or source tables
+/// cannot be read.
+///
+/// # Panics
+///
+/// Panics when the checked-in feature table has duplicate feature names, which
+/// indicates a malformed build input.
 pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), std::io::Error> {
     println!("cargo:rerun-if-changed=feature-level.txt");
     let fl_input = BufReader::new(File::open(manifest_dir.join("feature-level.txt"))?);
@@ -60,10 +77,7 @@ pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), 
                 versions.push(version.to_owned());
             } else if let Ok(n) = element.parse() {
                 flevel = Some(n);
-            } else if element.starts_with('?') {
-                // Anything we're trying to figure out
-                continue;
-            } else {
+            } else if !element.starts_with('?') {
                 features.push(element.to_owned());
             }
         }
@@ -90,12 +104,12 @@ pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), 
     writeln!(features_rs, "/// An identifier of an engine feature required for parsing and/or matching a particular signature or signature element.")?;
     writeln!(features_rs, "#[derive(Clone, Debug, Copy, PartialEq)]")?;
     writeln!(features_rs, "pub enum Feature {{")?;
-    feature_flevel
-        .iter()
-        .for_each(|(feature, _)| writeln!(features_rs, "    {feature},").unwrap());
-    filetype_features
-        .iter()
-        .for_each(|(feature, _)| writeln!(features_rs, "    {feature},").unwrap());
+    for feature in feature_flevel.keys() {
+        writeln!(features_rs, "    {feature},").unwrap();
+    }
+    for feature in filetype_features.keys() {
+        writeln!(features_rs, "    {feature},").unwrap();
+    }
     writeln!(features_rs, "}}")?;
     writeln!(features_rs, "impl Feature {{")?;
     writeln!(features_rs, "    #[must_use]")?;
@@ -115,6 +129,17 @@ pub fn build_feature_list(manifest_dir: &Path, output_dir: &Path) -> Result<(), 
     Ok(())
 }
 
+/// Loads `ClamAV` file-type feature tags and writes generated lookup tables.
+///
+/// # Errors
+///
+/// Returns an error if generated files cannot be created or the source table
+/// cannot be read.
+///
+/// # Panics
+///
+/// Panics when the checked-in file-type table omits an `FLevel` or uses a
+/// malformed `CL_TYPE_` token, which indicates a malformed build input.
 pub fn load_filetypes(
     manifest_dir: &Path,
     output_dir: &Path,

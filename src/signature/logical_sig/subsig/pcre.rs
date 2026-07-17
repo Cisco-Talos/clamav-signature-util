@@ -39,6 +39,33 @@ pub struct PCRESubSig {
     modifier: Option<SubSigModifier>,
 }
 
+impl PCRESubSig {
+    #[must_use]
+    pub fn trigger_expr(&self) -> &dyn expression::Element {
+        self.trigger_expr.as_ref()
+    }
+
+    #[must_use]
+    pub fn regexp(&self) -> &Match {
+        &self.regexp
+    }
+
+    #[must_use]
+    pub fn flags(&self) -> &[Flag] {
+        &self.flags
+    }
+
+    #[must_use]
+    pub fn offset(&self) -> Option<crate::signature::ext_sig::Offset> {
+        self.offset
+    }
+
+    #[must_use]
+    pub fn modifier(&self) -> Option<SubSigModifier> {
+        self.modifier
+    }
+}
+
 impl SubSig for PCRESubSig {
     fn subsig_type(&self) -> SubSigType {
         SubSigType::Pcre
@@ -236,6 +263,12 @@ mod tests {
     fn export() {
         let bytes = SAMPLE_SIG.as_bytes();
         let sig = PCRESubSig::from_bytes(bytes, None, None).unwrap();
+        let _ = sig.trigger_expr().operation();
+        assert!(sig.offset().is_none());
+        assert!(sig.modifier().is_none());
+        assert_eq!(sig.flags().len(), 2);
+        let regexp = std::str::from_utf8(&sig.regexp().raw).expect("regex bytes");
+        assert!(regexp.contains("createImageData"));
         let mut sb = SigBytes::new();
         sig.append_sigbytes(&mut sb).unwrap();
         let exported = sb.to_string();

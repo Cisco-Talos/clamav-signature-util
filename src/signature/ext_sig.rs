@@ -47,6 +47,33 @@ pub struct ExtendedSig {
     pub(crate) modifier: Option<SubSigModifier>,
 }
 
+impl ExtendedSig {
+    #[must_use]
+    pub fn name_opt(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    #[must_use]
+    pub fn target_type(&self) -> TargetType {
+        self.target_type
+    }
+
+    #[must_use]
+    pub fn offset(&self) -> Option<Offset> {
+        self.offset
+    }
+
+    #[must_use]
+    pub fn body_sig(&self) -> Option<&BodySig> {
+        self.body_sig.as_ref()
+    }
+
+    #[must_use]
+    pub fn modifier(&self) -> Option<SubSigModifier> {
+        self.modifier
+    }
+}
+
 #[derive(Debug, Error, PartialEq)]
 pub enum ExtendedSigParseError {
     #[error("missing TargetType field")]
@@ -164,6 +191,21 @@ impl Offset {
             Some(*value)
         } else {
             None
+        }
+    }
+
+    #[must_use]
+    pub fn offset_pos(&self) -> OffsetPos {
+        match self {
+            Offset::Normal(pos) | Offset::Floating(pos, _) => *pos,
+        }
+    }
+
+    #[must_use]
+    pub fn max_shift(&self) -> Option<usize> {
+        match self {
+            Offset::Normal(_) => None,
+            Offset::Floating(_, max_shift) => Some(*max_shift),
         }
     }
 }
@@ -410,17 +452,30 @@ impl SubSig for ExtendedSig {
 mod tests {
     use super::*;
 
-    const SAMPLE_SIG: &str =
-        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd";
-    const SAMPLE_SIG_WITH_FLEVEL: &str =
-        "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd:99:101";
+    const SAMPLE_SIG: &str = "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd";
+    const SAMPLE_SIG_WITH_FLEVEL: &str = "AllTheStuff-1:1:EP+78,45:de1e7e*facade??(c0|ff|ee)decafe[5-9]00{3-4}d1d2{9-}7e8e{-5}!(0f|f1|ce)(B)(L)a??bccdd:99:101";
 
     #[test]
     fn export() {
         let (sig, sigmeta) = ExtendedSig::from_sigbytes(&SAMPLE_SIG.into()).unwrap();
+        let sig = sig.downcast_ref::<ExtendedSig>().unwrap();
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG, &exported);
         assert_eq!(sigmeta, SigMeta::default());
+        assert_eq!(sig.name_opt(), Some("AllTheStuff-1"));
+        assert!(matches!(
+            sig.target_type(),
+            crate::signature::targettype::TargetType::PE
+        ));
+        assert!(matches!(
+            sig.offset(),
+            Some(Offset::Floating(OffsetPos::EP(78), 45))
+        ));
+        assert!(sig.body_sig().is_some());
+        assert!(sig.modifier().is_none());
+        let offset = sig.offset().unwrap();
+        assert!(matches!(offset.offset_pos(), OffsetPos::EP(78)));
+        assert_eq!(offset.max_shift(), Some(45));
     }
 
     #[test]
@@ -429,6 +484,7 @@ mod tests {
             Ok(sig_and_sigmeta) => sig_and_sigmeta,
             Err(e) => panic!("{}", e),
         };
+        let sig = sig.downcast_ref::<ExtendedSig>().unwrap();
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG, &exported);
         assert_eq!(
@@ -437,5 +493,19 @@ mod tests {
                 f_level: Some((99..=101).into()),
             }
         );
+    }
+
+    #[test]
+    fn parses_main_ndb_wildcard_heavy_signatures() {
+        for input in [
+            "Win.Trojan.Obfus-21:1:EP+0,500:6681(a4|84)??????????????6681(a4|84)??????????????6681(a4|84)??????????????{-80}6681(84|a4)??????????????6681(84|a4)??????????????6681(a4|84)??????????????",
+            "Win.Trojan.Obfus-23:1:*:6681(a4|84)??????????????6681(a4|84)??????????????6681(a4|84)??{6-300}c68424??????????????????????????c68424??????????????????????????c68424",
+            "Win.Trojan.Elkern-2:1:*:9c60e8000000005d8d(b5|bd)(32|2d)(01|02)00008b5c242481e30000e0ff8d(b5|bd)(32|2d)(01|02)0000e8d60000008d(45|4d|55|5d)2b(50|51|52|53)8d(45|4d|55|5d)??(87|89)(ce|de|c6|d6)e8c8000000c381ed",
+            "Pdf.Exploit.Agent-35528:0:*:4a4249472333324465636f6465{-100}73747265616d0d0a????????(40|41|42|43|44|45|46|47|48|49|4a|4b|4c|4d|4e|4f)(31|30|29|28|27|26|25|24|23|22|21|20|19|18|17|16|15|14|13|12|11|10|09|08|07|06|05|04|03|02|01|00)??????(10|20|30|40|50|60|70|80|90|a0|b0|c0|d0|e0|f0)",
+            "Pdf.Exploit.Agent-35529:0:*:4a4249472333324465636f6465{-100}73747265616d0d0a????????(40|41|42|43|44|45|46|47|48|49|4a|4b|4c|4d|4e|4f)(31|30|29|28|27|26|25|24|23|22|21|20|19|18|17|16|15|14|13|12|11|10|09|08|07|06|05|04|03|02|01|00)??(ba|bb|bc|bd|be|bf|c0|c1|c2|c3|c4|c5|c6|c7|c8|c9|ca|cb|cc|cd|ce|cf|d0|d1|d2|d3|d4|d5|d6|d7|d8|d9|da|db|dc|dd|de|df|e0|e1|e2|e3|e4|e5|e6|e7|e8|e9|ea|eb|ec|ed|ee|ef|f0|f1|f2|f3|f4|f5|f6|f7|f8|f9|fa|fb|fc|fd|fe|ff)",
+            "Pdf.Exploit.Agent-35531:0:*:4a4249472333324465636f6465{-100}73747265616d0a????????(40|41|42|43|44|45|46|47|48|49|4a|4b|4c|4d|4e|4f)(31|30|29|28|27|26|25|24|23|22|21|20|19|18|17|16|15|14|13|12|11|10|09|08|07|06|05|04|03|02|01|00)??(b9|ba|bb|bc|bd|be|bf|c0|c1|c2|c3|c4|c5|c6|c7|c8|c9|ca|cb|cc|cd|ce|cf|d0|d1|d2|d3|d4|d5|d6|d7|d8|d9|da|db|dc|dd|de|df|e0|e1|e2|e3|e4|e5|e6|e7|e8|e9|ea|eb|ec|ed|ee|ef|f0|f1|f2|f3|f4|f5|f6|f7|f8|f9|fa|fb|fc|fd|fe|ff)",
+        ] {
+            ExtendedSig::from_sigbytes(&input.into()).unwrap();
+        }
     }
 }

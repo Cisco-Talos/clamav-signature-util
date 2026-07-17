@@ -49,6 +49,23 @@ pub struct LogicalSig {
     sub_sigs: Vec<Box<dyn SubSig>>,
 }
 
+impl LogicalSig {
+    #[must_use]
+    pub fn target_desc(&self) -> &TargetDesc {
+        &self.target_desc
+    }
+
+    #[must_use]
+    pub fn expression(&self) -> &dyn expression::Element {
+        self.expression.as_ref()
+    }
+
+    #[must_use]
+    pub fn sub_sigs(&self) -> &[Box<dyn SubSig>] {
+        &self.sub_sigs
+    }
+}
+
 #[derive(Debug, Error, PartialEq)]
 pub enum ParseError {
     #[error("parsing body signature index {0}: {1}")]
@@ -114,7 +131,8 @@ impl FromSigBytes for LogicalSig {
         sb: SB,
     ) -> Result<(Box<dyn Signature>, super::SigMeta), FromSigBytesParseError> {
         let mut sigmeta = SigMeta::default();
-        let mut fields = sb.into().as_bytes().split(|b| *b == b';');
+        let fields = tokenize_ldb_fields(sb.into().as_bytes());
+        let mut fields = fields.into_iter();
 
         let name = str::from_utf8(fields.next().ok_or(FromSigBytesParseError::MissingName)?)
             .map_err(FromSigBytesParseError::NameNotUnicode)?
@@ -228,7 +246,6 @@ fn find_modifier(haystack: &[u8]) -> (Option<SubSigModifier>, &[u8]) {
                 b'f' => modifier.match_fullword = true,
                 b':' => {
                     state = State::ReadDelimiter;
-                    continue;
                 }
                 _ => break,
             },
@@ -239,6 +256,138 @@ fn find_modifier(haystack: &[u8]) -> (Option<SubSigModifier>, &[u8]) {
         }
     }
     (None, haystack)
+}
+
+fn tokenize_ldb_fields(bytes: &[u8]) -> Vec<&[u8]> {
+    let mut fields = Vec::new();
+    let mut field_start = 0;
+
+    for (pos, &byte) in bytes.iter().enumerate() {
+        if byte == b';' {
+            fields.push(&bytes[field_start..pos]);
+            field_start = pos + 1;
+            if fields.len() == 3 {
+                if let Some(expected_count) = expected_subsig_count(fields[2]) {
+                    tokenize_subsig_fields(bytes, field_start, expected_count, &mut fields);
+                    return fields;
+                }
+            }
+        }
+    }
+
+    fields.push(&bytes[field_start..]);
+    fields
+}
+
+fn expected_subsig_count(expression: &[u8]) -> Option<usize> {
+    let expression = <Box<dyn expression::Element>>::try_from(expression).ok()?;
+    let mut max_index = None;
+    max_subsig_index(expression.as_ref(), &mut max_index);
+    max_index.map(|index| usize::from(index) + 1)
+}
+
+fn max_subsig_index(element: &dyn expression::Element, max_index: &mut Option<u8>) {
+    if let Some(sig_index) = element.as_sig_index() {
+        *max_index =
+            Some(max_index.map_or(sig_index.sig_index(), |max| max.max(sig_index.sig_index())));
+    }
+
+    if let Some(expression) = element.as_expr() {
+        for child in expression.elements() {
+            max_subsig_index(child.as_ref(), max_index);
+        }
+    }
+}
+
+fn tokenize_subsig_fields<'a>(
+    bytes: &'a [u8],
+    field_start: usize,
+    expected_count: usize,
+    fields: &mut Vec<&'a [u8]>,
+) {
+    if expected_count == 0 {
+        return;
+    }
+
+    let mut subsig_fields = Vec::with_capacity(expected_count);
+    let mut failed_states = std::collections::HashSet::new();
+    if tokenize_valid_subsig_fields(
+        bytes,
+        field_start,
+        expected_count,
+        &mut subsig_fields,
+        &mut failed_states,
+    ) {
+        fields.extend(subsig_fields);
+        return;
+    }
+
+    tokenize_subsig_fields_by_semicolon(bytes, field_start, fields);
+}
+
+fn tokenize_valid_subsig_fields<'a>(
+    bytes: &'a [u8],
+    field_start: usize,
+    remaining_count: usize,
+    fields: &mut Vec<&'a [u8]>,
+    failed_states: &mut std::collections::HashSet<(usize, usize)>,
+) -> bool {
+    if failed_states.contains(&(field_start, remaining_count)) {
+        return false;
+    }
+
+    if remaining_count == 1 {
+        let field = &bytes[field_start..];
+        if is_valid_subsig_field(field) {
+            fields.push(field);
+            return true;
+        }
+        failed_states.insert((field_start, remaining_count));
+        return false;
+    }
+
+    for pos in semicolon_positions(bytes, field_start) {
+        let field = &bytes[field_start..pos];
+        if !is_valid_subsig_field(field) {
+            continue;
+        }
+
+        fields.push(field);
+        if tokenize_valid_subsig_fields(bytes, pos + 1, remaining_count - 1, fields, failed_states)
+        {
+            return true;
+        }
+        fields.pop();
+    }
+
+    failed_states.insert((field_start, remaining_count));
+    false
+}
+
+fn is_valid_subsig_field(field: &[u8]) -> bool {
+    let (modifier, subsig_bytes) = find_modifier(field);
+    subsig::parse_bytes(subsig_bytes, modifier).is_ok()
+}
+
+fn semicolon_positions(bytes: &[u8], start: usize) -> impl Iterator<Item = usize> + '_ {
+    bytes
+        .iter()
+        .enumerate()
+        .skip(start)
+        .filter_map(|(pos, byte)| (*byte == b';').then_some(pos))
+}
+
+fn tokenize_subsig_fields_by_semicolon<'a>(
+    bytes: &'a [u8],
+    field_start: usize,
+    fields: &mut Vec<&'a [u8]>,
+) {
+    let mut field_start = field_start;
+    for pos in semicolon_positions(bytes, field_start) {
+        fields.push(&bytes[field_start..pos]);
+        field_start = pos + 1;
+    }
+    fields.push(&bytes[field_start..]);
 }
 
 /*
@@ -307,7 +456,13 @@ mod tests {
     fn full_sig() {
         let input = SAMPLE_SIG.into();
         let (sig, _) = LogicalSig::from_sigbytes(&input).unwrap();
-        dbg!(sig);
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+        assert_eq!(sig.target_desc().attrs().len(), 2);
+        assert_eq!(sig.sub_sigs().len(), 4);
+        let expr = sig.expression().as_expr().expect("top-level expression");
+        assert_eq!(expr.depth(), 0);
+        assert_eq!(expr.elements().len(), 2);
+        assert!(expr.modifier().is_none());
     }
 
     #[test]
@@ -373,6 +528,138 @@ mod tests {
         let (sig, _) = LogicalSig::from_sigbytes(&input).unwrap();
         let exported = sig.to_sigbytes().unwrap().to_string();
         assert_eq!(SAMPLE_SIG_WITH_PCRE_OFFSET, &exported);
+    }
+
+    #[test]
+    fn parses_pcre_subsignature_with_semicolon() {
+        let input = concat!(
+            "Demo.Pcre.Semicolon;Engine:90-255,Target:3;0&1;",
+            "66756e6374696f6e20;",
+            r#"0/= ?([a-z0-9]{4,10}\+)+[a-z0-9]{4,10};\s+[a-z0-9]{4,10}\[\d+\]/"#
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse semicolon pcre");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(2, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_pcre_subsignature_with_inner_slash_before_semicolon() {
+        let input = concat!(
+            "Demo.Pcre.InnerSlashSemicolon;Engine:90-255,Target:0;0;",
+            r#"0/foo/bar;baz/"#
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse inner slash pcre");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(1, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_pcre_subsignature_when_inner_slash_suffix_looks_like_flags() {
+        let input = concat!(
+            "Demo.Pcre.InnerSlashFlags;Engine:90-255,Target:0;0;",
+            r#"0/foo/g;bar/"#
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse flag-like inner slash pcre");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(1, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn splits_after_pcre_with_inner_semicolon_before_following_subsignature() {
+        let input = concat!(
+            "Demo.Pcre.InnerSlashThenBody;Engine:90-255,Target:0;0&1;",
+            r#"0/foo/g;bar/;4142"#
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse pcre and body subsig");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(2, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_pcre_subsignature_with_semicolon_alternative() {
+        let input = concat!(
+            "Demo.Pcre.SemicolonAlternative;Engine:90-255,Target:0;0;",
+            r#"0/symbolDict\.Add\s+("|')(\?\?|\*\*|!!|@@|\$\$|^^|;;)("|'),\s*ChrW\(&[a-z0-9]+\)/ig"#
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse semicolon alt pcre");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(1, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_pcre_subsignature_ending_with_literal_backslash() {
+        let input = concat!(
+            "Demo.Pcre.LiteralBackslash;Engine:90-255,Target:0;0&1;",
+            r"0/\\/",
+            ";6162"
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse backslash pcre");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(2, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_daily_wide_body_with_large_square_bracket_gap() {
+        let input = concat!(
+            "Txt.Trojan.Storm-0978-10006328-0;Engine:90-255,Target:0;0&1&2;",
+            "3c68746d6c3e::w;",
+            "3c2f7363726970743e::w;",
+            "646f63756d656e742e7772697465[2-16]",
+            "3c696672616d65207372633d226d68746d6c3a6d732d6974733a633a",
+            "[32-128]66696c653030312e7a69702f323232322e63686d3a3a2f",
+            "66696c65312e6d6874223e3c2f696672616d653e::w",
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse daily wide body");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(3, sig.sub_sigs().len());
+    }
+
+    #[test]
+    fn parses_main_ldb_wildcard_heavy_logical_signature() {
+        let input = concat!(
+            "Win.Packed.Gandcrab-6552923-4;Engine:71-255,Target:1;",
+            "0&((1>5)|(2>5)|(3>5)|(4>5)|(5>5)|(6>5)|(7>5)|(8>5)|(9>5))&10;",
+            "0:4d5a{-196608}????0080??000080{-255}",
+            "00000000000000000000000000000100!(00)000000??0?0080{-4096}",
+            "0000000000000000000000000000010000000000??0?0000{-4096}",
+            "!(0000)??0?!(0000)01000000000000000000;",
+            "6a0?6a0?ff15;5050ff15;5353ff15;5151ff15;5252ff15;",
+            "5656ff15;5757ff15;5555ff15;5454ff15;",
+            "EOF-208:000000000000000000000000000000000000000000000000",
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "0000000000000000000000000000000000000000!(00)!(00)!(00)!(00)",
+            "!(00)!(00)!(00)!(00)",
+        )
+        .into();
+
+        let (sig, _) = LogicalSig::from_sigbytes(&input).expect("parse main wildcard body");
+        let sig = sig.downcast_ref::<LogicalSig>().unwrap();
+
+        assert_eq!(11, sig.sub_sigs().len());
     }
 
     #[test]

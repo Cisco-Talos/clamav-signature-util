@@ -34,10 +34,14 @@ pub enum SigType {
     PhishingURL,
     /// [File Hash signature](crate::signature::filehash::FileHashSig)
     FileHash,
+    /// [False Positive File Hash signature](crate::signature::false_positive_filehash::FalsePositiveFileHashSig)
+    FalsePositiveFileHash,
     /// [Filetype Magic signature](crate::signature::filetype_magic::FTMagic)
     FTMagic,
     /// [Portable Executable Section Hash signature](crate::signature::pehash::PESectionHashSig)
     PESectionHash,
+    /// [Portable Executable Import Hash signature](crate::signature::pehash::PEImportHashSig)
+    PEImportHash,
     /// Yara signature
     Yara,
     /// [Digital signature](crate::signature::digital_signature::DigitalSignature)
@@ -67,6 +71,8 @@ impl SigType {
     /// if the extension is not recognized.
     #[must_use]
     pub fn from_file_extension(ext: &str) -> Option<Self> {
+        // Additional ClamAV extensions that are not mapped here yet include:
+        // crb, info, idb, zmd, rmd, db, and cfg.
         Some(match ext {
             //
             // Body-based signatures
@@ -89,58 +95,21 @@ impl SigType {
 
             // File hash signatures
             "hdb" | "hsb" | "hdu" | "hsu" => SigType::FileHash,
-            // PE section has signatures
+            // False positive file hash signatures
+            "sfp" | "fp" => SigType::FalsePositiveFileHash,
+            // PE section hash signatures
             "mdb" | "msb" | "mdu" | "msu" => SigType::PESectionHash,
 
             // Filetype Magic signatures
             "ftm" => SigType::FTMagic,
 
-            // Trusted and Revoked Certificates
-            "crb" => {
-                println!("Support for .crb is not yet implemented.");
-                return None;
-            }
-
-            // False positive list
-            "sfp" | "fp" => {
-                println!("Support for .sfp and .fp is not yet implemented.");
-                return None;
-            }
-
-            "info" => {
-                println!("Support for .info is not yet implemented.");
-                return None;
-            }
-
-            // Icon signatures
-            "idb" => {
-                println!("Support for .idb is not yet implemented.");
-                return None;
-            }
-
-            // Deprecated types
-            "zmd" | "rmd" | "db" => {
-                println!(
-                    "Support for deprecated types .zmd, .rmd, and .db are not yet implemented."
-                );
-                return None;
-            }
-
-            // Configuration
-            "cfg" => {
-                println!("Support for .cfg is not yet implemented.");
-                return None;
-            }
-
             // Imp hash
-            "imp" => {
-                println!("Support for .imp is not yet implemented.");
-                return None;
-            }
+            "imp" => SigType::PEImportHash,
 
             //
             // Digital signatures
             //
+            #[cfg(feature = "codesign")]
             "sign" => SigType::DigitalSignature,
 
             _ => return None,
@@ -153,5 +122,34 @@ impl FromStr for SigType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         SigType::from_file_extension(s).ok_or(SigTypeParseError::Unknown)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SigType;
+
+    #[test]
+    fn false_positive_hash_extensions_map_to_false_positive_file_hash() {
+        assert!(matches!(
+            SigType::from_file_extension("fp"),
+            Some(SigType::FalsePositiveFileHash)
+        ));
+        assert!(matches!(
+            SigType::from_file_extension("sfp"),
+            Some(SigType::FalsePositiveFileHash)
+        ));
+    }
+
+    #[test]
+    fn digital_signature_extension_requires_codesign_feature() {
+        #[cfg(feature = "codesign")]
+        assert!(matches!(
+            SigType::from_file_extension("sign"),
+            Some(SigType::DigitalSignature)
+        ));
+
+        #[cfg(not(feature = "codesign"))]
+        assert!(SigType::from_file_extension("sign").is_none());
     }
 }

@@ -73,6 +73,15 @@ pub enum MatchByte {
     // A match that ignores the low nyble, matching only the high nyble (e.g., "f?")
     HighNyble(u8),
 
+    // A match of any byte except the full byte value (e.g., "~af")
+    NotFull(u8),
+
+    // A match of any byte whose low nyble is not the provided nyble (e.g., "~?f")
+    NotLowNyble(u8),
+
+    // A match of any byte whose high nyble is not the provided nyble (e.g., "~f?")
+    NotHighNyble(u8),
+
     // A match that ignores the entire byte (e.g., "??")
     #[default]
     Any,
@@ -117,6 +126,13 @@ impl<const N: usize> From<[u8; N]> for MatchBytes {
 impl From<Vec<MatchByte>> for MatchBytes {
     fn from(mb: Vec<MatchByte>) -> Self {
         MatchBytes { bytes: mb }
+    }
+}
+
+impl MatchBytes {
+    #[must_use]
+    pub fn bytes(&self) -> &[MatchByte] {
+        &self.bytes
     }
 }
 
@@ -169,6 +185,9 @@ impl std::fmt::Debug for MatchByte {
             Self::Full(byte) => write!(f, "{byte:02x}"),
             Self::LowNyble(low) => write!(f, "?{:x}", low & 0x0f),
             Self::HighNyble(high) => write!(f, "{:x}?", high >> 4 & 0x0f),
+            Self::NotFull(byte) => write!(f, "~{byte:02x}"),
+            Self::NotLowNyble(low) => write!(f, "~?{:x}", low & 0x0f),
+            Self::NotHighNyble(high) => write!(f, "~{:x}?", high >> 4 & 0x0f),
             Self::Any => write!(f, "??"),
             Self::WildcardMany { size } => write!(f, "{{{size}}}"),
         }
@@ -182,6 +201,59 @@ impl Pattern {
     pub fn is_wildcard(&self) -> bool {
         matches!(self, Pattern::Wildcard | Pattern::ByteRange(..))
     }
+
+    #[must_use]
+    pub fn string(&self) -> Option<(&MatchBytes, &BitFlags<PatternModifier>)> {
+        match self {
+            Self::String(bytes, modifiers) => Some((bytes, modifiers)),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn anchored_byte(
+        &self,
+    ) -> Option<(
+        &ByteAnchorSide,
+        &MatchByte,
+        &RangeInclusive<u8>,
+        &MatchBytes,
+    )> {
+        match self {
+            Self::AnchoredByte {
+                anchor_side,
+                byte,
+                range,
+                string,
+            } => Some((anchor_side, byte, range, string)),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn alternative_strings(&self) -> Option<&AlternativeStrings> {
+        match self {
+            Self::AlternativeStrings(strings) => Some(strings),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn byte_range(&self) -> Option<&Range<usize>> {
+        match self {
+            Self::ByteRange(range) => Some(range),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn is_unbounded_wildcard(&self) -> bool {
+        match self {
+            Self::Wildcard => true,
+            Self::ByteRange(range) => range.max().is_none(),
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Debug for Pattern {
@@ -192,7 +264,7 @@ impl std::fmt::Debug for Pattern {
                 tfmt.field(mbs);
                 if !pmod.is_empty() {
                     tfmt.field(pmod);
-                };
+                }
                 tfmt.finish()
             }
             Self::Wildcard => f.write_str("Wildcard"),
@@ -297,3 +369,57 @@ impl AppendSigBytes for AnyBytes {
 }
 
 impl EngineReq for Pattern {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use enumflags2::BitFlags;
+
+    #[test]
+    fn exposes_string_pattern_parts() {
+        let pattern = Pattern::String(b"ink".as_slice().into(), BitFlags::empty());
+
+        let (bytes, modifiers) = pattern.string().expect("string accessor");
+        assert_eq!(bytes.to_string(), "696e6b");
+        assert!(modifiers.is_empty());
+        assert_eq!(bytes.bytes().len(), 3);
+    }
+
+    #[test]
+    fn exposes_byte_range_and_wildcard_parts() {
+        let range = Pattern::ByteRange(Range::Inclusive(3..=5));
+        assert!(matches!(
+            range.byte_range(),
+            Some(Range::Inclusive(bounds)) if bounds == &(3..=5)
+        ));
+
+        let wildcard = Pattern::Wildcard;
+        assert!(wildcard.is_unbounded_wildcard());
+        assert!(wildcard.byte_range().is_none());
+
+        let open_ended_range = Pattern::ByteRange((3..).into());
+        assert!(open_ended_range.is_unbounded_wildcard());
+        assert!(matches!(
+            open_ended_range.byte_range(),
+            Some(Range::From(bounds)) if bounds.start == 3
+        ));
+
+        assert!(!range.is_unbounded_wildcard());
+    }
+
+    #[test]
+    fn exposes_anchored_byte_parts() {
+        let pattern = Pattern::AnchoredByte {
+            anchor_side: ByteAnchorSide::Left,
+            byte: MatchByte::Full(0xaa),
+            range: 1..=4,
+            string: b"zip".as_slice().into(),
+        };
+
+        let (side, byte, range, string) = pattern.anchored_byte().expect("anchored accessor");
+        assert_eq!(side, &ByteAnchorSide::Left);
+        assert_eq!(byte, &MatchByte::Full(0xaa));
+        assert_eq!(range, &(1..=4));
+        assert_eq!(string.to_string(), "7a6970");
+    }
+}

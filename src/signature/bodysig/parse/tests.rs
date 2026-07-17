@@ -18,7 +18,7 @@
 
 use super::{
     super::{pattern::ByteAnchorSide, *},
-    BodySigParseError, Context,
+    parse_with_logical_modifier, BodySigParseError, Context,
 };
 use crate::{
     signature::bodysig::{
@@ -83,6 +83,59 @@ fn string_with_wildcards() {
 }
 
 #[test]
+fn string_with_yara_style_hex_negation() {
+    assert_eq!(
+        Ok(BodySig {
+            patterns: vec![Pattern::String(
+                vec![
+                    MatchByte::Full(0xaa),
+                    MatchByte::Full(0xbb),
+                    MatchByte::NotFull(0x00),
+                    MatchByte::NotHighNyble(0x00),
+                    MatchByte::NotLowNyble(0x0f),
+                    MatchByte::Full(0xcc),
+                    MatchByte::Full(0xdd),
+                ]
+                .into(),
+                PatternModifier::empty()
+            )],
+        }),
+        b"aabb~00~0?~?fccdd".as_slice().try_into()
+    );
+}
+
+#[test]
+fn yara_style_hex_negation_rejects_invalid_forms() {
+    assert_eq!(
+        Err(BodySigParseError::NegatedWildcard {
+            start_pos: 4.into(),
+        }),
+        BodySig::try_from(b"aabb~??ccdd".as_slice())
+    );
+    assert_eq!(
+        Err(BodySigParseError::ExpectingNegatedLowNyble {
+            pos: Position::End,
+            found: None,
+        }),
+        BodySig::try_from(b"aabb~0".as_slice())
+    );
+    assert_eq!(
+        Err(BodySigParseError::ExpectingNegatedHighNyble {
+            pos: 5.into(),
+            found: b'('.into(),
+        }),
+        BodySig::try_from(b"aabb~(00|01)ccdd".as_slice())
+    );
+    assert_eq!(
+        Err(BodySigParseError::ExpectingNegatedHighNyble {
+            pos: 5.into(),
+            found: b'{'.into(),
+        }),
+        BodySig::try_from(b"aabb~{2}ccdd".as_slice())
+    );
+}
+
+#[test]
 fn string_with_ifinibyte_wildcard() {
     assert_eq!(
         Ok(BodySig {
@@ -113,6 +166,28 @@ fn string_with_fixed_range_wildcard() {
             ),],
         }),
         b"aabb{63}ccdd".as_slice().try_into()
+    );
+}
+
+#[test]
+fn dangling_high_nyble_before_fixed_range_wildcard_is_rejected() {
+    assert_eq!(
+        Err(BodySigParseError::ExpectingLowNyble {
+            pos: 5.into(),
+            found: Some(b'{'.into()),
+        }),
+        BodySig::try_from(b"aabb2{2}ccdd".as_slice())
+    );
+}
+
+#[test]
+fn dangling_wildcard_nyble_before_fixed_range_wildcard_is_rejected() {
+    assert_eq!(
+        Err(BodySigParseError::ExpectingLowNyble {
+            pos: 5.into(),
+            found: Some(b'{'.into()),
+        }),
+        BodySig::try_from(b"aabb?{1}ccdd".as_slice())
     );
 }
 
@@ -285,13 +360,36 @@ fn anchored_byte_string_too_small() {
 }
 
 #[test]
-fn anchored_byte_missing_single_byte() {
+fn raw_bracket_range_between_strings_stays_anchored_byte() {
     assert_eq!(
         Err(BodySigParseError::AnchoredByteMissingSingleByte {
-            start_pos: 5.into(),
+            start_pos: 0.into(),
         }),
-        BodySig::try_from(b"abcd*0001[2-4]0203*e0f0".as_slice())
+        BodySig::try_from(b"0001[2-4]0203*e0f0".as_slice())
     );
+}
+
+#[test]
+fn wide_logical_modifier_turns_bracket_range_into_generic_byte_range() {
+    let sig = parse_with_logical_modifier(b"0001[2-4]0203*e0f0".as_slice(), true, false).unwrap();
+
+    assert_eq!(
+        sig,
+        BodySig {
+            patterns: vec![
+                Pattern::String(hex!("0001").into(), PatternModifier::empty()),
+                Pattern::ByteRange((2..=4).into()),
+                Pattern::String(hex!("0203").into(), PatternModifier::empty()),
+                Pattern::Wildcard,
+                Pattern::String(hex!("e0f0").into(), PatternModifier::empty()),
+            ],
+        }
+    );
+}
+
+#[test]
+fn fullword_logical_modifier_turns_large_bracket_range_into_generic_byte_range() {
+    assert!(parse_with_logical_modifier(b"0001[32-128]0203".as_slice(), false, true).is_ok());
 }
 
 #[test]
@@ -445,11 +543,8 @@ fn empty_parens() {
 #[test]
 fn empty_alternative_string() {
     assert_eq!(
-        Ok(BodySig {
-            patterns: vec![Pattern::AlternativeStrings(AlternativeStrings::Generic {
-                ranges: vec![0..0, 0..1, 1..2],
-                data: hex!("1234").into()
-            })]
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
         }),
         BodySig::try_from(b"(|12|34)".as_slice()),
     );
@@ -892,12 +987,12 @@ fn trailing_wildcard() {
 }
 
 #[test]
-fn short_match_bytes() {
+fn one_static_byte_after_wildcard_is_rejected() {
     assert_eq!(
         Err(BodySigParseError::MinStaticBytes {
-            start_pos: 12.into()
+            start_pos: 0.into()
         }),
-        BodySig::try_from(b"(a?ee|?bff)*aa".as_slice()),
+        BodySig::try_from(b"(a?ee|?bff)*aa".as_slice())
     );
 }
 
@@ -920,25 +1015,58 @@ fn legal_two_byte_with_fixed_wildcard() {
 }
 
 #[test]
-fn no_static_bytes_within_string() {
+fn wildcard_split_requires_static_anchor_after_wildcard() {
     assert_eq!(
         Err(BodySigParseError::MinStaticBytes {
-            start_pos: 5.into()
+            start_pos: 0.into()
         }),
         BodySig::try_from(b"aabb*a?b???{2}".as_slice())
     );
 }
 
 #[test]
-fn no_static_bytes_within_string_leading_wildcard() {
-    // This tests that the reported position is correct when the string includes
-    // a brace wildcard
+fn wildcard_split_requires_static_anchor_after_leading_fixed_range() {
     assert_eq!(
         Err(BodySigParseError::MinStaticBytes {
-            start_pos: 5.into()
+            start_pos: 0.into()
         }),
         BodySig::try_from(b"aabb*{2}a?b???{2}".as_slice())
     );
+}
+
+#[test]
+fn wildcard_split_accepts_static_anchor_on_both_sides() {
+    assert!(BodySig::try_from(b"aabb*ccdd".as_slice()).is_ok());
+}
+
+#[test]
+fn open_ended_range_split_requires_static_anchor_after_range() {
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"aabb{10-}a?b?".as_slice())
+    );
+}
+
+#[test]
+fn open_ended_range_split_accepts_static_anchor_on_both_sides() {
+    assert!(BodySig::try_from(b"aabb{10-}ccdd".as_slice()).is_ok());
+}
+
+#[test]
+fn fixed_width_alternative_anchor_is_checked_per_alternative() {
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"(aa|bb)*ccdd".as_slice())
+    );
+}
+
+#[test]
+fn fixed_width_alternative_anchor_accepts_two_byte_alternatives() {
+    assert!(BodySig::try_from(b"(aabb|ccdd)*eeff".as_slice()).is_ok());
 }
 
 #[test]
@@ -960,40 +1088,28 @@ fn negated_generic_altstr() {
 }
 
 #[test]
-fn insufficient_static_bytes_ahead_of_gen_altstr() {
-    assert_eq!(
-        Err(BodySigParseError::MinStaticBytes {
-            start_pos: 0.into()
-        }),
-        BodySig::try_from(b"00(a?)ffff".as_slice())
-    );
+fn one_static_byte_ahead_of_gen_altstr_is_legal() {
+    assert!(BodySig::try_from(b"00(a?)ffff".as_slice()).is_ok());
 }
 
 #[test]
-fn insufficient_static_bytes_ahead_of_fixed_altstr() {
-    assert_eq!(
-        Err(BodySigParseError::MinStaticBytes {
-            start_pos: 0.into()
-        }),
-        BodySig::try_from(b"00(ffaa)ffff".as_slice())
-    );
+fn one_static_byte_ahead_of_fixed_altstr_is_legal() {
+    assert!(BodySig::try_from(b"00(ffaa)ffff".as_slice()).is_ok());
 }
 
 #[test]
-fn insufficient_static_bytes_ahead_of_empty_altstr() {
+fn empty_altstr_after_one_static_byte_reports_empty_altstr() {
     if let Err(e) = BodySig::try_from(b"00()aba?".as_slice()) {
         eprintln!("{e}");
     }
     assert_eq!(
-        Err(BodySigParseError::MinStaticBytes {
-            start_pos: 0.into()
-        }),
+        Err(BodySigParseError::EmptyParens { pos: 2.into() }),
         BodySig::try_from(b"00()aba?".as_slice())
     );
 }
 
 #[test]
-fn insufficient_static_bytes_ahead_of_large_range() {
+fn one_static_byte_ahead_of_large_range_is_rejected() {
     if let Err(e) = BodySig::try_from(b"00()aba?".as_slice()) {
         eprintln!("{e}");
     }
@@ -1003,6 +1119,21 @@ fn insufficient_static_bytes_ahead_of_large_range() {
         }),
         BodySig::try_from(b"00{500}aba?".as_slice())
     );
+}
+
+#[test]
+fn body_with_no_positive_static_anchor_is_rejected() {
+    assert_eq!(
+        Err(BodySigParseError::MinStaticBytes {
+            start_pos: 0.into()
+        }),
+        BodySig::try_from(b"????{4}!(00)".as_slice())
+    );
+}
+
+#[test]
+fn wildcard_heavy_body_with_late_static_anchor_is_legal() {
+    assert!(BodySig::try_from(b"????0080??000080{-255}00000000000000000000000000000100!(00)000000??0?0080{-4096}0000000000000000000000000000010000000000??0?0000{-4096}!(0000)??0?!(0000)01000000000000000000".as_slice()).is_ok());
 }
 
 #[test]

@@ -53,6 +53,23 @@ pub enum ComparisonSetParseError {
     TooLarge(#[from] TryFromIntError),
 }
 
+impl ComparisonSet {
+    #[must_use]
+    pub fn symbol(&self) -> ComparisonOp {
+        self.symbol
+    }
+
+    #[must_use]
+    pub fn value(&self) -> i64 {
+        self.value
+    }
+
+    #[must_use]
+    pub fn encoding(&self) -> Encoding {
+        self.encoding
+    }
+}
+
 impl TryFrom<&[u8]> for ComparisonSet {
     type Error = ComparisonSetParseError;
 
@@ -66,7 +83,16 @@ impl TryFrom<&[u8]> for ComparisonSet {
                 e
             }
         })?;
-        let (encoding, value) = if let Some(hex_value_bytes) = remainder.strip_prefix(b"0x") {
+        let (encoding, value) = if let Some(hex_value_bytes) = remainder.strip_prefix(b"-0x") {
+            let value = parse_number_hex(hex_value_bytes)
+                .map_err(ComparisonSetParseError::ParseHexValue)?;
+            let value = if value == (i64::MAX as u64) + 1 {
+                i64::MIN
+            } else {
+                -i64::try_from(value)?
+            };
+            (Encoding::Hex, value)
+        } else if let Some(hex_value_bytes) = remainder.strip_prefix(b"0x") {
             (
                 Encoding::Hex,
                 i64::try_from(
@@ -77,8 +103,7 @@ impl TryFrom<&[u8]> for ComparisonSet {
         } else {
             (
                 Encoding::Decimal,
-                parse_number_dec::<i64>(remainder).map_err(ComparisonSetParseError::ParseValue)?
-                    as i64,
+                parse_number_dec::<i64>(remainder).map_err(ComparisonSetParseError::ParseValue)?,
             )
         };
 
@@ -90,7 +115,7 @@ impl TryFrom<&[u8]> for ComparisonSet {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComparisonOp {
     LessThan,
     Equal,

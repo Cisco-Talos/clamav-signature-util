@@ -46,6 +46,26 @@ pub enum ByteOptionsParseError {
 }
 
 impl ByteOptions {
+    #[must_use]
+    pub fn encoding(&self) -> Option<Encoding> {
+        self.encoding
+    }
+
+    #[must_use]
+    pub fn endianness(&self) -> Option<Endianness> {
+        self.endianness
+    }
+
+    #[must_use]
+    pub fn evaluate_if_can_extract(&self) -> bool {
+        self.evaluate_if_can_extract || self.encoding == Some(Encoding::RawBinary)
+    }
+
+    #[must_use]
+    pub fn extract_bytes(&self) -> u8 {
+        self.extract_bytes
+    }
+
     pub fn from_bytes(bytes: &[u8]) -> Result<ByteOptions, ByteOptionsParseError> {
         let mut encoding = None;
         let mut endianness = None;
@@ -61,8 +81,8 @@ impl ByteOptions {
                 b'l' => endianness = Some(Endianness::Little),
                 b'b' => endianness = Some(Endianness::Big),
                 b'e' => evaluate_if_can_extract = true,
-                b'1' | b'2' | b'4' | b'8' => extract_bytes = Some(byte - b'0'),
-                b'0'..=b'9' => return Err(ByteOptionsParseError::InvalidNumBytes),
+                b'1'..=b'9' => extract_bytes = Some(byte - b'0'),
+                b'0' => return Err(ByteOptionsParseError::InvalidNumBytes),
                 _ => return Err(ByteOptionsParseError::Unrecognized),
             }
         }
@@ -73,13 +93,12 @@ impl ByteOptions {
         if encoding == Some(Encoding::Decimal) {
             match endianness {
                 Some(Endianness::Little) => return Err(ByteOptionsParseError::IncompatibleOptions),
-                None => {
-                    if encoding == Some(Encoding::Decimal) {
-                        endianness = Some(Endianness::Big);
-                    }
-                }
+                None => endianness = Some(Endianness::Big),
                 _ => (),
             }
+        }
+        if encoding == Some(Encoding::RawBinary) && !matches!(extract_bytes, 1 | 2 | 4 | 8) {
+            return Err(ByteOptionsParseError::InvalidNumBytes);
         }
 
         Ok(ByteOptions {
@@ -88,5 +107,45 @@ impl ByteOptions {
             evaluate_if_can_extract,
             extract_bytes,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_binary_accepts_clamav_widths() {
+        for width in [b'1', b'2', b'4', b'8'] {
+            let options = ByteOptions::from_bytes(&[b'i', width]).expect("parse raw-binary width");
+            assert_eq!(options.encoding(), Some(Encoding::RawBinary));
+            assert_eq!(options.extract_bytes(), width - b'0');
+            assert!(options.evaluate_if_can_extract());
+        }
+    }
+
+    #[test]
+    fn raw_binary_exact_extraction_is_implicit() {
+        let options = ByteOptions::from_bytes(b"i4").expect("parse raw-binary byte option");
+        assert!(options.evaluate_if_can_extract());
+    }
+
+    #[test]
+    fn raw_binary_rejects_non_clamav_widths() {
+        for width in [b'3', b'5', b'6', b'7', b'9'] {
+            assert!(matches!(
+                ByteOptions::from_bytes(&[b'i', width]),
+                Err(ByteOptionsParseError::InvalidNumBytes)
+            ));
+        }
+    }
+
+    #[test]
+    fn text_encodings_keep_extended_fixture_lengths() {
+        for encoding in [b'h', b'd', b'a'] {
+            let options =
+                ByteOptions::from_bytes(&[encoding, b'3']).expect("parse text byte option");
+            assert_eq!(options.extract_bytes(), 3);
+        }
     }
 }

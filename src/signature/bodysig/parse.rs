@@ -55,6 +55,7 @@ const PAREN_LEFT: u8 = b'(';
 const PAREN_RIGHT: u8 = b')';
 const PIPE: u8 = b'|';
 const QUESTION_MARK: u8 = b'?';
+const TILDE: u8 = b'~';
 
 #[derive(Debug, Error, PartialEq)]
 pub enum BodySigParseError {
@@ -148,14 +149,30 @@ pub enum BodySigParseError {
         found: Option<SigChar>,
     },
 
+    /// The parser was expecting the first nyble of a negated hex-encoded byte.
+    #[error("expected hex/nyble character {pos} after hex negation, found {found:?}")]
+    ExpectingNegatedHighNyble { pos: Position, found: SigChar },
+
+    /// The parser was expecting the second nyble of a negated hex-encoded byte.
+    #[error("expected hex/nyble character {pos} in negated hex byte, found {found:?}")]
+    ExpectingNegatedLowNyble {
+        pos: Position,
+        found: Option<SigChar>,
+    },
+
+    /// Negating a full-byte wildcard is not meaningful.
+    #[error("invalid negated wildcard ~?? starting {start_pos}")]
+    NegatedWildcard { start_pos: Position },
+
     /// The pattern began with an unsized element (a wildcard or fixed byte range
     /// exceeding 128 bytes)
     #[error("may not begin with a wildcard-type pattern (found {pattern:?})")]
     LeadingWildcard { pattern: Pattern },
 
-    /// There must be at least static byte pattern of length 2 or more
+    /// Each unbounded-wildcard-delimited AC body part must contain at least one
+    /// positive two-byte concrete subpattern.
     #[error(
-        "string starting {start_pos} does not contain static byte pattern of length 2 or greater"
+        "body signature starting {start_pos} does not contain a positive concrete byte pattern of length 2 or greater"
     )]
     MinStaticBytes { start_pos: Position },
 
@@ -212,6 +229,10 @@ enum State {
     HighNyble,
     // Expecting low hex-encoded nyble of a byte
     LowNyble,
+    // After a YARA-style `~`, expecting the first nyble of a negated byte.
+    NegatedHighNyble,
+    // After a YARA-style `~x`, expecting the second nyble of a negated byte.
+    NegatedLowNyble,
     // At start of a {curly-brace} expression
     CurlyBraceLower,
     // Expecting the upper value of a curly-brace range
@@ -308,7 +329,7 @@ impl ParseContext {
 
     fn flush_static_range(&mut self) {
         if let Some((start, end)) = self.match_bytes_static_range.take() {
-            if end - start >= 2 {
+            if end > start {
                 self.match_bytes_static_ranges.push((start, end));
             }
         }
@@ -340,9 +361,9 @@ impl ParseContext {
                         range,
                     });
                 }
-                len => {
+                _ => {
                     self.pending_anchored_byte = Some(PendingAnchoredByte::HaveString {
-                        start_pos: self.left_bracket_pos - len * 2,
+                        start_pos: self.left_bracket_pos - self.match_bytes.len() * 2,
                         string: self.match_bytes.to_vec().into(),
                         range,
                     });
@@ -548,13 +569,6 @@ impl ParseContext {
         match &pattern {
             Pattern::String(..) => {
                 self.flush_static_range();
-                if self.match_bytes_static_ranges.is_empty() {
-                    // This occurs when the string contained no static bytes at all
-                    return Err(BodySigParseError::MinStaticBytes {
-                        start_pos: self.match_bytes_start.into(),
-                    });
-                }
-                // Just flush these for now, but they might be worth attaching to the string later
                 self.match_bytes_static_range = None;
                 self.match_bytes_static_ranges.clear();
             }
@@ -713,6 +727,7 @@ impl TryFrom<&[u8]> for BodySig {
                             pc.mask = MatchMask::High;
                             state = State::LowNyble;
                         }
+                        TILDE => state = State::NegatedHighNyble,
                         _ => state = pc.handle_non_matchbyte(Some((pos, byte)))?,
                     }
                 }
@@ -725,14 +740,14 @@ impl TryFrom<&[u8]> for BodySig {
                                 // bytes need to be flushed to the prior match first.
 
                                 // This never fails in parenthetical context
-                                pc.flush_match_bytes().unwrap();
+                                pc.flush_match_bytes()?;
                             }
                             pc.cur_byte |= hex_nyble(byte, false);
                         }
                         QUESTION_MARK => {
                             if pc.paren_cxt.is_some() {
                                 // This never fails in parenthetical context
-                                pc.flush_match_bytes().unwrap();
+                                pc.flush_match_bytes()?;
                             }
                             pc.mask = if let MatchMask::High = pc.mask {
                                 // ??
@@ -762,6 +777,62 @@ impl TryFrom<&[u8]> for BodySig {
                         },
                         pos - 1,
                     );
+                    state = State::HighNyble;
+                }
+                State::NegatedHighNyble => match byte {
+                    b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => {
+                        pc.mask = MatchMask::None;
+                        pc.cur_byte = hex_nyble(byte, true);
+                        state = State::NegatedLowNyble;
+                    }
+                    QUESTION_MARK => {
+                        pc.cur_byte = 0;
+                        pc.mask = MatchMask::High;
+                        state = State::NegatedLowNyble;
+                    }
+                    other => {
+                        return Err(BodySigParseError::ExpectingNegatedHighNyble {
+                            pos: pos.into(),
+                            found: other.into(),
+                        })
+                    }
+                },
+                State::NegatedLowNyble => {
+                    let start_pos = pos.saturating_sub(2);
+                    let match_byte = match byte {
+                        b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => {
+                            if pc.paren_cxt.is_some() {
+                                pc.flush_match_bytes()?;
+                            }
+                            let low = hex_nyble(byte, false);
+                            match pc.mask {
+                                MatchMask::None => MatchByte::NotFull(pc.cur_byte | low),
+                                MatchMask::High => MatchByte::NotLowNyble(low),
+                                MatchMask::Low | MatchMask::Full => unreachable!(),
+                            }
+                        }
+                        QUESTION_MARK => {
+                            if pc.paren_cxt.is_some() {
+                                pc.flush_match_bytes()?;
+                            }
+                            match pc.mask {
+                                MatchMask::None => MatchByte::NotHighNyble(pc.cur_byte),
+                                MatchMask::High => {
+                                    return Err(BodySigParseError::NegatedWildcard {
+                                        start_pos: start_pos.into(),
+                                    })
+                                }
+                                MatchMask::Low | MatchMask::Full => unreachable!(),
+                            }
+                        }
+                        other => {
+                            return Err(BodySigParseError::ExpectingNegatedLowNyble {
+                                pos: pos.into(),
+                                found: Some(other.into()),
+                            })
+                        }
+                    };
+                    pc.push_matchbyte(match_byte, start_pos);
                     state = State::HighNyble;
                 }
                 State::CurlyBraceLower => match byte {
@@ -943,6 +1014,12 @@ impl TryFrom<&[u8]> for BodySig {
                     found: None,
                 })
             }
+            State::NegatedHighNyble | State::NegatedLowNyble => {
+                return Err(BodySigParseError::ExpectingNegatedLowNyble {
+                    pos: Position::End,
+                    found: None,
+                })
+            }
             State::CurlyBraceLower | State::CurlyBraceUpper => {
                 return Err(BodySigParseError::CurlyBraceNotClosed {
                     start_pos: pc.left_brace_pos.into(),
@@ -978,8 +1055,133 @@ impl TryFrom<&[u8]> for BodySig {
             Some(_) => (),
         }
 
+        if !body_sig_has_static_anchor(&pc.patterns) {
+            return Err(BodySigParseError::MinStaticBytes {
+                start_pos: 0.into(),
+            });
+        }
+
         Ok(BodySig {
             patterns: pc.patterns,
         })
     }
+}
+
+fn body_sig_has_static_anchor(patterns: &[Pattern]) -> bool {
+    patterns
+        .split(pattern_splits_static_anchor_part)
+        .all(body_sig_part_has_static_anchor)
+}
+
+fn pattern_splits_static_anchor_part(pattern: &Pattern) -> bool {
+    match pattern {
+        Pattern::Wildcard => true,
+        Pattern::ByteRange(range) => range.max().is_none(),
+        Pattern::String(..) | Pattern::AnchoredByte { .. } | Pattern::AlternativeStrings(_) => {
+            false
+        }
+    }
+}
+
+fn body_sig_part_has_static_anchor(patterns: &[Pattern]) -> bool {
+    patterns.iter().any(|pattern| match pattern {
+        Pattern::String(bytes, _) => match_bytes_has_static_anchor(bytes),
+        Pattern::AnchoredByte { string, .. } => match_bytes_has_static_anchor(string),
+        Pattern::AlternativeStrings(AlternativeStrings::FixedWidth {
+            negated: false,
+            width,
+            data,
+        }) => fixed_width_alternatives_have_static_anchor(*width, data),
+        Pattern::AlternativeStrings(AlternativeStrings::Generic { ranges, data }) => {
+            generic_alternatives_have_static_anchor(ranges, data)
+        }
+        Pattern::AlternativeStrings(AlternativeStrings::FixedWidth { negated: true, .. })
+        | Pattern::ByteRange(_)
+        | Pattern::Wildcard => false,
+    })
+}
+
+fn fixed_width_alternatives_have_static_anchor(width: usize, data: &MatchBytes) -> bool {
+    if width == 0 {
+        return false;
+    }
+    data.bytes
+        .chunks_exact(width)
+        .any(match_byte_slice_has_static_anchor)
+}
+
+fn generic_alternatives_have_static_anchor(
+    ranges: &[std::ops::Range<usize>],
+    data: &MatchBytes,
+) -> bool {
+    ranges.iter().any(|range| {
+        data.bytes
+            .get(range.clone())
+            .is_some_and(match_byte_slice_has_static_anchor)
+    })
+}
+
+fn match_bytes_has_static_anchor(bytes: &MatchBytes) -> bool {
+    match_byte_slice_has_static_anchor(&bytes.bytes)
+}
+
+fn match_byte_slice_has_static_anchor(bytes: &[MatchByte]) -> bool {
+    let mut run = 0;
+    for byte in bytes {
+        if matches!(byte, MatchByte::Full(_)) {
+            run += 1;
+            if run >= ANCHORED_BYTE_MATCH_STRING_MIN_BYTES {
+                return true;
+            }
+        } else {
+            run = 0;
+        }
+    }
+    false
+}
+
+/// Parse a ClamAV logical body subsignature with the already-parsed logical
+/// `::` modifier in scope.
+///
+/// ClamAV applies `wide` and `fullword` body transformations before loading a
+/// subsignature into matcher-ac. Both transformations rewrite square-bracket
+/// anchored-byte gaps into ordinary curly-brace gaps, so large ranges such as
+/// `[32-128]::w` are legal even though the raw `[...]` form is capped at 32.
+pub fn parse_with_logical_modifier(
+    value: &[u8],
+    widechar: bool,
+    match_fullword: bool,
+) -> Result<BodySig, BodySigParseError> {
+    if widechar || match_fullword {
+        let normalized = normalize_bracket_ranges_to_byte_ranges(value)?;
+        BodySig::try_from(normalized.as_slice())
+    } else {
+        BodySig::try_from(value)
+    }
+}
+
+fn normalize_bracket_ranges_to_byte_ranges(value: &[u8]) -> Result<Vec<u8>, BodySigParseError> {
+    let mut normalized = Vec::with_capacity(value.len());
+    let mut pos = 0;
+
+    while let Some(open_rel) = value[pos..].iter().position(|&byte| byte == BRACKET_LEFT) {
+        let open = pos + open_rel;
+        normalized.extend_from_slice(&value[pos..open]);
+        let Some(close_rel) = value[open + 1..]
+            .iter()
+            .position(|&byte| byte == BRACKET_RIGHT)
+        else {
+            return Err(BodySigParseError::BracketNotClosed {
+                start_pos: open.into(),
+            });
+        };
+        let close = open + 1 + close_rel;
+        normalized.push(CURLY_LEFT);
+        normalized.extend_from_slice(&value[open + 1..close]);
+        normalized.push(CURLY_RIGHT);
+        pos = close + 1;
+    }
+
+    normalized.extend_from_slice(&value[pos..]);
+    Ok(normalized)
 }

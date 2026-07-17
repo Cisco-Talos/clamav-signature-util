@@ -324,6 +324,17 @@ impl<T: std::str::FromStr + Clone> Range<T> {
             Range::Inclusive(r) => Some(r.start().clone()),
         }
     }
+
+    /// Obtain the upper bound of a range, if applicable (or None, if the range
+    /// has no upper bound)
+    pub fn max(&self) -> Option<T> {
+        match self {
+            Range::Exact(n) => Some(n.clone()),
+            Range::ToInclusive(r) => Some(r.end.clone()),
+            Range::From(_) => None,
+            Range::Inclusive(r) => Some(r.end().clone()),
+        }
+    }
 }
 
 impl<T: std::str::FromStr> From<std::ops::RangeToInclusive<T>> for Range<T> {

@@ -26,11 +26,11 @@ use crate::{
 use thiserror::Error;
 
 pub mod compset;
-pub use compset::{ComparisonSet, ComparisonSetParseError};
+pub use compset::{ComparisonOp, ComparisonSet, ComparisonSetParseError};
 pub mod byteopts;
 pub use byteopts::{ByteOptions, ByteOptionsParseError};
 pub mod offset;
-pub use offset::Offset;
+pub use offset::{Modifier as OffsetModifier, Offset};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -101,7 +101,7 @@ impl super::SubSigError for ByteCmpSubSigParseError {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Encoding {
     Hex,
     Decimal,
@@ -109,7 +109,7 @@ pub enum Encoding {
     RawBinary,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Endianness {
     Little,
     Big,
@@ -138,6 +138,30 @@ impl AppendSigBytes for ByteCmpSubSig {
 }
 
 impl ByteCmpSubSig {
+    #[must_use]
+    pub fn subsigid_trigger(&self) -> u8 {
+        self.subsigid_trigger
+    }
+
+    #[must_use]
+    pub fn offset(&self) -> &Offset {
+        &self.offset
+    }
+
+    #[must_use]
+    pub fn byte_options(&self) -> &ByteOptions {
+        &self.byte_options
+    }
+
+    pub fn comparisons(&self) -> impl Iterator<Item = &ComparisonSet> {
+        self.comparisons.iter().filter_map(Option::as_ref)
+    }
+
+    #[must_use]
+    pub fn modifier(&self) -> Option<SubSigModifier> {
+        self.modifier
+    }
+
     pub fn from_bytes(
         bytes: &[u8],
         modifier: Option<SubSigModifier>,
