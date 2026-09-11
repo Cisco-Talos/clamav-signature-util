@@ -40,6 +40,13 @@ pub struct BodySig {
     pub patterns: Vec<Pattern>,
 }
 
+impl BodySig {
+    #[must_use]
+    pub fn patterns(&self) -> &[Pattern] {
+        &self.patterns
+    }
+}
+
 impl AppendSigBytes for BodySig {
     fn append_sigbytes(&self, sb: &mut SigBytes) -> Result<(), crate::signature::ToSigBytesError> {
         for pattern in &self.patterns {

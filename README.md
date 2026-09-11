@@ -14,6 +14,25 @@ Alternatively you may build with Docker using the provided Dockerfile.
 
 ### Running in Your Local Environment
 
+Build the CLI with the default code-signing support:
+
+```sh
+cargo build --locked
+```
+
+Parser-only builds can omit the OpenSSL dependency:
+
+```sh
+cargo build --no-default-features --locked
+```
+
+The `codesign` feature is enabled by default and is required to parse `.sign`
+files. Library consumers that do not need code signing can use
+`default-features = false` in their dependency declaration.
+
+YARA-compatible negated hex tokens such as `~00`, `~0?`, and `~?f` require
+ClamAV functionality level 240 (ClamAV 1.6.0).
+
 ### Running in a Docker Container
 
 The simplest way to use clam-sigutil is using a Docker container.

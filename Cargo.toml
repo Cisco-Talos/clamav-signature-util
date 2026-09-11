@@ -2,10 +2,15 @@
 authors = ["The ClamAV Team <clamav-bugs@external.cisco.com>"]
 edition = "2021"
 name = "clam-sigutil"
-version = "1.2.6"
+version = "2.0.0"
+description = "ClamAV signature parser, validator, renderer, and utility library."
+license = "GPL-2.0-only"
+repository = "https://github.com/Cisco-Talos/clamav-signature-util"
+readme = "README.md"
 
 [features]
-default = []
+default = ["codesign"]
+codesign = ["dep:openssl"]
 validate_regex = ["regex"]
 
 [dependencies]
@@ -18,7 +23,7 @@ hex-literal = "1"
 itertools = "0.14"
 num-derive = "0.4"
 num-traits = "0.2"
-openssl = "0.10"
+openssl = { version = "0.10", optional = true }
 strum = "0.27"
 strum_macros = "0.27"
 thiserror = "2"
@@ -44,8 +49,8 @@ path = "src/lib.rs"
 convert_case = "0.11"
 
 [lints.clippy]
-all = "warn"
-pedantic = "warn"
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
 
 missing_panics_doc = "allow"
 missing_errors_doc = "allow"

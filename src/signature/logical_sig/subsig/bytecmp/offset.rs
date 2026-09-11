@@ -37,12 +37,29 @@ pub enum ParseError {
     ParseNum(#[from] ParseNumberError<isize>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Modifier {
     /// ">>"
     Positive,
     /// "<<"
     Negative,
+}
+
+impl Offset {
+    #[must_use]
+    pub fn modifier(&self) -> Modifier {
+        self.modifier
+    }
+
+    #[must_use]
+    pub fn offset(&self) -> isize {
+        self.offset
+    }
+
+    #[must_use]
+    pub fn encoding(&self) -> Encoding {
+        self.encoding
+    }
 }
 
 impl TryFrom<&[u8]> for Offset {

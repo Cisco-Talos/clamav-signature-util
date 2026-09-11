@@ -46,17 +46,12 @@ pub trait EngineReq {
 
 /// A wrapper around a set of features identifiers, which may be known at compile
 /// time or computed after examining signature content.
-#[derive(PartialEq)]
+#[derive(Default, PartialEq)]
 pub enum Set {
+    #[default]
     Empty,
     Static(&'static [Feature]),
     Built(Vec<Feature>),
-}
-
-impl Default for Set {
-    fn default() -> Self {
-        Self::Empty
-    }
 }
 
 impl IntoIterator for Set {

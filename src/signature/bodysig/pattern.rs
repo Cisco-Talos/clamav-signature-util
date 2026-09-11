@@ -18,7 +18,7 @@
 
 use super::{altstr::AlternativeStrings, PatternModifier};
 use crate::{
-    feature::EngineReq,
+    feature::{EngineReq, Feature, Set},
     sigbytes::{AppendSigBytes, SigBytes},
     util::Range,
 };
@@ -58,6 +58,12 @@ pub enum Pattern {
     /// `{n-}` or `{n-m}` to match inclusive or open-ended ranges.
     ByteRange(Range<usize>),
 
+    /// A square-bracket range normalized to an ordinary byte range by a
+    /// logical `wide` or `fullword` modifier.  It has ordinary byte-range
+    /// matching semantics, but retains its source representation for
+    /// round-trip serialization.
+    BracketRange(Range<usize>),
+
     /// An unbounded range of bytes (represented as `*`)
     Wildcard,
 }
@@ -72,6 +78,15 @@ pub enum MatchByte {
 
     // A match that ignores the low nyble, matching only the high nyble (e.g., "f?")
     HighNyble(u8),
+
+    // A match of any byte except the full byte value (e.g., "~af")
+    NotFull(u8),
+
+    // A match of any byte whose low nyble is not the provided nyble (e.g., "~?f")
+    NotLowNyble(u8),
+
+    // A match of any byte whose high nyble is not the provided nyble (e.g., "~f?")
+    NotHighNyble(u8),
 
     // A match that ignores the entire byte (e.g., "??")
     #[default]
@@ -117,6 +132,13 @@ impl<const N: usize> From<[u8; N]> for MatchBytes {
 impl From<Vec<MatchByte>> for MatchBytes {
     fn from(mb: Vec<MatchByte>) -> Self {
         MatchBytes { bytes: mb }
+    }
+}
+
+impl MatchBytes {
+    #[must_use]
+    pub fn bytes(&self) -> &[MatchByte] {
+        &self.bytes
     }
 }
 
@@ -169,6 +191,9 @@ impl std::fmt::Debug for MatchByte {
             Self::Full(byte) => write!(f, "{byte:02x}"),
             Self::LowNyble(low) => write!(f, "?{:x}", low & 0x0f),
             Self::HighNyble(high) => write!(f, "{:x}?", high >> 4 & 0x0f),
+            Self::NotFull(byte) => write!(f, "~{byte:02x}"),
+            Self::NotLowNyble(low) => write!(f, "~?{:x}", low & 0x0f),
+            Self::NotHighNyble(high) => write!(f, "~{:x}?", high >> 4 & 0x0f),
             Self::Any => write!(f, "??"),
             Self::WildcardMany { size } => write!(f, "{{{size}}}"),
         }
@@ -180,7 +205,63 @@ impl Pattern {
     /// beginning of a signature)
     #[must_use]
     pub fn is_wildcard(&self) -> bool {
-        matches!(self, Pattern::Wildcard | Pattern::ByteRange(..))
+        matches!(
+            self,
+            Pattern::Wildcard | Pattern::ByteRange(..) | Pattern::BracketRange(..)
+        )
+    }
+
+    #[must_use]
+    pub fn string(&self) -> Option<(&MatchBytes, &BitFlags<PatternModifier>)> {
+        match self {
+            Self::String(bytes, modifiers) => Some((bytes, modifiers)),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn anchored_byte(
+        &self,
+    ) -> Option<(
+        &ByteAnchorSide,
+        &MatchByte,
+        &RangeInclusive<u8>,
+        &MatchBytes,
+    )> {
+        match self {
+            Self::AnchoredByte {
+                anchor_side,
+                byte,
+                range,
+                string,
+            } => Some((anchor_side, byte, range, string)),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn alternative_strings(&self) -> Option<&AlternativeStrings> {
+        match self {
+            Self::AlternativeStrings(strings) => Some(strings),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn byte_range(&self) -> Option<&Range<usize>> {
+        match self {
+            Self::ByteRange(range) | Self::BracketRange(range) => Some(range),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn is_unbounded_wildcard(&self) -> bool {
+        match self {
+            Self::Wildcard => true,
+            Self::ByteRange(range) | Self::BracketRange(range) => range.max().is_none(),
+            _ => false,
+        }
     }
 }
 
@@ -192,7 +273,7 @@ impl std::fmt::Debug for Pattern {
                 tfmt.field(mbs);
                 if !pmod.is_empty() {
                     tfmt.field(pmod);
-                };
+                }
                 tfmt.finish()
             }
             Self::Wildcard => f.write_str("Wildcard"),
@@ -209,6 +290,7 @@ impl std::fmt::Debug for Pattern {
                 .field("string", string)
                 .finish(),
             Self::ByteRange(arg0) => f.debug_tuple("Range").field(arg0).finish(),
+            Self::BracketRange(arg0) => f.debug_tuple("BracketRange").field(arg0).finish(),
             Self::AlternativeStrings(arg0) => f.debug_tuple("AltStrs").field(arg0).finish(),
         }
     }
@@ -241,6 +323,11 @@ impl AppendSigBytes for Pattern {
                 sb.write_char('{')?;
                 range.append_sigbytes(sb)?;
                 sb.write_char('}')?;
+            }
+            Pattern::BracketRange(range) => {
+                sb.write_char('[')?;
+                range.append_sigbytes(sb)?;
+                sb.write_char(']')?;
             }
             Pattern::AlternativeStrings(astrs) => match astrs {
                 AlternativeStrings::FixedWidth {
@@ -296,4 +383,107 @@ impl AppendSigBytes for AnyBytes {
     }
 }
 
-impl EngineReq for Pattern {}
+impl EngineReq for Pattern {
+    fn features(&self) -> Set {
+        let has_negated_byte = match self {
+            Self::String(bytes, _) => match_bytes_has_negated_byte(bytes),
+            Self::AnchoredByte { byte, string, .. } => {
+                match_byte_is_negated(*byte) || match_bytes_has_negated_byte(string)
+            }
+            Self::AlternativeStrings(strings) => {
+                let data = strings
+                    .fixed_width()
+                    .map(|(_, _, data)| data)
+                    .or_else(|| strings.generic().map(|(_, data)| data));
+                data.is_some_and(match_bytes_has_negated_byte)
+            }
+            Self::ByteRange(_) | Self::BracketRange(_) | Self::Wildcard => false,
+        };
+
+        if has_negated_byte {
+            Set::from_static(&[Feature::HexByteNegation])
+        } else {
+            Set::default()
+        }
+    }
+}
+
+fn match_bytes_has_negated_byte(bytes: &MatchBytes) -> bool {
+    bytes.bytes().iter().copied().any(match_byte_is_negated)
+}
+
+fn match_byte_is_negated(byte: MatchByte) -> bool {
+    matches!(
+        byte,
+        MatchByte::NotFull(_) | MatchByte::NotLowNyble(_) | MatchByte::NotHighNyble(_)
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use enumflags2::BitFlags;
+
+    #[test]
+    fn exposes_string_pattern_parts() {
+        let pattern = Pattern::String(b"ink".as_slice().into(), BitFlags::empty());
+
+        let (bytes, modifiers) = pattern.string().expect("string accessor");
+        assert_eq!(bytes.to_string(), "696e6b");
+        assert!(modifiers.is_empty());
+        assert_eq!(bytes.bytes().len(), 3);
+    }
+
+    #[test]
+    fn exposes_byte_range_and_wildcard_parts() {
+        let range = Pattern::ByteRange(Range::Inclusive(3..=5));
+        assert!(matches!(
+            range.byte_range(),
+            Some(Range::Inclusive(bounds)) if bounds == &(3..=5)
+        ));
+
+        let wildcard = Pattern::Wildcard;
+        assert!(wildcard.is_unbounded_wildcard());
+        assert!(wildcard.byte_range().is_none());
+
+        let open_ended_range = Pattern::ByteRange((3..).into());
+        assert!(open_ended_range.is_unbounded_wildcard());
+        assert!(matches!(
+            open_ended_range.byte_range(),
+            Some(Range::From(bounds)) if bounds.start == 3
+        ));
+
+        assert!(!range.is_unbounded_wildcard());
+    }
+
+    #[test]
+    fn exposes_anchored_byte_parts() {
+        let pattern = Pattern::AnchoredByte {
+            anchor_side: ByteAnchorSide::Left,
+            byte: MatchByte::Full(0xaa),
+            range: 1..=4,
+            string: b"zip".as_slice().into(),
+        };
+
+        let (side, byte, range, string) = pattern.anchored_byte().expect("anchored accessor");
+        assert_eq!(side, &ByteAnchorSide::Left);
+        assert_eq!(byte, &MatchByte::Full(0xaa));
+        assert_eq!(range, &(1..=4));
+        assert_eq!(string.to_string(), "7a6970");
+    }
+
+    #[test]
+    fn negated_bytes_require_flevel_240() {
+        let pattern = Pattern::String(
+            vec![MatchByte::Full(0xaa), MatchByte::NotFull(0x00)].into(),
+            BitFlags::empty(),
+        );
+
+        assert_eq!(
+            pattern
+                .computed_feature_level()
+                .and_then(|range| range.start()),
+            Some(240)
+        );
+    }
+}

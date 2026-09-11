@@ -19,11 +19,11 @@
 use super::{SubSig, SubSigType};
 use crate::{
     feature::{EngineReq, Feature, Set},
-    sigbytes::{AppendSigBytes},
+    sigbytes::AppendSigBytes,
     signature::logical_sig::SubSigModifier,
     util::{parse_number_dec, ParseNumberError},
 };
-use std::{fmt::Write};
+use std::fmt::Write;
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -54,10 +54,7 @@ pub enum FuzzyImgSubSigParseError {
 
 impl super::SubSigError for FuzzyImgSubSigParseError {
     fn identified(&self) -> bool {
-        !matches!(
-            self,
-            FuzzyImgSubSigParseError::MissingFuzzyImgHashPrefix
-        )
+        !matches!(self, FuzzyImgSubSigParseError::MissingFuzzyImgHashPrefix)
     }
 }
 
@@ -82,18 +79,32 @@ impl AppendSigBytes for FuzzyImgSubSig {
         sb.try_reserve_exact(size_hint)?;
         write!(sb, "fuzzy_img#{}", self.hash_string)?;
         if let Some(distance) = self.hamming_distance {
-            write!(sb, "{}", distance)?;
+            write!(sb, "#{distance}")?;
         }
         Ok(())
     }
 }
 
 impl FuzzyImgSubSig {
+    #[must_use]
+    pub fn hash_string(&self) -> &str {
+        &self.hash_string
+    }
+
+    #[must_use]
+    pub fn hamming_distance(&self) -> Option<isize> {
+        self.hamming_distance
+    }
+
+    #[must_use]
+    pub fn modifier(&self) -> Option<SubSigModifier> {
+        self.modifier
+    }
+
     pub fn from_bytes(
         bytes: &[u8],
         modifier: Option<SubSigModifier>,
     ) -> Result<Self, FuzzyImgSubSigParseError> {
-
         let mut parts = bytes.splitn(3, |&b| b == b'#');
 
         // get the first part, which must be "fuzzy_img"
@@ -106,14 +117,13 @@ impl FuzzyImgSubSig {
         }
 
         // The second part is the hash string, which must be a valid hex string
-        let hash_string = parts
-            .next()
-            .ok_or(FuzzyImgSubSigParseError::TooFewFields)?;
+        let hash_string = parts.next().ok_or(FuzzyImgSubSigParseError::TooFewFields)?;
         // Make sure the hash string is valid hex
-        let hash_string = std::str::from_utf8(hash_string)
-            .map_err(|_| FuzzyImgSubSigParseError::InvalidHashString(
+        let hash_string = std::str::from_utf8(hash_string).map_err(|_| {
+            FuzzyImgSubSigParseError::InvalidHashString(
                 String::from_utf8_lossy(hash_string).to_string(),
-            ))?;
+            )
+        })?;
         if !hash_string.chars().all(|c| c.is_ascii_hexdigit()) {
             return Err(FuzzyImgSubSigParseError::InvalidHashString(
                 hash_string.to_string(),
@@ -121,14 +131,14 @@ impl FuzzyImgSubSig {
         }
         // The hash string must be exactly 16 characters long
         if hash_string.len() != 16 {
-            return Err(FuzzyImgSubSigParseError::InvalidHashString(
-                format!("Hash string must be exactly 16 characters long, got {}", hash_string.len()),
-            ));
+            return Err(FuzzyImgSubSigParseError::InvalidHashString(format!(
+                "Hash string must be exactly 16 characters long, got {}",
+                hash_string.len()
+            )));
         }
 
         // The third part is the hamming distance. It is optional, but if it is provided it must be a valid integer.
-        let hamming_distance = parts
-            .next();
+        let hamming_distance = parts.next();
 
         let hamming_distance = if let Some(distance_str) = hamming_distance {
             // Try to parse the hamming distance as an integer
@@ -155,5 +165,36 @@ impl FuzzyImgSubSig {
             hamming_distance,
             modifier,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sigbytes::{AppendSigBytes, SigBytes};
+
+    #[test]
+    fn fuzzy_img_accessors_expose_parsed_fields() {
+        let modifier = SubSigModifier {
+            case_insensitive: true,
+            ..SubSigModifier::default()
+        };
+        let sig = FuzzyImgSubSig::from_bytes(b"fuzzy_img#9900e66e77bb1c4c#5", Some(modifier))
+            .expect("valid fuzzy image subsig");
+
+        assert_eq!(sig.hash_string(), "9900e66e77bb1c4c");
+        assert_eq!(sig.hamming_distance(), Some(5));
+        assert_eq!(sig.modifier(), Some(modifier));
+    }
+
+    #[test]
+    fn fuzzy_img_sigbytes_preserve_hamming_separator() {
+        let sig = FuzzyImgSubSig::from_bytes(b"fuzzy_img#9900e66e77bb1c4c#5", None)
+            .expect("valid fuzzy image subsig");
+        let mut bytes = SigBytes::default();
+
+        sig.append_sigbytes(&mut bytes).expect("append sigbytes");
+
+        assert_eq!(bytes.as_ref(), b"fuzzy_img#9900e66e77bb1c4c#5");
     }
 }

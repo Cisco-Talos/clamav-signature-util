@@ -23,10 +23,21 @@ use crate::{
 use std::fmt::Write;
 use std::ops::RangeInclusive;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ContainerSize {
     Exact(usize),
     Range(RangeInclusive<usize>),
+}
+
+impl ContainerSize {
+    /// Return this CDB `ContainerSize` as an inclusive `(min, max)` range.
+    #[must_use]
+    pub fn inclusive_bounds(&self) -> (usize, usize) {
+        match self {
+            Self::Exact(size) => (*size, *size),
+            Self::Range(range) => (*range.start(), *range.end()),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error, PartialEq)]
@@ -55,7 +66,7 @@ impl TryFrom<&[u8]> for ContainerSize {
     type Error = ParseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.iter().any(|&b| b == b'-') {
+        if value.contains(&b'-') {
             Ok(ContainerSize::Range(parse_range_inclusive(value)?))
         } else {
             Ok(ContainerSize::Exact(parse_number_dec(value)?))
@@ -64,7 +75,7 @@ impl TryFrom<&[u8]> for ContainerSize {
 }
 
 pub fn parse(bytes: &[u8]) -> Result<ContainerSize, ParseError> {
-    if bytes.iter().any(|&b| b == b'-') {
+    if bytes.contains(&b'-') {
         Ok(ContainerSize::Range(parse_range_inclusive(bytes)?))
     } else {
         Ok(ContainerSize::Exact(parse_number_dec(bytes)?))

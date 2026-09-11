@@ -32,6 +32,27 @@ pub enum DigitalSig {
     Pkcs7(Pkcs7),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DigitalSigFormat {
+    Pkcs7Pem,
+}
+
+impl DigitalSig {
+    #[must_use]
+    pub fn format(&self) -> DigitalSigFormat {
+        match self {
+            Self::Pkcs7(_) => DigitalSigFormat::Pkcs7Pem,
+        }
+    }
+
+    #[must_use]
+    pub fn pkcs7(&self) -> &Pkcs7 {
+        match self {
+            Self::Pkcs7(pkcs7) => pkcs7,
+        }
+    }
+}
+
 // Pkcs7 does not implement Debug, so we have to implement it ourselves
 impl std::fmt::Debug for DigitalSig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -68,7 +89,7 @@ impl std::fmt::Debug for DigitalSig {
 }
 
 impl Signature for DigitalSig {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Digital Signature"
     }
 }
@@ -163,7 +184,7 @@ impl FromSigBytes for DigitalSig {
             return Err(FromSigBytesParseError::MissingField(
                 "max_flevel".to_string(),
             ));
-        };
+        }
 
         // parse the signature format
         let signature_format = fields

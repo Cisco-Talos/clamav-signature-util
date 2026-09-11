@@ -21,6 +21,11 @@
 //! An API for ingesting and validating ClamAV signatures
 
 #![deny(clippy::mod_module_files)]
+#![allow(
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc
+)]
 
 /// Functionality associated with engine features
 pub mod feature;
@@ -28,10 +33,14 @@ pub mod feature;
 /// File type classification
 pub mod filetype;
 
+/// Detached PKCS#7 code-signing helpers.
+#[cfg(feature = "codesign")]
+pub mod codesign;
+
 /// Regular expressions
 pub mod regexp;
 
-/// SigBytes (Vec<u8>) wrapper
+/// `SigBytes` (`Vec<u8>`) wrapper
 pub mod sigbytes;
 
 /// Engine signature parsing and examination

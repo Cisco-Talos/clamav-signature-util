@@ -38,6 +38,13 @@ pub struct TargetDesc {
     pub(crate) attrs: Vec<TargetDescAttr>,
 }
 
+impl TargetDesc {
+    #[must_use]
+    pub fn attrs(&self) -> &[TargetDescAttr] {
+        &self.attrs
+    }
+}
+
 #[derive(Debug, Error, PartialEq)]
 pub enum TargetDescParseError {
     #[error("unknown TargetDescription attribute: {0}")]
