@@ -352,10 +352,11 @@ where
             match state {
                 State::Initial => match b {
                     Some((pos, b)) if b.is_ascii_whitespace() => {
-                        if sig_id.is_some()
-                            && next_non_whitespace(byte_stream.clone())
-                                .is_some_and(|(_, byte)| byte.is_ascii_digit())
-                        {
+                        let adjacent_to_operand =
+                            sig_id.is_some() || (operation.is_none() && !elements.is_empty());
+                        let next_is_operand = next_non_whitespace(byte_stream.clone())
+                            .is_some_and(|(_, byte)| byte.is_ascii_digit() || byte == b'(');
+                        if adjacent_to_operand && next_is_operand {
                             return Err(error::Parse::InvalidCharacter(pos.into(), b.into()));
                         }
                     }
@@ -409,7 +410,7 @@ where
                     Some((pos, b)) if b.is_ascii_whitespace() => {
                         if match_req.is_some()
                             && next_non_whitespace(byte_stream.clone())
-                                .is_some_and(|(_, byte)| byte.is_ascii_digit())
+                                .is_some_and(|(_, byte)| byte.is_ascii_digit() || byte == b'(')
                         {
                             return Err(error::Parse::InvalidCharacter(pos.into(), b.into()));
                         }
@@ -449,7 +450,7 @@ where
                     Some((pos, b)) if b.is_ascii_whitespace() => {
                         if match_uniq.is_some()
                             && next_non_whitespace(byte_stream.clone())
-                                .is_some_and(|(_, byte)| byte.is_ascii_digit())
+                                .is_some_and(|(_, byte)| byte.is_ascii_digit() || byte == b'(')
                         {
                             return Err(error::Parse::InvalidCharacter(pos.into(), b.into()));
                         }
@@ -579,11 +580,21 @@ mod tests {
     #[test]
     fn accepts_whitespace_around_operators_and_modifiers() {
         assert_eq!("0&1>200", parse_expr(b"0 & 1 > 200").to_string());
+        assert_eq!("0&(1)", parse_expr(b"0 & (1)").to_string());
     }
 
     #[test]
-    fn rejects_whitespace_inside_logical_numbers() {
-        for expr in [b"1 2&0".as_slice(), b"0&1>2 00", b"0&1>2,0 1"] {
+    fn rejects_whitespace_inside_logical_numbers_or_between_operands() {
+        for expr in [
+            b"1 2&0".as_slice(),
+            b"0&1>2 00",
+            b"0&1>2,0 1",
+            b"0 (1)",
+            b"(0) (1)",
+            b"0&1 (2)",
+            b"0=1 (2)",
+            b"0=1,1 (2)",
+        ] {
             let parsed: Result<Box<dyn Element>, _> = expr.try_into();
             assert!(
                 parsed.is_err(),
