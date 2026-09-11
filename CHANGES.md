@@ -16,7 +16,7 @@
 
 ➕Add reusable ClamAV-compatible PKCS#7 detached signing and verification helpers.
 
-➕Parse YARA-compatible negated hex body-signature tokens.
+➕Parse YARA-compatible negated hex body-signature tokens, requiring flevel 240 (ClamAV 1.6.0).
 
 ➕Accept valid current ClamAV `daily` and `main` signatures using wildcard-heavy body patterns, open-ended ranges, alternative-string anchors, target-only descriptors, and PCRE fields containing semicolons or inner slashes.
 

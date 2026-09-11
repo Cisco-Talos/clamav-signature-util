@@ -18,7 +18,7 @@
 
 use super::{altstr::AlternativeStrings, PatternModifier};
 use crate::{
-    feature::EngineReq,
+    feature::{EngineReq, Feature, Set},
     sigbytes::{AppendSigBytes, SigBytes},
     util::Range,
 };
@@ -368,7 +368,41 @@ impl AppendSigBytes for AnyBytes {
     }
 }
 
-impl EngineReq for Pattern {}
+impl EngineReq for Pattern {
+    fn features(&self) -> Set {
+        let has_negated_byte = match self {
+            Self::String(bytes, _) => match_bytes_has_negated_byte(bytes),
+            Self::AnchoredByte { byte, string, .. } => {
+                match_byte_is_negated(*byte) || match_bytes_has_negated_byte(string)
+            }
+            Self::AlternativeStrings(strings) => {
+                let data = strings
+                    .fixed_width()
+                    .map(|(_, _, data)| data)
+                    .or_else(|| strings.generic().map(|(_, data)| data));
+                data.is_some_and(match_bytes_has_negated_byte)
+            }
+            Self::ByteRange(_) | Self::Wildcard => false,
+        };
+
+        if has_negated_byte {
+            Set::from_static(&[Feature::HexByteNegation])
+        } else {
+            Set::default()
+        }
+    }
+}
+
+fn match_bytes_has_negated_byte(bytes: &MatchBytes) -> bool {
+    bytes.bytes().iter().copied().any(match_byte_is_negated)
+}
+
+fn match_byte_is_negated(byte: MatchByte) -> bool {
+    matches!(
+        byte,
+        MatchByte::NotFull(_) | MatchByte::NotLowNyble(_) | MatchByte::NotHighNyble(_)
+    )
+}
 
 #[cfg(test)]
 mod tests {
@@ -421,5 +455,20 @@ mod tests {
         assert_eq!(byte, &MatchByte::Full(0xaa));
         assert_eq!(range, &(1..=4));
         assert_eq!(string.to_string(), "7a6970");
+    }
+
+    #[test]
+    fn negated_bytes_require_flevel_240() {
+        let pattern = Pattern::String(
+            vec![MatchByte::Full(0xaa), MatchByte::NotFull(0x00)].into(),
+            BitFlags::empty(),
+        );
+
+        assert_eq!(
+            pattern
+                .computed_feature_level()
+                .and_then(|range| range.start()),
+            Some(240)
+        );
     }
 }

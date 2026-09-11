@@ -190,8 +190,7 @@ impl Verifier {
             Ok(()) => Ok(signer_names.join(", ")),
             Err(error) if openssl_error_looks_untrusted(&error) => {
                 log::debug!(
-                    "signature could not be verified by cert store {certs_directory}: {error}",
-                    certs_directory = self.certs_directory.display()
+                    "signature could not be verified by the configured certificate store: {error}"
                 );
                 Err(Error::NoTrustedSigner)
             }
