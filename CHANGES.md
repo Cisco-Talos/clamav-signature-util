@@ -8,6 +8,30 @@
 > - Fixed: 🐛
 > - Security: 🛡
 
+## Version 2.0.0
+
+➕Expose typed, borrowed accessors for parsed signature data used by downstream Rust loaders, including body patterns, logical expressions and target descriptors, PCRE subsignatures, byte comparisons, CDB metadata, file-type magic, PE hashes, phishing signatures, digital signatures, and fuzzy-image subsignatures.
+
+➕Add support for `.fp` and `.sfp` false-positive file-hash signatures and `.imp` PE import-hash signatures.
+
+➕Add reusable ClamAV-compatible PKCS#7 detached signing and verification helpers.
+
+➕Parse YARA-compatible negated hex body-signature tokens.
+
+➕Accept valid current ClamAV `daily` and `main` signatures using wildcard-heavy body patterns, open-ended ranges, alternative-string anchors, target-only descriptors, and PCRE fields containing semicolons or inner slashes.
+
+🌌Add the default-on `codesign` feature so parser-only consumers can disable the OpenSSL dependency with `default-features = false`.
+
+🌌Move unsupported-signature diagnostics out of library parsing paths so library consumers receive structured errors and the CLI owns user-facing messages.
+
+🌌Add PE import-hash, false-positive-hash, and new parser feature metadata, including ClamAV-compatible FLEVEL and serialization behavior.
+
+🐛Return structured parse errors instead of panicking on invalid body signatures.
+
+🐛Fix byte-compare text lengths, negative hexadecimal comparisons, raw-binary extraction semantics, logical-expression modifier scope, PCRE field tokenization, CDB field ambiguity, FTM direct-memory round trips, and PE/hash FLEVEL validation.
+
+🛡Reject MD5 and SHA1 false-positive/trust hashes and enforce wildcard-size hash validation rules needed for safe publication and FIPS-compatible operation.
+
 ## Version 1.2.6
 
 ➕Support for Logical Signature Fuzzy Image Hash (`fuzzy_img#`) subsignatures.

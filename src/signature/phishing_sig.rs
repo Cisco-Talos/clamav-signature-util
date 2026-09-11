@@ -69,7 +69,7 @@ pub struct UrlRegexpPair {
 /// A Google Safe Browsing match type
 #[derive(Debug)]
 pub enum GSBMatchType {
-    /// "S:[PF]" type: malware sites
+    /// `S:[PF]` type: malware sites
     Malware,
     /// "S:W" type: local allow
     Allow,

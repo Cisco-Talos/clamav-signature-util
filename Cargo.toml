@@ -2,7 +2,11 @@
 authors = ["The ClamAV Team <clamav-bugs@external.cisco.com>"]
 edition = "2021"
 name = "clam-sigutil"
-version = "1.2.6"
+version = "2.0.0"
+description = "ClamAV signature parser, validator, renderer, and utility library."
+license = "GPL-2.0-only"
+repository = "https://github.com/Cisco-Talos/clamav-signature-util"
+readme = "README.md"
 
 [features]
 default = ["codesign"]

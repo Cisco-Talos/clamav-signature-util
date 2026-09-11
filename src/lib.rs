@@ -40,7 +40,7 @@ pub mod codesign;
 /// Regular expressions
 pub mod regexp;
 
-/// SigBytes (Vec<u8>) wrapper
+/// `SigBytes` (`Vec<u8>`) wrapper
 pub mod sigbytes;
 
 /// Engine signature parsing and examination

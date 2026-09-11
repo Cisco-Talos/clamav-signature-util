@@ -22,11 +22,11 @@ use thiserror::Error;
 /// Signature types
 #[derive(Debug, Clone, Copy)]
 pub enum SigType {
-    /// [Extended signature](crate::signature::ext::ExtendedSig)
+    /// [Extended signature](crate::signature::ext_sig::ExtendedSig)
     Extended,
     /// [Logical signature](crate::signature::logical_sig::LogicalSig)
     Logical,
-    /// [Container Metadata signature](crate::signature::container_metadata::ContainerMetadataSig)
+    /// [Container Metadata signature](crate::signature::container_metadata_sig::ContainerMetadataSig)
     ContainerMetadata,
     /// Bytecode signature
     Bytecode,
@@ -36,7 +36,7 @@ pub enum SigType {
     FileHash,
     /// [False Positive File Hash signature](crate::signature::false_positive_filehash::FalsePositiveFileHashSig)
     FalsePositiveFileHash,
-    /// [Filetype Magic signature](crate::signature::filetype_magic::FTMagic)
+    /// [Filetype Magic signature](crate::signature::ftmagic::FTMagicSig)
     FTMagic,
     /// [Portable Executable Section Hash signature](crate::signature::pehash::PESectionHashSig)
     PESectionHash,
@@ -44,7 +44,7 @@ pub enum SigType {
     PEImportHash,
     /// Yara signature
     Yara,
-    /// [Digital signature](crate::signature::digital_signature::DigitalSignature)
+    /// [Digital signature](crate::signature::digital_sig::DigitalSig)
     DigitalSignature,
 }
 
