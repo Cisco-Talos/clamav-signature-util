@@ -30,7 +30,7 @@
 
 🐛Fix byte-compare text lengths, negative hexadecimal comparisons, raw-binary extraction semantics, logical-expression modifier scope, PCRE field tokenization, CDB field ambiguity, FTM direct-memory round trips, and PE/hash FLEVEL validation.
 
-🛡Reject MD5 and SHA1 false-positive/trust hashes and enforce wildcard-size hash validation rules needed for safe publication and FIPS-compatible operation.
+🛡Reject MD5 and SHA1 false-positive/trust hashes to prevent unsafe publication; enforce ClamAV wildcard-size alerting-hash FLEVEL rules.
 
 ## Version 1.2.6
 

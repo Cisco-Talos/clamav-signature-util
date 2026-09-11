@@ -70,24 +70,11 @@ impl Signature for FalsePositiveFileHashSig {
                     ),
                 ));
             }
-            Hash::Sha2_256(_) if self.file_size.is_none() => {
-                // Wildcard SHA-256 hashes are only allowed for ClamAV 1.5.0
-                // and newer.
-                if sigmeta
-                    .f_level
-                    .as_ref()
-                    .and_then(util::Range::start)
-                    .unwrap_or(0)
-                    < 230
-                {
-                    return Err(super::SigValidationError::HashSig(
-                        ValidationError::HashSig(
-                            "SHA2-256 hashes with unknown file size require a minimum feature level of at least 230".to_string(),
-                        ),
-                    ));
-                }
+            Hash::Sha2_256(_) => {
+                // False-positive hashes are calculated only after an alert,
+                // so wildcard SHA-256 hashes do not require the ordinary
+                // alerting-hash flevel floor.
             }
-            Hash::Sha2_256(_) => {}
         }
 
         self.validate_flevel(sigmeta)?;
@@ -431,38 +418,8 @@ mod tests {
     }
 
     #[test]
-    fn sha256_unknown_size_min_flevel_too_low_for_wildcard() {
-        let bytes = b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_min_flevel_too_low_for_wildcard:74".into();
-        let (sig, sig_meta) = FalsePositiveFileHashSig::from_sigbytes(&bytes).unwrap();
-        let sig = sig.downcast_ref::<FalsePositiveFileHashSig>().unwrap();
-        assert_eq!(
-            sig.name,
-            "sha256_unknown_size_min_flevel_too_low_for_wildcard"
-        );
-        assert_eq!(sig.file_size, None);
-        assert_eq!(
-            sig.hash,
-            util::Hash::Sha2_256(hex!(
-                "71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495"
-            ))
-        );
-
-        // Parsing succeeds, but wildcard SHA-256 signatures require min flevel 230.
-        let validate_result = sig.validate(&sig_meta);
-        assert!(validate_result.is_err());
-
-        let exported = sig.to_sigbytes().unwrap();
-        assert_eq!(
-            &SigBytes::from(
-                "71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_min_flevel_too_low_for_wildcard"
-            ),
-            &exported
-        );
-    }
-
-    #[test]
     fn sha256_unknown_size_min_flevel_good() {
-        let bytes = b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_min_flevel_good:230".into();
+        let bytes = b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_min_flevel_good:74".into();
         let (sig, sig_meta) = FalsePositiveFileHashSig::from_sigbytes(&bytes).unwrap();
         let sig = sig.downcast_ref::<FalsePositiveFileHashSig>().unwrap();
         assert_eq!(sig.name, "sha256_unknown_size_min_flevel_good");
@@ -474,7 +431,34 @@ mod tests {
             ))
         );
 
-        // Should have correctly parsed wildcard file size sig because min flevel >= 230 is present
+        // Parsing and validation succeed because min flevel >= 73 is present.
+        let validate_result = sig.validate(&sig_meta);
+        assert!(validate_result.is_ok());
+
+        let exported = sig.to_sigbytes().unwrap();
+        assert_eq!(
+            &SigBytes::from(
+                "71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_min_flevel_good"
+            ),
+            &exported
+        );
+    }
+
+    #[test]
+    fn sha256_unknown_size_min_flevel_also_good() {
+        let bytes = b"71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495:*:sha256_unknown_size_min_flevel_also_good:75".into();
+        let (sig, sig_meta) = FalsePositiveFileHashSig::from_sigbytes(&bytes).unwrap();
+        let sig = sig.downcast_ref::<FalsePositiveFileHashSig>().unwrap();
+        assert_eq!(sig.name, "sha256_unknown_size_min_flevel_also_good");
+        assert_eq!(sig.file_size, None);
+        assert_eq!(
+            sig.hash,
+            util::Hash::Sha2_256(hex!(
+                "71e7b604d18aefd839e51a39c88df8383bb4c071dc31f87f00a2b5df580d4495"
+            ))
+        );
+
+        // Should have correctly parsed wildcard file size sig because min flevel >= 73 is present
         let validate_result = sig.validate(&sig_meta);
         assert!(validate_result.is_ok());
     }
