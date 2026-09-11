@@ -633,6 +633,7 @@ mod tests {
         let sig = sig.downcast_ref::<LogicalSig>().unwrap();
 
         assert_eq!(3, sig.sub_sigs().len());
+        assert_eq!(input, sig.to_sigbytes().unwrap());
     }
 
     #[test]

@@ -28,7 +28,7 @@
 
 🐛Return structured parse errors instead of panicking on invalid body signatures.
 
-🐛Fix byte-compare text lengths, negative hexadecimal comparisons, raw-binary extraction semantics, logical-expression modifier scope, PCRE field tokenization, CDB field ambiguity, FTM direct-memory round trips, and PE/hash FLEVEL validation.
+🐛Fix byte-compare text lengths, negative hexadecimal comparisons, raw-binary extraction semantics, logical-expression modifier scope and round trips, PCRE field tokenization, CDB field ambiguity, FTM direct-memory round trips, and PE/hash FLEVEL validation.
 
 🛡Reject MD5 and SHA1 false-positive/trust hashes to prevent unsafe publication; enforce ClamAV wildcard-size alerting-hash FLEVEL rules.
 

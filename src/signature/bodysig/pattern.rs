@@ -58,6 +58,12 @@ pub enum Pattern {
     /// `{n-}` or `{n-m}` to match inclusive or open-ended ranges.
     ByteRange(Range<usize>),
 
+    /// A square-bracket range normalized to an ordinary byte range by a
+    /// logical `wide` or `fullword` modifier.  It has ordinary byte-range
+    /// matching semantics, but retains its source representation for
+    /// round-trip serialization.
+    BracketRange(Range<usize>),
+
     /// An unbounded range of bytes (represented as `*`)
     Wildcard,
 }
@@ -199,7 +205,10 @@ impl Pattern {
     /// beginning of a signature)
     #[must_use]
     pub fn is_wildcard(&self) -> bool {
-        matches!(self, Pattern::Wildcard | Pattern::ByteRange(..))
+        matches!(
+            self,
+            Pattern::Wildcard | Pattern::ByteRange(..) | Pattern::BracketRange(..)
+        )
     }
 
     #[must_use]
@@ -241,7 +250,7 @@ impl Pattern {
     #[must_use]
     pub fn byte_range(&self) -> Option<&Range<usize>> {
         match self {
-            Self::ByteRange(range) => Some(range),
+            Self::ByteRange(range) | Self::BracketRange(range) => Some(range),
             _ => None,
         }
     }
@@ -250,7 +259,7 @@ impl Pattern {
     pub fn is_unbounded_wildcard(&self) -> bool {
         match self {
             Self::Wildcard => true,
-            Self::ByteRange(range) => range.max().is_none(),
+            Self::ByteRange(range) | Self::BracketRange(range) => range.max().is_none(),
             _ => false,
         }
     }
@@ -281,6 +290,7 @@ impl std::fmt::Debug for Pattern {
                 .field("string", string)
                 .finish(),
             Self::ByteRange(arg0) => f.debug_tuple("Range").field(arg0).finish(),
+            Self::BracketRange(arg0) => f.debug_tuple("BracketRange").field(arg0).finish(),
             Self::AlternativeStrings(arg0) => f.debug_tuple("AltStrs").field(arg0).finish(),
         }
     }
@@ -313,6 +323,11 @@ impl AppendSigBytes for Pattern {
                 sb.write_char('{')?;
                 range.append_sigbytes(sb)?;
                 sb.write_char('}')?;
+            }
+            Pattern::BracketRange(range) => {
+                sb.write_char('[')?;
+                range.append_sigbytes(sb)?;
+                sb.write_char(']')?;
             }
             Pattern::AlternativeStrings(astrs) => match astrs {
                 AlternativeStrings::FixedWidth {
@@ -382,7 +397,7 @@ impl EngineReq for Pattern {
                     .or_else(|| strings.generic().map(|(_, data)| data));
                 data.is_some_and(match_bytes_has_negated_byte)
             }
-            Self::ByteRange(_) | Self::Wildcard => false,
+            Self::ByteRange(_) | Self::BracketRange(_) | Self::Wildcard => false,
         };
 
         if has_negated_byte {

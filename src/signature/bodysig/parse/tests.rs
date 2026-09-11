@@ -370,7 +370,7 @@ fn raw_bracket_range_between_strings_stays_anchored_byte() {
 }
 
 #[test]
-fn wide_logical_modifier_turns_bracket_range_into_generic_byte_range() {
+fn wide_logical_modifier_normalizes_bracket_range_without_losing_source_syntax() {
     let sig = parse_with_logical_modifier(b"0001[2-4]0203*e0f0".as_slice(), true, false).unwrap();
 
     assert_eq!(
@@ -378,7 +378,7 @@ fn wide_logical_modifier_turns_bracket_range_into_generic_byte_range() {
         BodySig {
             patterns: vec![
                 Pattern::String(hex!("0001").into(), PatternModifier::empty()),
-                Pattern::ByteRange((2..=4).into()),
+                Pattern::BracketRange((2..=4).into()),
                 Pattern::String(hex!("0203").into(), PatternModifier::empty()),
                 Pattern::Wildcard,
                 Pattern::String(hex!("e0f0").into(), PatternModifier::empty()),
